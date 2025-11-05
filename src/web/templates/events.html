@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Events - Arcane Arsenal{% endblock %}
+
+{% block content %}
+<h2>Event Log</h2>
+
+<div class="filters">
+    <form method="get">
+        <label>
+            Event Type:
+            <select name="type" onchange="this.form.submit()">
+                <option value="">All Types</option>
+                {% for type in event_types %}
+                    <option value="{{ type }}" {% if type == current_type %}selected{% endif %}>
+                        {{ type }}
+                    </option>
+                {% endfor %}
+            </select>
+        </label>
+
+        <label>
+            Limit:
+            <select name="limit" onchange="this.form.submit()">
+                <option value="20" {% if limit == 20 %}selected{% endif %}>20</option>
+                <option value="50" {% if limit == 50 %}selected{% endif %}>50</option>
+                <option value="100" {% if limit == 100 %}selected{% endif %}>100</option>
+            </select>
+        </label>
+    </form>
+</div>
+
+{% if events %}
+    <div class="event-list">
+        {% for item in events %}
+        <div class="event-card">
+            <div class="event-header">
+                <span class="timestamp">{{ item.event.timestamp }}</span>
+                <span class="event-type">{{ item.event.event_type }}</span>
+            </div>
+            <div class="event-body">
+                {% if item.entity_name %}
+                    <p><strong>Entity:</strong>
+                        <a href="/entity/{{ item.event.entity_id }}">{{ item.entity_name }}</a>
+                        <code>({{ item.event.entity_id }})</code>
+                    </p>
+                {% endif %}
+                {% if item.event.actor_id %}
+                    <p><strong>Actor:</strong> <code>{{ item.event.actor_id }}</code></p>
+                {% endif %}
+                <p><strong>Data:</strong></p>
+                <pre>{{ item.event.data | tojson(indent=2) }}</pre>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <p>No events found.</p>
+{% endif %}
+{% endblock %}
