@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}{{ entity.name }} - Arcane Arsenal{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+    <a href="/">Entities</a> / {{ entity.name }}
+</div>
+
+<h2>{{ entity.name }}</h2>
+
+<div class="entity-info">
+    <p><strong>ID:</strong> <code>{{ entity.id }}</code></p>
+    <p><strong>Created:</strong> {{ entity.created_at }}</p>
+    <p><strong>Modified:</strong> {{ entity.modified_at }}</p>
+    {% if not entity.is_active() %}
+        <p class="deleted"><strong>Status:</strong> DELETED</p>
+    {% endif %}
+</div>
+
+{% if components %}
+<section class="components">
+    <h3>Components</h3>
+    {% for type, data in components.items() %}
+        <div class="component-card">
+            <h4>{{ type }}</h4>
+            <pre>{{ data | tojson(indent=2) }}</pre>
+        </div>
+    {% endfor %}
+</section>
+{% endif %}
+
+{% if outgoing or incoming %}
+<section class="relationships">
+    <h3>Relationships</h3>
+
+    {% if outgoing %}
+    <div class="relationship-group">
+        <h4>Outgoing</h4>
+        <ul>
+            {% for item in outgoing %}
+            <li>
+                <code>{{ entity.name }}</code>
+                → <strong>{{ item.rel.relationship_type }}</strong> →
+                <a href="/entity/{{ item.other.id }}">{{ item.other.name }}</a>
+                {% if item.rel.metadata %}
+                    <pre class="metadata">{{ item.rel.metadata | tojson }}</pre>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    {% if incoming %}
+    <div class="relationship-group">
+        <h4>Incoming</h4>
+        <ul>
+            {% for item in incoming %}
+            <li>
+                <a href="/entity/{{ item.other.id }}">{{ item.other.name }}</a>
+                → <strong>{{ item.rel.relationship_type }}</strong> →
+                <code>{{ entity.name }}</code>
+                {% if item.rel.metadata %}
+                    <pre class="metadata">{{ item.rel.metadata | tojson }}</pre>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</section>
+{% endif %}
+
+{% if events %}
+<section class="events">
+    <h3>Recent Events</h3>
+    <ul>
+        {% for event in events %}
+        <li>
+            <span class="timestamp">{{ event.timestamp }}</span>
+            <strong>{{ event.event_type }}</strong>
+            {% if event.actor_id %}
+                <span class="actor">by {{ event.actor_id }}</span>
+            {% endif %}
+            <pre class="event-data">{{ event.data | tojson }}</pre>
+        </li>
+        {% endfor %}
+    </ul>
+</section>
+{% endif %}
+{% endblock %}

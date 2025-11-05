@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Entities - Arcane Arsenal{% endblock %}
+
+{% block content %}
+<h2>Entities</h2>
+
+<div class="entity-list">
+    {% if entities %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>ID</th>
+                    <th>Components</th>
+                    <th>Tags</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in entities %}
+                <tr>
+                    <td>
+                        <a href="/entity/{{ item.entity.id }}">
+                            {{ item.entity.name }}
+                        </a>
+                    </td>
+                    <td><code>{{ item.entity.id }}</code></td>
+                    <td>
+                        {% for comp in item.components %}
+                            <span class="badge">{{ comp }}</span>
+                        {% endfor %}
+                    </td>
+                    <td>
+                        {% for tag in item.tags %}
+                            <span class="tag">{{ tag }}</span>
+                        {% endfor %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No entities found.</p>
+    {% endif %}
+</div>
+{% endblock %}
