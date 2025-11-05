@@ -5,6 +5,24 @@
 {% block content %}
 <h2>Entities</h2>
 
+<div class="action-section">
+    <button class="btn btn-primary" onclick="toggleForm('create-entity-form')">+ Create Entity</button>
+
+    <div id="create-entity-form" class="form-card" style="display: none;">
+        <h3>Create New Entity</h3>
+        <form method="POST" action="/entity/create">
+            <div class="form-group">
+                <label for="name">Entity Name:</label>
+                <input type="text" id="name" name="name" required placeholder="Enter entity name">
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Create</button>
+                <button type="button" class="btn btn-secondary" onclick="toggleForm('create-entity-form')">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div class="entity-list">
     {% if entities %}
         <table>
@@ -43,4 +61,15 @@
         <p>No entities found.</p>
     {% endif %}
 </div>
+
+<script>
+function toggleForm(formId) {
+    const form = document.getElementById(formId);
+    if (form.style.display === 'none') {
+        form.style.display = 'block';
+    } else {
+        form.style.display = 'none';
+    }
+}
+</script>
 {% endblock %}
