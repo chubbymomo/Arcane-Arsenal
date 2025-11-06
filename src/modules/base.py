@@ -149,6 +149,52 @@ class ComponentTypeDefinition(ABC):
         # Default: no UI metadata (will fall back to JSON textarea)
         return {}
 
+    def get_character_sheet_config(self) -> Dict[str, Any]:
+        """
+        Optional: Declare how this component appears on character sheets.
+
+        Override this to control whether and how this component appears on
+        character sheets. The category must be a registered value in the
+        'character_sheet_categories' registry.
+
+        Returns:
+            Dict with character sheet configuration
+
+        Example:
+            {
+                "visible": True,              # Should appear on character sheets
+                "category": "combat",         # Category (validated against registry)
+                "priority": 10,               # Display order within category (lower = higher)
+                "display_mode": "full",       # "full", "compact", or "inline"
+                "icon": "shield"              # Optional icon identifier
+            }
+
+        Configuration keys:
+            - visible (bool): Whether to show on character sheets (default: True)
+            - category (str): Category key from character_sheet_categories registry
+                            (default: "misc")
+            - priority (int): Display order within category, lower numbers appear first
+                            (default: 100)
+            - display_mode (str): How to render the component
+                - "full": Complete display with all fields
+                - "compact": Condensed view
+                - "inline": Single-line display
+                (default: "full")
+            - icon (str): Optional icon identifier for UI (default: None)
+
+        Notes:
+            - Components with visible=False will not appear on character sheets
+            - Category must be registered in character_sheet_categories registry
+            - Components without this method default to misc category with low priority
+        """
+        # Default: visible in misc category with low priority
+        return {
+            "visible": True,
+            "category": "misc",
+            "priority": 100,
+            "display_mode": "full"
+        }
+
 
 class RelationshipTypeDefinition(ABC):
     """

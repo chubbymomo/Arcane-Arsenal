@@ -50,6 +50,39 @@ class HealthComponent(ComponentTypeDefinition):
             "required": ["current_hp", "max_hp"]
         }
 
+    def get_ui_metadata(self) -> Dict[str, Dict[str, Any]]:
+        return {
+            "current_hp": {
+                "label": "Current HP",
+                "widget": "number",
+                "order": 0,
+                "min": 0,
+                "help_text": "Current hit points"
+            },
+            "max_hp": {
+                "label": "Max HP",
+                "widget": "number",
+                "order": 1,
+                "min": 1,
+                "help_text": "Maximum hit points"
+            },
+            "temp_hp": {
+                "label": "Temporary HP",
+                "widget": "number",
+                "order": 2,
+                "min": 0,
+                "help_text": "Temporary hit points (lost first)"
+            }
+        }
+
+    def get_character_sheet_config(self) -> Dict[str, Any]:
+        return {
+            "visible": True,
+            "category": "core",
+            "priority": 5,
+            "display_mode": "full"
+        }
+
 
 class ArmorComponent(ComponentTypeDefinition):
     """
@@ -76,6 +109,32 @@ class ArmorComponent(ComponentTypeDefinition):
                 }
             },
             "required": ["armor_class"]
+        }
+
+    def get_ui_metadata(self) -> Dict[str, Dict[str, Any]]:
+        return {
+            "armor_class": {
+                "label": "Armor Class (AC)",
+                "widget": "number",
+                "order": 0,
+                "min": 0,
+                "help_text": "Total armor class"
+            },
+            "armor_type": {
+                "label": "Armor Type",
+                "widget": "select",
+                "order": 1,
+                "registry": "armor_types",
+                "help_text": "Type of armor worn"
+            }
+        }
+
+    def get_character_sheet_config(self) -> Dict[str, Any]:
+        return {
+            "visible": True,
+            "category": "combat",
+            "priority": 10,
+            "display_mode": "compact"
         }
 
     def validate_with_engine(self, data: Dict[str, Any], engine) -> bool:
@@ -143,6 +202,38 @@ class WeaponComponent(ComponentTypeDefinition):
                 }
             },
             "required": ["damage_dice", "damage_type"]
+        }
+
+    def get_ui_metadata(self) -> Dict[str, Dict[str, Any]]:
+        return {
+            "damage_dice": {
+                "label": "Damage Dice",
+                "widget": "text",
+                "order": 0,
+                "placeholder": "1d8+3",
+                "help_text": "Dice notation for damage (e.g., 1d8, 2d6+2)"
+            },
+            "damage_type": {
+                "label": "Damage Type",
+                "widget": "select",
+                "order": 1,
+                "registry": "damage_types",
+                "help_text": "Type of damage dealt"
+            },
+            "attack_bonus": {
+                "label": "Attack Bonus",
+                "widget": "number",
+                "order": 2,
+                "help_text": "Bonus to attack rolls"
+            }
+        }
+
+    def get_character_sheet_config(self) -> Dict[str, Any]:
+        return {
+            "visible": True,
+            "category": "combat",
+            "priority": 20,
+            "display_mode": "full"
         }
 
     def validate_with_engine(self, data: Dict[str, Any], engine) -> bool:

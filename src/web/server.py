@@ -434,30 +434,33 @@ def create_app(worlds_dir: str = 'worlds') -> Flask:
             )
 
             # Log roll.completed event
-            engine.publish_event(
-                event_type='roll.completed',
-                entity_id=entity_id,
-                data={
-                    'entity_id': entity_id,
-                    'notation': notation,
-                    'roll_type': roll_type,
-                    'purpose': label,
-                    'total': roll_result.total,
-                    'breakdown': roll_result.get_breakdown(),
-                    'advantage': roll_result.advantage,
-                    'disadvantage': roll_result.disadvantage,
-                    'natural_20': roll_result.natural_20,
-                    'natural_1': roll_result.natural_1,
-                    'dice_results': [
-                        {
-                            'expression': str(dr.expression),
-                            'rolls': dr.rolls,
-                            'total': dr.total
-                        }
-                        for dr in roll_result.dice_results
-                    ],
-                    'modifiers_applied': []  # TODO: Add modifier system
-                }
+            from src.core.models import Event
+            engine.event_bus.publish(
+                Event.create(
+                    event_type='roll.completed',
+                    entity_id=entity_id,
+                    data={
+                        'entity_id': entity_id,
+                        'notation': notation,
+                        'roll_type': roll_type,
+                        'purpose': label,
+                        'total': roll_result.total,
+                        'breakdown': roll_result.get_breakdown(),
+                        'advantage': roll_result.advantage,
+                        'disadvantage': roll_result.disadvantage,
+                        'natural_20': roll_result.natural_20,
+                        'natural_1': roll_result.natural_1,
+                        'dice_results': [
+                            {
+                                'expression': str(dr.expression),
+                                'rolls': dr.rolls,
+                                'total': dr.total
+                            }
+                            for dr in roll_result.dice_results
+                        ],
+                        'modifiers_applied': []  # TODO: Add modifier system
+                    }
+                )
             )
 
             # Return result
@@ -465,6 +468,288 @@ def create_app(worlds_dir: str = 'worlds') -> Flask:
                 'success': True,
                 'result': roll_result.to_dict()
             })
+
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
+    @app.route('/api/equipment/<entity_id>')
+    def api_equipment(entity_id: str):
+        """
+        JSON API: Get equipped items for an entity.
+
+        Returns:
+            {
+                "success": true,
+                "items": [
+                    {
+                        "entity": {...},
+                        "slot": "main_hand",
+                        "components": {...}
+                    },
+                    ...
+                ]
+            }
+        """
+        world_path = get_current_world_path()
+        if not world_path:
+            return jsonify({'error': 'No world selected', 'success': False}), 400
+
+        try:
+            engine = StateEngine(world_path)
+
+            # Get items module and equipment system
+            from src.modules.items import ItemsModule
+            from src.core.module_loader import ModuleLoader
+
+            # Load modules to get equipment system
+            loader = ModuleLoader(world_path)
+            modules = loader.load_modules(strategy='config')
+
+            # Find items module
+            items_module = None
+            for module in modules:
+                if module.name == 'items':
+                    items_module = module
+                    break
+
+            if not items_module:
+                return jsonify({
+                    'success': False,
+                    'error': 'Items module not loaded in this world'
+                }), 400
+
+            equipment_system = items_module.get_equipment_system()
+            equipped_items = equipment_system.get_equipped_items(entity_id)
+
+            return jsonify({
+                'success': True,
+                'items': [
+                    {
+                        'entity': item['entity'].to_dict(),
+                        'slot': item['slot'],
+                        'components': item['components']
+                    }
+                    for item in equipped_items
+                ]
+            })
+
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
+    @app.route('/api/inventory/<entity_id>')
+    def api_inventory(entity_id: str):
+        """
+        JSON API: Get inventory (all owned items) for an entity.
+
+        Returns:
+            {
+                "success": true,
+                "items": [
+                    {
+                        "entity": {...},
+                        "equipped": true/false,
+                        "components": {...}
+                    },
+                    ...
+                ]
+            }
+        """
+        world_path = get_current_world_path()
+        if not world_path:
+            return jsonify({'error': 'No world selected', 'success': False}), 400
+
+        try:
+            engine = StateEngine(world_path)
+
+            # Get items module and equipment system
+            from src.core.module_loader import ModuleLoader
+
+            loader = ModuleLoader(world_path)
+            modules = loader.load_modules(strategy='config')
+
+            items_module = None
+            for module in modules:
+                if module.name == 'items':
+                    items_module = module
+                    break
+
+            if not items_module:
+                return jsonify({
+                    'success': False,
+                    'error': 'Items module not loaded in this world'
+                }), 400
+
+            equipment_system = items_module.get_equipment_system()
+            inventory = equipment_system.get_inventory(entity_id)
+
+            return jsonify({
+                'success': True,
+                'items': [
+                    {
+                        'entity': item['entity'].to_dict(),
+                        'equipped': item['equipped'],
+                        'components': item['components']
+                    }
+                    for item in inventory
+                ]
+            })
+
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
+    @app.route('/api/equip', methods=['POST'])
+    def api_equip_item():
+        """
+        JSON API: Equip an item.
+
+        Request JSON:
+            {
+                "character_id": "entity_123",
+                "item_id": "entity_456"
+            }
+
+        Returns:
+            {
+                "success": true,
+                "data": {
+                    "character_id": "...",
+                    "item_id": "...",
+                    "slot": "main_hand"
+                }
+            }
+        """
+        world_path = get_current_world_path()
+        if not world_path:
+            return jsonify({'error': 'No world selected', 'success': False}), 400
+
+        try:
+            data = request.get_json()
+            character_id = data.get('character_id')
+            item_id = data.get('item_id')
+
+            if not character_id or not item_id:
+                return jsonify({
+                    'success': False,
+                    'error': 'Missing required fields: character_id, item_id'
+                }), 400
+
+            engine = StateEngine(world_path)
+
+            # Get equipment system
+            from src.core.module_loader import ModuleLoader
+
+            loader = ModuleLoader(world_path)
+            modules = loader.load_modules(strategy='config')
+
+            items_module = None
+            for module in modules:
+                if module.name == 'items':
+                    items_module = module
+                    break
+
+            if not items_module:
+                return jsonify({
+                    'success': False,
+                    'error': 'Items module not loaded in this world'
+                }), 400
+
+            equipment_system = items_module.get_equipment_system()
+            result = equipment_system.equip_item(character_id, item_id)
+
+            if result.success:
+                return jsonify({
+                    'success': True,
+                    'data': result.data
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': result.error
+                }), 400
+
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
+    @app.route('/api/unequip', methods=['POST'])
+    def api_unequip_item():
+        """
+        JSON API: Unequip an item.
+
+        Request JSON:
+            {
+                "character_id": "entity_123",
+                "item_id": "entity_456"
+            }
+
+        Returns:
+            {
+                "success": true,
+                "data": {
+                    "character_id": "...",
+                    "item_id": "..."
+                }
+            }
+        """
+        world_path = get_current_world_path()
+        if not world_path:
+            return jsonify({'error': 'No world selected', 'success': False}), 400
+
+        try:
+            data = request.get_json()
+            character_id = data.get('character_id')
+            item_id = data.get('item_id')
+
+            if not character_id or not item_id:
+                return jsonify({
+                    'success': False,
+                    'error': 'Missing required fields: character_id, item_id'
+                }), 400
+
+            engine = StateEngine(world_path)
+
+            # Get equipment system
+            from src.core.module_loader import ModuleLoader
+
+            loader = ModuleLoader(world_path)
+            modules = loader.load_modules(strategy='config')
+
+            items_module = None
+            for module in modules:
+                if module.name == 'items':
+                    items_module = module
+                    break
+
+            if not items_module:
+                return jsonify({
+                    'success': False,
+                    'error': 'Items module not loaded in this world'
+                }), 400
+
+            equipment_system = items_module.get_equipment_system()
+            result = equipment_system.unequip_item(character_id, item_id)
+
+            if result.success:
+                return jsonify({
+                    'success': True,
+                    'data': result.data
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': result.error
+                }), 400
 
         except Exception as e:
             return jsonify({

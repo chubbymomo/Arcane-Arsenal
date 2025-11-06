@@ -49,3 +49,23 @@ class IdentityComponent(ComponentTypeDefinition):
             "required": ["description"],
             "additionalProperties": False
         }
+
+    def get_ui_metadata(self) -> Dict[str, Dict[str, Any]]:
+        """Return UI metadata for identity fields."""
+        return {
+            "description": {
+                "label": "Description",
+                "widget": "textarea",
+                "order": 0,
+                "help_text": "Character description and backstory"
+            }
+        }
+
+    def get_character_sheet_config(self) -> Dict[str, Any]:
+        """Identity appears in the INFO category."""
+        return {
+            "visible": True,
+            "category": "info",
+            "priority": 10,
+            "display_mode": "full"
+        }

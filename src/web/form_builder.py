@@ -382,14 +382,20 @@ class FormBuilder:
         """
         Categorize a component for character sheet layout.
 
+        Uses component's get_character_sheet_config() to get category.
+        Falls back to legacy heuristics if component definition not found.
+
         Categories:
-        - CORE: Essential stats (Attributes, Health, CharacterDetails)
-        - COMBAT: Combat-related (Weapons, Armor, Attack bonuses)
-        - SKILLS: Skills and proficiencies
-        - RESOURCES: Spell slots, Ki points, etc.
-        - INVENTORY: Items, equipment
-        - INFO: Background, notes, description
-        - MISC: Everything else
+        - core: Essential stats (Attributes, Health, CharacterDetails)
+        - combat: Combat-related (Weapons, Armor, Attack bonuses)
+        - skills: Skills and proficiencies
+        - resources: Spell slots, Ki points, etc.
+        - equipment: Equipped items
+        - inventory: Carried items
+        - spells: Spellcasting components
+        - features: Class/race features
+        - info: Background, notes, description
+        - misc: Everything else
 
         Args:
             component_type: Name of component type
@@ -398,6 +404,15 @@ class FormBuilder:
         Returns:
             Category string
         """
+        # Try to get component definition and use its declared category
+        comp_def = self._get_component_definition(component_type)
+        if comp_def:
+            config = comp_def.get_character_sheet_config()
+            category = config.get('category', 'misc')
+            # Normalize to uppercase for backward compatibility with templates
+            return category.upper()
+
+        # Fallback: Legacy heuristics for components without definitions
         # Core types - essential stats and attributes
         core_types = {'Attributes', 'CharacterDetails', 'health', 'Health'}
         if component_type in core_types:

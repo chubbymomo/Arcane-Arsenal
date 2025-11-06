@@ -133,6 +133,15 @@ class AttributesComponent(ComponentTypeDefinition):
             }
         }
 
+    def get_character_sheet_config(self) -> Dict[str, Any]:
+        """Attributes appear prominently in the CORE category."""
+        return {
+            "visible": True,
+            "category": "core",
+            "priority": 1,
+            "display_mode": "full"
+        }
+
     @staticmethod
     def calculate_modifier(score: int) -> int:
         """
