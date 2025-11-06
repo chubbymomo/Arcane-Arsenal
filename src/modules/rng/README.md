@@ -14,6 +14,71 @@ The RNG module provides a complete dice rolling system with support for standard
 - ✅ **Seeded Random** - Deterministic rolls for testing and combat replay
 - ✅ **Comprehensive Tests** - 24 passing tests covering all functionality
 
+## Roll Type Registry
+
+**Important for AI Agents:** Roll types are NOT free-form strings. They must be registered by modules.
+
+### Core Roll Types
+
+The RNG module registers these core roll types:
+- `attack` - Attack roll to hit a target (combat)
+- `damage` - Damage roll after successful hit (combat)
+- `saving_throw` - Save against effects (saving_throw)
+- `skill_check` - Skill-based check (skill)
+- `ability_check` - Raw ability check (ability)
+- `initiative` - Turn order determination (combat)
+
+### Querying Valid Roll Types
+
+```python
+# Get all registered roll types
+roll_types = engine.storage.get_roll_types()
+
+# Via API (for AI agents)
+GET /api/roll_types
+# Returns: {"roll_types": [{"type": "attack", "description": "...", "category": "combat", ...}, ...]}
+```
+
+### Registering Custom Roll Types
+
+Modules can register additional roll types:
+
+```python
+from src.modules.base import Module, RollTypeDefinition
+
+class SkillsModule(Module):
+    def register_roll_types(self):
+        return [
+            RollTypeDefinition(
+                type='stealth_check',
+                description='Stealth skill check',
+                module='skills',
+                category='skill'
+            ),
+            RollTypeDefinition(
+                type='perception_check',
+                description='Perception skill check',
+                module='skills',
+                category='skill'
+            )
+        ]
+```
+
+### Validation
+
+Invalid roll types are **rejected**:
+
+```python
+# This will be rejected - no event emitted
+engine.event_bus.publish(Event.create(
+    event_type='roll.requested',
+    data={
+        'roll_type': 'made_up_type',  # ❌ Not registered!
+        ...
+    }
+))
+```
+
 ## Components
 
 ### Luck Component

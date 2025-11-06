@@ -109,6 +109,15 @@ class StateEngine:
                     event_type.module
                 )
 
+            # Register roll types to database
+            for roll_type in module.register_roll_types():
+                self.storage.register_roll_type(
+                    roll_type.type,
+                    roll_type.description,
+                    roll_type.module,
+                    roll_type.category
+                )
+
             # Call module's initialize hook
             try:
                 module.initialize(self)

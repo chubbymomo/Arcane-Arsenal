@@ -32,13 +32,13 @@ class LuckComponent(ComponentTypeDefinition):
                 },
                 "advantage_on": {
                     "type": "array",
-                    "description": "Roll types that get advantage (e.g., ['attack', 'saving_throw'])",
+                    "description": "Roll types that get advantage. Must be registered roll types (see engine.storage.get_roll_types())",
                     "items": {"type": "string"},
                     "default": []
                 },
                 "disadvantage_on": {
                     "type": "array",
-                    "description": "Roll types that get disadvantage",
+                    "description": "Roll types that get disadvantage. Must be registered roll types",
                     "items": {"type": "string"},
                     "default": []
                 },
@@ -89,7 +89,7 @@ class RollModifierComponent(ComponentTypeDefinition):
             "properties": {
                 "modifier_type": {
                     "type": "string",
-                    "description": "What this modifier affects (attack, damage, saving_throw, skill_check, etc.)",
+                    "description": "What this modifier affects. Must be a registered roll type (see engine.storage.get_roll_types())",
                     "examples": ["attack", "damage", "saving_throw", "skill_check", "initiative"]
                 },
                 "bonus": {

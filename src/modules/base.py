@@ -144,6 +144,42 @@ class EventTypeDefinition:
         self.data_schema = data_schema or {}
 
 
+class RollTypeDefinition:
+    """
+    Defines a valid roll type for the RNG system.
+
+    Roll types are enumerated values that modules can register to define
+    what kinds of rolls are valid. This prevents AI from generating invalid
+    roll type strings and provides a clear contract.
+
+    Attributes:
+        type: Unique identifier for this roll type (e.g., 'attack', 'skill_check')
+        description: Human-readable description
+        module: Which module provides this type
+        category: Optional grouping (e.g., 'combat', 'skill', 'saving_throw')
+
+    Examples:
+        RollTypeDefinition('attack', 'Attack roll to hit a target', 'rng', 'combat')
+        RollTypeDefinition('stealth_check', 'Stealth skill check', 'skills', 'skill')
+    """
+
+    def __init__(self, type: str, description: str, module: str,
+                 category: str = None):
+        """
+        Initialize roll type definition.
+
+        Args:
+            type: Roll type identifier (e.g., 'attack', 'damage')
+            description: Human-readable description
+            module: Which module provides this
+            category: Optional category for grouping
+        """
+        self.type = type
+        self.description = description
+        self.module = module
+        self.category = category or 'general'
+
+
 class Module(ABC):
     """
     Base class for all modules.
@@ -266,6 +302,25 @@ class Module(ABC):
             return [
                 EventTypeDefinition('item.used', 'Item was used', 'inventory'),
                 EventTypeDefinition('damage.taken', 'Entity took damage', 'combat')
+            ]
+        """
+        return []
+
+    def register_roll_types(self) -> List[RollTypeDefinition]:
+        """
+        Return roll types this module provides.
+
+        Roll types define valid values for roll_type in the RNG system.
+        This prevents AI from generating invalid roll type strings.
+
+        Returns:
+            List of RollTypeDefinition instances
+
+        Example:
+            return [
+                RollTypeDefinition('attack', 'Attack roll to hit', 'combat', 'combat'),
+                RollTypeDefinition('damage', 'Damage roll', 'combat', 'combat'),
+                RollTypeDefinition('stealth_check', 'Stealth skill check', 'skills', 'skill')
             ]
         """
         return []

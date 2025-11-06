@@ -423,5 +423,88 @@ class TestRNGModule:
         )
 
 
+    def test_roll_type_validation(self, temp_world):
+        """Test that invalid roll types are rejected."""
+        engine = StateEngine.initialize_world(
+            world_path=temp_world,
+            world_name="Test World",
+            modules=['rng']
+        )
+
+        # Create test entity
+        result = engine.create_entity("Test Character")
+        assert result.success
+        entity_id = result.data['id']
+
+        # Subscribe to results
+        results = []
+
+        def capture_result(event: Event):
+            results.append(event)
+
+        engine.event_bus.subscribe('roll.completed', capture_result)
+
+        # Request roll with INVALID roll_type
+        engine.event_bus.publish(Event.create(
+            event_type='roll.requested',
+            entity_id=entity_id,
+            actor_id=entity_id,
+            data={
+                'entity_id': entity_id,
+                'notation': '1d20',
+                'roll_type': 'invalid_type_not_registered',  # Invalid!
+                'purpose': 'Test'
+            }
+        ))
+
+        # Roll should be rejected - no result event
+        assert len(results) == 0
+
+        # Request roll with VALID roll_type
+        engine.event_bus.publish(Event.create(
+            event_type='roll.requested',
+            entity_id=entity_id,
+            actor_id=entity_id,
+            data={
+                'entity_id': entity_id,
+                'notation': '1d20',
+                'roll_type': 'attack',  # Valid!
+                'purpose': 'Test'
+            }
+        ))
+
+        # Valid roll should succeed
+        assert len(results) == 1
+        assert results[0].data['roll_type'] == 'attack'
+
+    def test_get_roll_types(self, temp_world):
+        """Test getting registered roll types."""
+        engine = StateEngine.initialize_world(
+            world_path=temp_world,
+            world_name="Test World",
+            modules=['rng']
+        )
+
+        # Get all roll types
+        roll_types = engine.storage.get_roll_types()
+
+        # Should have core roll types from RNG module
+        type_names = {rt['type'] for rt in roll_types}
+        assert 'attack' in type_names
+        assert 'damage' in type_names
+        assert 'saving_throw' in type_names
+        assert 'skill_check' in type_names
+        assert 'initiative' in type_names
+        assert 'ability_check' in type_names
+
+        # Check they have proper structure
+        for rt in roll_types:
+            assert 'type' in rt
+            assert 'description' in rt
+            assert 'module' in rt
+            assert 'category' in rt
+            assert rt['module'] == 'rng'
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

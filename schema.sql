@@ -28,6 +28,14 @@ CREATE TABLE event_types (
     created_at TIMESTAMP NOT NULL
 );
 
+CREATE TABLE roll_types (
+    type TEXT PRIMARY KEY,
+    description TEXT,
+    module TEXT,
+    category TEXT,  -- For grouping: 'combat', 'skill', 'saving_throw', etc.
+    created_at TIMESTAMP NOT NULL
+);
+
 -- ============================================================================
 -- CORE DATA TABLES
 -- ============================================================================

@@ -133,6 +133,14 @@ def create_app(worlds_dir: str = 'worlds') -> Flask:
         modules = loader.discover_available_modules()
         return jsonify({'modules': modules})
 
+    @app.route('/api/roll_types')
+    @require_world
+    def api_roll_types():
+        """JSON API: Get all registered roll types."""
+        engine = get_engine()
+        roll_types = engine.storage.get_roll_types()
+        return jsonify({'roll_types': roll_types})
+
     @app.route('/create_world', methods=['POST'])
     def create_world():
         """Create a new world with selected modules."""

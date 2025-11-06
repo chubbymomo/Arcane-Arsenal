@@ -33,7 +33,8 @@ from typing import List, Dict, Any, Optional
 from src.modules.base import (
     Module,
     ComponentTypeDefinition,
-    EventTypeDefinition
+    EventTypeDefinition,
+    RollTypeDefinition
 )
 from src.core.event_bus import Event
 from src.core.state_engine import StateEngine
@@ -42,6 +43,7 @@ from .components import LuckComponent, RollModifierComponent
 from .events import roll_requested_event, roll_completed_event
 from .roller import DiceRoller, RollResult
 from .dice_parser import DiceParser, DiceNotationError
+from .roll_types import core_roll_types
 
 
 class RNGModule(Module):
@@ -102,6 +104,10 @@ class RNGModule(Module):
             roll_completed_event()
         ]
 
+    def register_roll_types(self) -> List['RollTypeDefinition']:
+        """Register core roll types."""
+        return core_roll_types()
+
     def initialize(self, engine: StateEngine) -> None:
         """Initialize module - subscribe to roll requests."""
         self.engine = engine
@@ -139,6 +145,12 @@ class RNGModule(Module):
 
         if not entity_id or not notation or not roll_type:
             # Invalid request
+            return
+
+        # Validate roll_type is registered
+        registered_types = {rt['type'] for rt in self.engine.storage.get_roll_types()}
+        if roll_type not in registered_types:
+            print(f"Invalid roll_type '{roll_type}'. Must be one of: {', '.join(sorted(registered_types))}")
             return
 
         try:

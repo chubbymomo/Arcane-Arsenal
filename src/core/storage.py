@@ -141,6 +141,33 @@ class WorldStorage:
             VALUES (?, ?, ?, ?)
         """, (type_name, description, module, datetime.utcnow()))
         self.conn.commit()
+
+    def register_roll_type(self, type_name: str, description: str,
+                          module: str, category: str = 'general') -> None:
+        """
+        Register a new roll type for the RNG system.
+
+        Args:
+            type_name: Unique identifier (e.g., 'attack', 'damage', 'skill_check')
+            description: Human-readable description
+            module: Which module provides this type
+            category: Category for grouping (e.g., 'combat', 'skill', 'saving_throw')
+        """
+        self.conn.execute("""
+            INSERT OR REPLACE INTO roll_types
+            (type, description, module, category, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, (type_name, description, module, category, datetime.utcnow()))
+        self.conn.commit()
+
+    def get_roll_types(self) -> List[Dict[str, Any]]:
+        """Get all registered roll types."""
+        cursor = self.conn.execute("""
+            SELECT type, description, module, category
+            FROM roll_types
+            ORDER BY category, type
+        """)
+        return [dict(row) for row in cursor.fetchall()]
     
     def get_component_types(self) -> List[Dict[str, Any]]:
         """Get all registered component types."""
