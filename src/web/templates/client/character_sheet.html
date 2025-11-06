@@ -1,0 +1,293 @@
+{% extends "base.html" %}
+
+{% block title %}{{ entity.name }} - Character Sheet{% endblock %}
+
+{% block content %}
+<div class="character-sheet-container">
+    <div class="page-header">
+        <div>
+            <h2>{{ entity.name }}</h2>
+            <p class="character-subtitle">{{ identity.description }}</p>
+        </div>
+        <a href="{{ url_for('client.index') }}" class="btn btn-secondary">← Back to Characters</a>
+    </div>
+
+    <div class="sheet-layout">
+        <!-- Left Column: Character Info -->
+        <div class="sheet-column">
+            <div class="info-card">
+                <h3>📋 Character Information</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Name</span>
+                        <span class="info-value">{{ entity.name }}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Entity ID</span>
+                        <span class="info-value mono">{{ entity.id[:16] }}...</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Created</span>
+                        <span class="info-value">{{ entity.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                    </div>
+                </div>
+            </div>
+
+            {% if position %}
+            <div class="info-card">
+                <h3>📍 Location</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Region</span>
+                        <span class="info-value">{{ position.region or 'Unknown' }}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Coordinates</span>
+                        <span class="info-value mono">
+                            ({{ position.x }}, {{ position.y }}, {{ position.z }})
+                        </span>
+                    </div>
+                    {% if world_pos %}
+                    <div class="info-item">
+                        <span class="info-label">World Position</span>
+                        <span class="info-value mono">
+                            ({{ world_pos[0] }}, {{ world_pos[1] }}, {{ world_pos[2] }})
+                        </span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if located_at %}
+            <div class="info-card">
+                <h3>🏠 Current Location</h3>
+                <div class="location-info">
+                    <strong>{{ located_at.name }}</strong>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if inventory %}
+            <div class="info-card">
+                <h3>🎒 Inventory ({{ inventory|length }})</h3>
+                <ul class="item-list">
+                    {% for item in inventory %}
+                        <li class="item-entry">{{ item.name }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Right Column: Relationships & Nearby -->
+        <div class="sheet-column">
+            {% if nearby_entities %}
+            <div class="info-card">
+                <h3>👥 Nearby Entities</h3>
+                <p class="card-description">Entities in the same region as you</p>
+                <ul class="entity-list">
+                    {% for nearby in nearby_entities %}
+                        <li class="entity-entry">{{ nearby.name }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            {% if other_relationships %}
+            <div class="info-card">
+                <h3>🔗 Relationships</h3>
+                <ul class="relationship-list">
+                    {% for rel in other_relationships %}
+                        <li class="relationship-entry">
+                            <span class="relationship-type">{{ rel.type }}</span>
+                            {% if rel.direction == 'to' %}
+                                → {{ rel.entity.name }}
+                            {% else %}
+                                ← {{ rel.entity.name }}
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            <div class="info-card">
+                <h3>⚙️ Components</h3>
+                <p class="card-description">Technical view of character data</p>
+                <ul class="component-list">
+                    {% for comp_type, comp_data in components.items() %}
+                        <li class="component-entry">
+                            <strong>{{ comp_type }}</strong>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+            <div class="info-card action-card">
+                <h3>🎮 Actions</h3>
+                <p class="card-description">More features coming in Phase 2!</p>
+                <div class="action-buttons">
+                    <button class="btn btn-secondary" disabled>Move Character</button>
+                    <button class="btn btn-secondary" disabled>Take Action</button>
+                    <button class="btn btn-secondary" disabled>Use Item</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.character-sheet-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.page-header h2 {
+    margin: 0;
+    color: var(--text-color);
+    font-size: 2rem;
+}
+
+.character-subtitle {
+    margin: 0.5rem 0 0 0;
+    color: var(--text-muted);
+    font-size: 1.1rem;
+}
+
+.sheet-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+}
+
+@media (max-width: 968px) {
+    .sheet-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.sheet-column {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.info-card {
+    background: var(--card-background);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    padding: 1.5rem;
+}
+
+.info-card h3 {
+    margin: 0 0 1rem 0;
+    color: var(--primary-color);
+    font-size: 1.2rem;
+}
+
+.card-description {
+    margin: 0 0 1rem 0;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.info-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.info-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.info-item:last-child {
+    border-bottom: none;
+}
+
+.info-label {
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.info-value {
+    color: var(--text-color);
+}
+
+.mono {
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+}
+
+.location-info {
+    padding: 1rem;
+    background: var(--background-color);
+    border-radius: 4px;
+    color: var(--text-color);
+}
+
+.item-list, .entity-list, .component-list, .relationship-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.item-entry, .entity-entry, .component-entry, .relationship-entry {
+    padding: 0.75rem;
+    background: var(--background-color);
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+    color: var(--text-color);
+}
+
+.item-entry:last-child, .entity-entry:last-child,
+.component-entry:last-child, .relationship-entry:last-child {
+    margin-bottom: 0;
+}
+
+.relationship-type {
+    display: inline-block;
+    background: var(--primary-color);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 3px;
+    font-size: 0.85rem;
+    margin-right: 0.5rem;
+}
+
+.action-card {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-color: #dee2e6;
+}
+
+.action-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.action-buttons .btn {
+    width: 100%;
+    justify-content: center;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+</style>
+{% endblock %}

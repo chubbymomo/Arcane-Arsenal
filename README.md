@@ -110,13 +110,30 @@ entities_with_position = engine.query_entities(['Position'])
 
 ### 2. Web Interface
 
-**Full CRUD Operations:**
-- Create entities with forms
+Arcane Arsenal provides two separate web interfaces:
+
+**Client Interface** (`/client`) - For Players:
+- Character selection screen
+- Character creation with forms
+- Character sheet view (read-only currently)
+- Nearby entities and inventory display
+- Eventually: Action system and gameplay
+
+**Host Interface** (`/host`) - For DMs/Game Masters:
+- Full CRUD operations for all entities
 - Add/edit/delete components with JSON editor
 - Create/delete relationships between entities
-- View event history
+- View complete event history
 - Flash messages for instant feedback
 - Inline editing with confirmation dialogs
+
+```bash
+python src/web/server.py worlds/my_world
+
+# Opens two interfaces:
+# http://localhost:5000/client  (Player view)
+# http://localhost:5000/host    (DM view)
+```
 
 ### 3. CLI Tool
 
@@ -168,8 +185,13 @@ arcane-arsenal/
 │   │   ├── base.py            # Module interface
 │   │   └── core_components/   # Identity & Position components
 │   ├── web/
-│   │   ├── server.py          # Flask app with CRUD
-│   │   ├── templates/         # HTML templates
+│   │   ├── server.py          # Flask app with blueprints
+│   │   ├── blueprints/
+│   │   │   ├── client.py      # Player interface
+│   │   │   └── host.py        # DM interface
+│   │   ├── templates/
+│   │   │   ├── client/        # Player templates
+│   │   │   └── host/          # DM templates
 │   │   └── static/            # CSS styling
 │   └── cli/
 │       └── commands.py        # CLI tool

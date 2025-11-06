@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block title %}Create Character - Arcane Arsenal{% endblock %}
+
+{% block content %}
+<div class="character-create-container">
+    <div class="page-header">
+        <h2>Create New Character</h2>
+        <a href="{{ url_for('client.index') }}" class="btn btn-secondary">← Back to Characters</a>
+    </div>
+
+    <div class="form-card">
+        <form method="POST" action="{{ url_for('client.character_create') }}">
+            <div class="form-section">
+                <h3>Basic Information</h3>
+
+                <div class="form-group">
+                    <label for="name">Character Name *</label>
+                    <input type="text" id="name" name="name" required
+                           placeholder="e.g., Theron the Brave"
+                           class="form-control">
+                    <small class="form-help">Choose a memorable name for your character</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Description *</label>
+                    <textarea id="description" name="description" required
+                              rows="4" class="form-control"
+                              placeholder="Describe your character's appearance, personality, and background..."></textarea>
+                    <small class="form-help">What makes your character unique?</small>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3>Starting Location</h3>
+
+                <div class="form-group">
+                    <label for="region">Region</label>
+                    <select id="region" name="region" class="form-control">
+                        <option value="world">World (Default)</option>
+                        {% for region in regions %}
+                            <option value="{{ region }}">{{ region }}</option>
+                        {% endfor %}
+                    </select>
+                    <small class="form-help">Where does your character begin their journey?</small>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-info">
+                    <strong>📝 Note:</strong> Your character will start at coordinates (0, 0, 0) in the selected region.
+                    You can move them later during gameplay.
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary btn-large">
+                    ✨ Create Character
+                </button>
+                <a href="{{ url_for('client.index') }}" class="btn btn-secondary">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <div class="creation-tips">
+        <h3>💡 Character Creation Tips</h3>
+        <ul>
+            <li><strong>Be Creative:</strong> Your character's description helps shape their story</li>
+            <li><strong>Think About Motivations:</strong> What drives your character?</li>
+            <li><strong>Consider Relationships:</strong> How do they interact with others?</li>
+            <li><strong>Stay Flexible:</strong> Characters can evolve as you play</li>
+        </ul>
+    </div>
+</div>
+
+<style>
+.character-create-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.page-header h2 {
+    margin: 0;
+    color: var(--text-color);
+}
+
+.form-card {
+    background: var(--card-background);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.form-section {
+    margin-bottom: 2rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.form-section:last-of-type {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.form-section h3 {
+    margin: 0 0 1.5rem 0;
+    color: var(--primary-color);
+    font-size: 1.2rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group:last-child {
+    margin-bottom: 0;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.form-control {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 1rem;
+    font-family: inherit;
+    background: var(--background-color);
+    color: var(--text-color);
+    transition: border-color 0.2s;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+}
+
+textarea.form-control {
+    resize: vertical;
+    min-height: 100px;
+}
+
+.form-help {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.form-info {
+    background: #e8f4fd;
+    border-left: 4px solid var(--primary-color);
+    padding: 1rem;
+    border-radius: 4px;
+    color: #1e40af;
+}
+
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 2rem;
+}
+
+.form-actions .btn {
+    flex: 0 0 auto;
+}
+
+.creation-tips {
+    background: var(--card-background);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    padding: 1.5rem;
+}
+
+.creation-tips h3 {
+    margin: 0 0 1rem 0;
+    color: var(--text-color);
+}
+
+.creation-tips ul {
+    margin: 0;
+    padding-left: 1.5rem;
+    color: var(--text-color);
+}
+
+.creation-tips li {
+    margin-bottom: 0.5rem;
+    line-height: 1.6;
+}
+
+.creation-tips li:last-child {
+    margin-bottom: 0;
+}
+</style>
+{% endblock %}

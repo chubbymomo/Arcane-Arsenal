@@ -3,15 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Arcane Arsenal{% endblock %}</title>
+    <title>{% block title %}Arcane Arsenal - Host{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <header>
-        <h1>Arcane Arsenal</h1>
+        <h1>Arcane Arsenal - Host Interface</h1>
         <nav>
-            <a href="/">Entities</a>
-            <a href="/events">Events</a>
+            <a href="{{ url_for('host.index') }}">Entities</a>
+            <a href="{{ url_for('host.events') }}">Events</a>
+            <span class="nav-separator">|</span>
+            <a href="{{ url_for('client.index') }}" class="nav-switch">Switch to Player View</a>
         </nav>
     </header>
 
