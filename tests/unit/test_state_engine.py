@@ -87,7 +87,7 @@ def test_component_operations(world_path):
     result = engine.add_component(
         entity_id,
         'Identity',
-        {'description': 'A test character', 'tags': ['test']}
+        {'description': 'A test character'}
     )
     assert result.success is True
 
@@ -100,7 +100,7 @@ def test_component_operations(world_path):
     result = engine.update_component(
         entity_id,
         'Identity',
-        {'description': 'Updated character', 'tags': ['test', 'updated']}
+        {'description': 'Updated character'}
     )
     assert result.success is True
 
@@ -202,3 +202,82 @@ def test_events(world_path):
 
     events = engine.get_events(entity_id=entity_id)
     assert any(e.event_type == 'component.added' for e in events)
+
+
+def test_hierarchical_positioning(world_path):
+    """Test hierarchical positioning for nested spaces."""
+    engine = StateEngine.initialize_world(world_path, 'Test World')
+
+    # Create tavern at absolute world position
+    tavern_result = engine.create_entity('The Golden Tankard')
+    tavern_id = tavern_result.data['id']
+    engine.add_component(tavern_id, 'Position', {
+        'x': 100,
+        'y': 200,
+        'z': 0,
+        'region': 'overworld'
+    })
+
+    # Create table inside tavern (relative position)
+    table_result = engine.create_entity('Wooden Table')
+    table_id = table_result.data['id']
+    engine.add_component(table_id, 'Position', {
+        'x': 5,
+        'y': 3,
+        'z': 0,
+        'region': tavern_id
+    })
+
+    # Create mug on table (nested position)
+    mug_result = engine.create_entity('Ale Mug')
+    mug_id = mug_result.data['id']
+    engine.add_component(mug_id, 'Position', {
+        'x': 0.5,
+        'y': 0.5,
+        'z': 1.2,
+        'region': table_id
+    })
+
+    # Test get_world_position() for absolute position
+    tavern_pos = engine.get_world_position(tavern_id)
+    assert tavern_pos == (100.0, 200.0, 0.0)
+
+    # Test get_world_position() for relative position (table in tavern)
+    table_pos = engine.get_world_position(table_id)
+    assert table_pos == (105.0, 203.0, 0.0)
+
+    # Test get_world_position() for nested position (mug on table)
+    mug_pos = engine.get_world_position(mug_id)
+    assert mug_pos == (105.5, 203.5, 1.2)
+
+    # Test get_entities_in_region() for tavern
+    entities_in_tavern = engine.get_entities_in_region(tavern_id)
+    assert len(entities_in_tavern) == 1
+    assert entities_in_tavern[0].id == table_id
+
+    # Test get_entities_in_region() for table
+    entities_on_table = engine.get_entities_in_region(table_id)
+    assert len(entities_on_table) == 1
+    assert entities_on_table[0].id == mug_id
+
+    # Test get_entities_in_region() for named region
+    entities_in_overworld = engine.get_entities_in_region('overworld')
+    assert len(entities_in_overworld) == 1
+    assert entities_in_overworld[0].id == tavern_id
+
+    # Test entity without Position component
+    no_pos_result = engine.create_entity('Abstract Entity')
+    no_pos_id = no_pos_result.data['id']
+    assert engine.get_world_position(no_pos_id) is None
+
+    # Test circular reference detection
+    circular_result = engine.create_entity('Circular Entity')
+    circular_id = circular_result.data['id']
+    engine.add_component(circular_id, 'Position', {
+        'x': 10,
+        'y': 10,
+        'z': 0,
+        'region': circular_id  # Points to itself
+    })
+    # Should return None when circular reference detected
+    assert engine.get_world_position(circular_id) is None

@@ -31,7 +31,6 @@
                     <th>Name</th>
                     <th>ID</th>
                     <th>Components</th>
-                    <th>Tags</th>
                 </tr>
             </thead>
             <tbody>
@@ -46,11 +45,6 @@
                     <td>
                         {% for comp in item.components %}
                             <span class="badge">{{ comp }}</span>
-                        {% endfor %}
-                    </td>
-                    <td>
-                        {% for tag in item.tags %}
-                            <span class="tag">{{ tag }}</span>
                         {% endfor %}
                     </td>
                 </tr>

@@ -1,7 +1,9 @@
 """
 Identity component - basic identification for any entity.
 
-Provides a description and tags for categorizing entities.
+Provides a description for any entity. Entity type is determined by which
+components it has, not by tags (to prevent AI hallucination through inconsistent
+categorization).
 """
 
 from typing import Dict, Any
@@ -14,12 +16,19 @@ class IdentityComponent(ComponentTypeDefinition):
 
     Data schema:
         description (string, required): Text description of the entity
-        tags (array of strings, optional): Categorization tags
 
     Examples:
-        {"description": "A brave warrior", "tags": ["player", "human"]}
-        {"description": "An old wooden tavern", "tags": ["building", "location"]}
-        {"description": "A rusty sword", "tags": ["weapon", "item"]}
+        {"description": "A brave warrior"}
+        {"description": "An old wooden tavern"}
+        {"description": "A rusty sword"}
+
+    Note:
+        Entity type is determined by component composition, not tags.
+        - Characters have: Identity + Position + CharacterStats (Phase 2)
+        - Locations have: Identity + Position + LocationProperties (Phase 2)
+        - Items have: Identity + ItemProperties (Phase 2)
+
+        Use engine.query_entities(['ComponentType']) to find entities by type.
     """
 
     type = "Identity"
@@ -35,12 +44,8 @@ class IdentityComponent(ComponentTypeDefinition):
                 "description": {
                     "type": "string",
                     "minLength": 1
-                },
-                "tags": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "default": []
                 }
             },
-            "required": ["description"]
+            "required": ["description"],
+            "additionalProperties": False
         }

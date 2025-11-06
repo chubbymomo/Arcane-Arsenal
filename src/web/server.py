@@ -41,18 +41,14 @@ def create_app(world_path: str) -> Flask:
         engine = get_engine()
         entities = engine.list_entities()
 
-        # Group entities by type based on tags
+        # Prepare entity data with component list
         entity_data = []
         for entity in entities:
             components = engine.get_entity_components(entity.id)
-            tags = []
-            if 'Identity' in components:
-                tags = components['Identity'].get('tags', [])
 
             entity_data.append({
                 'entity': entity,
-                'components': list(components.keys()),
-                'tags': tags
+                'components': list(components.keys())
             })
 
         # Get registered types for forms

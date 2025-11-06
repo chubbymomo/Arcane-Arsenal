@@ -35,20 +35,31 @@ On any entity detail page:
 **Example - Identity Component:**
 ```json
 {
-  "description": "A brave warrior",
-  "tags": ["player", "human", "warrior"]
+  "description": "A brave warrior"
 }
 ```
 
-**Example - Position Component:**
+**Example - Position Component (Absolute):**
 ```json
 {
   "x": 100,
   "y": 200,
   "z": 0,
-  "region": "tavern"
+  "region": "overworld"
 }
 ```
+
+**Example - Position Component (Hierarchical):**
+```json
+{
+  "x": 5,
+  "y": 3,
+  "z": 0,
+  "region": "entity_abc123xyz"
+}
+```
+
+When the `region` field is an entity ID (starts with "entity_"), the position is relative to that parent entity. This enables hierarchical positioning like tables in rooms, items on tables, etc.
 
 ### 3. Edit Components
 
@@ -120,7 +131,7 @@ Messages can be dismissed by clicking the × button.
 1. **JSON Validation** - Component data must be valid JSON. Use an online JSON validator if you're unsure.
 
 2. **Component Schemas** - Each component type has its own schema:
-   - **Identity**: Requires `description` (string), optional `tags` (array)
+   - **Identity**: Requires `description` (string)
    - **Position**: All fields optional: `x`, `y`, `z` (numbers), `region` (string)
 
 3. **Relationship Types** - Currently available:
@@ -184,14 +195,86 @@ Common errors and solutions:
    Hero → contains → Key
    ```
 
-### Organizing with Tags
+### Hierarchical Positioning for Map Rendering
 
-Use the Identity component's `tags` field to organize entities:
-- Characters: `["player"]`, `["npc"]`, `["enemy"]`
-- Locations: `["safe"]`, `["dangerous"]`, `["city"]`
-- Items: `["weapon"]`, `["consumable"]`, `["quest"]`
+Position components support hierarchical positioning, perfect for rendering maps with nested spaces.
 
-Then filter/search based on tags in your application.
+**Example: Building a Tavern Scene**
+
+1. **Create the Tavern** (absolute position)
+   ```json
+   Position: {
+     "x": 100,
+     "y": 200,
+     "z": 0,
+     "region": "overworld"
+   }
+   ```
+
+2. **Create a Table** (position relative to tavern)
+
+   First, copy the tavern's entity ID (e.g., `entity_abc123xyz`), then:
+   ```json
+   Position: {
+     "x": 5,
+     "y": 3,
+     "z": 0,
+     "region": "entity_abc123xyz"
+   }
+   ```
+
+   The table is now 5 units right and 3 units forward from the tavern's origin.
+
+3. **Create a Mug** (position relative to table)
+
+   Copy the table's entity ID, then:
+   ```json
+   Position: {
+     "x": 0.5,
+     "y": 0.5,
+     "z": 1.2,
+     "region": "entity_table_id"
+   }
+   ```
+
+   The mug sits on the table surface at height 1.2 units.
+
+**How It Works:**
+- When `region` is a named area (like "overworld"), position is absolute
+- When `region` is an entity ID, position is relative to that parent
+- The system automatically calculates world positions for map rendering
+- Use the CLI/API to call `engine.get_world_position(entity_id)` to get absolute coordinates
+
+**Use Cases:**
+- **World → Building → Room → Furniture → Item**
+- **Map → Region → Location → Container → Object**
+- **Character → Inventory → Backpack → Pouch → Item**
+
+### Organizing by Components
+
+Entity type is determined by which components it has, not by tags. This prevents AI hallucination through inconsistent categorization.
+
+Query entities by component presence:
+```python
+# Find all characters (entities with CharacterStats - Phase 2)
+characters = engine.query_entities(['CharacterStats'])
+
+# Find all positioned entities
+positioned = engine.query_entities(['Position'])
+
+# Find all entities with both Identity and Position
+described_and_positioned = engine.query_entities(['Identity', 'Position'])
+
+# Get all entities in a region
+entities_in_tavern = engine.get_entities_in_region('entity_tavern_id')
+
+# Calculate world position for rendering
+tavern_pos = engine.get_world_position(tavern_id)  # (100, 200, 0)
+table_pos = engine.get_world_position(table_id)    # (105, 203, 0)
+mug_pos = engine.get_world_position(mug_id)        # (105.5, 203.5, 1.2)
+```
+
+In Phase 2, specific component types will be added (CharacterStats, LocationProperties, etc.) to further refine entity types through composition.
 
 ## Next Steps
 
