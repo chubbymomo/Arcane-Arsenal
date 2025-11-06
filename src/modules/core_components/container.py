@@ -39,9 +39,10 @@ Querying:
 
 from typing import Dict, Any
 from ...core.models import Entity
+from ..base import ComponentTypeDefinition
 
 
-class ContainerComponentType:
+class ContainerComponentType(ComponentTypeDefinition):
     """Container component definition."""
 
     type = 'Container'
@@ -49,8 +50,7 @@ class ContainerComponentType:
     schema_version = '1.0.0'
     module = 'core'
 
-    @staticmethod
-    def get_schema() -> Dict[str, Any]:
+    def get_schema(self) -> Dict[str, Any]:
         """
         Get JSON schema for Container component.
 
@@ -71,33 +71,3 @@ class ContainerComponentType:
             "required": ["capacity"],
             "additionalProperties": False
         }
-
-    @staticmethod
-    def validate(data: Dict[str, Any]) -> None:
-        """
-        Validate container data against schema.
-
-        Args:
-            data: Component data to validate
-
-        Raises:
-            jsonschema.ValidationError: If data doesn't match schema
-        """
-        import jsonschema
-        schema = ContainerComponentType.get_schema()
-        jsonschema.validate(data, schema)
-
-    @staticmethod
-    def validate_entity(entity: Entity) -> bool:
-        """
-        Validate if entity can have Container component.
-
-        Any entity can be a container - no restrictions.
-
-        Args:
-            entity: Entity to validate
-
-        Returns:
-            Always True
-        """
-        return True

@@ -65,6 +65,33 @@ class ComponentTypeDefinition(ABC):
         jsonschema.validate(data, self.get_schema())
         return True
 
+    def validate_with_engine(self, data: Dict[str, Any], engine: 'StateEngine') -> bool:
+        """
+        Optional: Additional validation against engine state.
+
+        Override this to validate component data against registered types,
+        existing entities, or other engine state.
+
+        Args:
+            data: Component data to validate
+            engine: StateEngine instance for querying registered types
+
+        Returns:
+            True if valid
+
+        Raises:
+            ValueError: If validation fails with descriptive message
+
+        Example:
+            def validate_with_engine(self, data, engine):
+                valid_types = {rt['type'] for rt in engine.storage.get_roll_types()}
+                if data['roll_type'] not in valid_types:
+                    raise ValueError(f"Invalid roll_type. Must be one of: {valid_types}")
+                return True
+        """
+        # Default: no additional validation
+        return True
+
 
 class RelationshipTypeDefinition(ABC):
     """
@@ -142,6 +169,155 @@ class EventTypeDefinition:
         self.description = description
         self.module = module
         self.data_schema = data_schema or {}
+
+
+class RollTypeDefinition:
+    """
+    Defines a valid roll type for the RNG system.
+
+    Roll types are enumerated values that modules can register to define
+    what kinds of rolls are valid. This prevents AI from generating invalid
+    roll type strings and provides a clear contract.
+
+    Attributes:
+        type: Unique identifier for this roll type (e.g., 'attack', 'skill_check')
+        description: Human-readable description
+        module: Which module provides this type
+        category: Optional grouping (e.g., 'combat', 'skill', 'saving_throw')
+
+    Examples:
+        RollTypeDefinition('attack', 'Attack roll to hit a target', 'rng', 'combat')
+        RollTypeDefinition('stealth_check', 'Stealth skill check', 'skills', 'skill')
+    """
+
+    def __init__(self, type: str, description: str, module: str,
+                 category: str = None):
+        """
+        Initialize roll type definition.
+
+        Args:
+            type: Roll type identifier (e.g., 'attack', 'damage')
+            description: Human-readable description
+            module: Which module provides this
+            category: Optional category for grouping
+        """
+        self.type = type
+        self.description = description
+        self.module = module
+        self.category = category or 'general'
+
+
+class ModuleRegistry:
+    """
+    Generic registry for module-defined enumerated values.
+
+    Provides a convenient interface for modules to create and manage
+    custom registries without modifying core schema. Modules can define
+    registries for concepts like magic_schools, damage_types, armor_types, etc.
+
+    Example:
+        # In a module's initialize() method:
+        magic_registry = engine.create_registry('magic_schools', self.name)
+        magic_registry.register('evocation', 'Evocation magic', {'category': 'arcane'})
+        magic_registry.register('necromancy', 'Necromancy magic', {'category': 'dark'})
+
+        # Query registered values:
+        schools = magic_registry.get_all()
+        # Returns: [
+        #   {'key': 'evocation', 'description': '...', 'module': 'magic', 'metadata': {'category': 'arcane'}},
+        #   ...
+        # ]
+
+        # Validate against registry:
+        if not magic_registry.is_valid('illusion'):
+            raise ValueError(f"Invalid school. Must be one of: {magic_registry.get_keys()}")
+
+    Attributes:
+        registry_name: Name of this registry (e.g., 'magic_schools')
+        module_name: Which module owns this registry
+        storage: Storage instance for database access
+    """
+
+    def __init__(self, registry_name: str, module_name: str, storage):
+        """
+        Initialize a module registry.
+
+        Args:
+            registry_name: Name of the registry (e.g., 'magic_schools')
+            module_name: Which module owns this registry
+            storage: Storage instance for database operations
+        """
+        self.registry_name = registry_name
+        self.module_name = module_name
+        self.storage = storage
+
+    def register(self, key: str, description: str,
+                metadata: Dict[str, Any] = None) -> None:
+        """
+        Register a value in this registry.
+
+        Args:
+            key: Unique key within this registry (e.g., 'evocation')
+            description: Human-readable description
+            metadata: Optional extra data (e.g., {'category': 'arcane', 'damage_bonus': 2})
+        """
+        self.storage.register_in_registry(
+            registry_name=self.registry_name,
+            key=key,
+            description=description,
+            module=self.module_name,
+            metadata=metadata
+        )
+
+    def get_all(self) -> List[Dict[str, Any]]:
+        """
+        Get all registered values in this registry.
+
+        Returns:
+            List of dicts with keys: key, description, module, metadata
+        """
+        return self.storage.get_registry_values(self.registry_name)
+
+    def get_keys(self) -> List[str]:
+        """
+        Get all registered keys in this registry.
+
+        Returns:
+            List of keys (e.g., ['evocation', 'necromancy', 'conjuration'])
+        """
+        return [entry['key'] for entry in self.get_all()]
+
+    def is_valid(self, key: str) -> bool:
+        """
+        Check if a key is registered in this registry.
+
+        Args:
+            key: Key to check
+
+        Returns:
+            True if key is registered, False otherwise
+        """
+        return key in self.get_keys()
+
+    def validate(self, key: str, error_context: str = None) -> None:
+        """
+        Validate that a key exists in this registry, raise ValueError if not.
+
+        Args:
+            key: Key to validate
+            error_context: Optional context for error message (e.g., 'magic_school field')
+
+        Raises:
+            ValueError: If key is not registered
+        """
+        if not self.is_valid(key):
+            context = f" in {error_context}" if error_context else ""
+            valid_keys = ', '.join(sorted(self.get_keys()))
+            raise ValueError(
+                f"Invalid {self.registry_name} '{key}'{context}. "
+                f"Must be one of: {valid_keys}. "
+                f"Query /api/registries/{self.registry_name} to see all valid values."
+            )
 
 
 class Module(ABC):
@@ -266,6 +442,25 @@ class Module(ABC):
             return [
                 EventTypeDefinition('item.used', 'Item was used', 'inventory'),
                 EventTypeDefinition('damage.taken', 'Entity took damage', 'combat')
+            ]
+        """
+        return []
+
+    def register_roll_types(self) -> List[RollTypeDefinition]:
+        """
+        Return roll types this module provides.
+
+        Roll types define valid values for roll_type in the RNG system.
+        This prevents AI from generating invalid roll type strings.
+
+        Returns:
+            List of RollTypeDefinition instances
+
+        Example:
+            return [
+                RollTypeDefinition('attack', 'Attack roll to hit', 'combat', 'combat'),
+                RollTypeDefinition('damage', 'Damage roll', 'combat', 'combat'),
+                RollTypeDefinition('stealth_check', 'Stealth skill check', 'skills', 'skill')
             ]
         """
         return []

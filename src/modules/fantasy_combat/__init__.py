@@ -82,6 +82,10 @@ class ArmorComponent(ComponentTypeDefinition):
 class WeaponComponent(ComponentTypeDefinition):
     """
     Weapon component for attacks.
+
+    Note: damage_type and armor_type will be validated against registries
+    when a future Fantasy module implements damage_types and armor_types registries.
+    For now, they are free-form strings.
     """
 
     type = "weapon"
@@ -108,6 +112,37 @@ class WeaponComponent(ComponentTypeDefinition):
             },
             "required": ["damage_dice", "damage_type"]
         }
+
+    def validate_with_engine(self, data: Dict[str, Any], engine) -> bool:
+        """
+        Validate damage_dice field uses valid dice notation.
+
+        Args:
+            data: Component data to validate
+            engine: StateEngine instance (not used but required by interface)
+
+        Returns:
+            True if valid
+
+        Raises:
+            ValueError: If damage_dice is not valid dice notation
+        """
+        damage_dice = data.get('damage_dice')
+        if not damage_dice:
+            raise ValueError("damage_dice is required")
+
+        # Validate dice notation format using the RNG module's parser
+        try:
+            from src.modules.rng.dice_parser import DiceParser
+            parser = DiceParser()
+            parser.parse(damage_dice)  # Will raise ValueError if invalid
+        except ValueError as e:
+            raise ValueError(
+                f"Invalid damage_dice notation '{damage_dice}': {str(e)}. "
+                f"Use standard dice notation like '1d8', '2d6+3', or '1d10+1d4'."
+            )
+
+        return True
 
 
 class FantasyCombatModule(Module):

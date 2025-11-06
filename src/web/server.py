@@ -133,6 +133,33 @@ def create_app(worlds_dir: str = 'worlds') -> Flask:
         modules = loader.discover_available_modules()
         return jsonify({'modules': modules})
 
+    @app.route('/api/roll_types')
+    @require_world
+    def api_roll_types():
+        """JSON API: Get all registered roll types."""
+        engine = get_engine()
+        roll_types = engine.storage.get_roll_types()
+        return jsonify({'roll_types': roll_types})
+
+    @app.route('/api/registries')
+    @require_world
+    def api_registries():
+        """JSON API: Get all module registry names."""
+        engine = get_engine()
+        registry_names = engine.storage.get_registry_names()
+        return jsonify({'registries': registry_names})
+
+    @app.route('/api/registries/<registry_name>')
+    @require_world
+    def api_registry_values(registry_name):
+        """JSON API: Get all values from a specific registry."""
+        engine = get_engine()
+        values = engine.storage.get_registry_values(registry_name)
+        return jsonify({
+            'registry_name': registry_name,
+            'values': values
+        })
+
     @app.route('/create_world', methods=['POST'])
     def create_world():
         """Create a new world with selected modules."""

@@ -109,6 +109,15 @@ class StateEngine:
                     event_type.module
                 )
 
+            # Register roll types to database
+            for roll_type in module.register_roll_types():
+                self.storage.register_roll_type(
+                    roll_type.type,
+                    roll_type.description,
+                    roll_type.module,
+                    roll_type.category
+                )
+
             # Call module's initialize hook
             try:
                 module.initialize(self)
@@ -438,6 +447,15 @@ class StateEngine:
                         "VALIDATION_ERROR"
                     )
 
+                # Additional validation against engine state
+                try:
+                    validator.validate_with_engine(data, self)
+                except ValueError as e:
+                    return Result.fail(
+                        f"Component data validation failed: {str(e)}",
+                        "VALIDATION_ERROR"
+                    )
+
             # Spatial validation for Position components
             if component_type == 'Position':
                 validation_result = self._validate_position_data(entity_id, data)
@@ -536,6 +554,15 @@ class StateEngine:
                 except jsonschema.ValidationError as e:
                     return Result.fail(
                         f"Component data validation failed: {e.message}",
+                        "VALIDATION_ERROR"
+                    )
+
+                # Additional validation against engine state
+                try:
+                    validator.validate_with_engine(data, self)
+                except ValueError as e:
+                    return Result.fail(
+                        f"Component data validation failed: {str(e)}",
                         "VALIDATION_ERROR"
                     )
 
@@ -869,6 +896,32 @@ class StateEngine:
             return Result.ok({'type': definition.type})
         except Exception as e:
             return Result.fail(str(e), "REGISTRATION_ERROR")
+
+    def create_registry(self, registry_name: str, module_name: str) -> 'ModuleRegistry':
+        """
+        Create a generic registry for module-defined enumerated values.
+
+        This allows modules to define custom registries without modifying core schema.
+        Examples: magic_schools, damage_types, armor_types, condition_types
+
+        Args:
+            registry_name: Name of the registry (e.g., 'magic_schools')
+            module_name: Which module owns this registry
+
+        Returns:
+            ModuleRegistry instance for registering values
+
+        Example:
+            # In a module's initialize() method:
+            magic_registry = engine.create_registry('magic_schools', self.name)
+            magic_registry.register('evocation', 'Evocation magic', {'category': 'arcane'})
+            magic_registry.register('necromancy', 'Necromancy magic', {'category': 'dark'})
+
+            # Later, validate against registry:
+            magic_registry.validate(spell_data['school'], 'spell school')
+        """
+        from src.modules.base import ModuleRegistry
+        return ModuleRegistry(registry_name, module_name, self.storage)
 
     # ========== Transaction Support ==========
 

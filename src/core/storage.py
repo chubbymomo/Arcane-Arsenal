@@ -141,7 +141,97 @@ class WorldStorage:
             VALUES (?, ?, ?, ?)
         """, (type_name, description, module, datetime.utcnow()))
         self.conn.commit()
-    
+
+    def register_roll_type(self, type_name: str, description: str,
+                          module: str, category: str = 'general') -> None:
+        """
+        Register a new roll type for the RNG system.
+
+        Args:
+            type_name: Unique identifier (e.g., 'attack', 'damage', 'skill_check')
+            description: Human-readable description
+            module: Which module provides this type
+            category: Category for grouping (e.g., 'combat', 'skill', 'saving_throw')
+        """
+        self.conn.execute("""
+            INSERT OR REPLACE INTO roll_types
+            (type, description, module, category, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, (type_name, description, module, category, datetime.utcnow()))
+        self.conn.commit()
+
+    def get_roll_types(self) -> List[Dict[str, Any]]:
+        """Get all registered roll types."""
+        cursor = self.conn.execute("""
+            SELECT type, description, module, category
+            FROM roll_types
+            ORDER BY category, type
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+
+    def register_in_registry(self, registry_name: str, key: str,
+                            description: str, module: str,
+                            metadata: Optional[Dict[str, Any]] = None) -> None:
+        """
+        Register a value in a module-defined registry.
+
+        Args:
+            registry_name: Name of the registry (e.g., 'magic_schools', 'damage_types')
+            key: Unique key within this registry (e.g., 'evocation', 'fire')
+            description: Human-readable description
+            module: Which module provides this entry
+            metadata: Optional extra data (e.g., {'category': 'arcane', 'damage_multiplier': 1.5})
+        """
+        import json
+        metadata_json = json.dumps(metadata) if metadata else None
+        self.conn.execute("""
+            INSERT OR REPLACE INTO module_registries
+            (registry_name, key, description, module, metadata, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (registry_name, key, description, module, metadata_json, datetime.utcnow()))
+        self.conn.commit()
+
+    def get_registry_values(self, registry_name: str) -> List[Dict[str, Any]]:
+        """
+        Get all values from a specific registry.
+
+        Args:
+            registry_name: Name of the registry to query
+
+        Returns:
+            List of dicts with keys: key, description, module, metadata
+        """
+        import json
+        cursor = self.conn.execute("""
+            SELECT key, description, module, metadata
+            FROM module_registries
+            WHERE registry_name = ?
+            ORDER BY key
+        """, (registry_name,))
+
+        results = []
+        for row in cursor.fetchall():
+            row_dict = dict(row)
+            # Parse metadata JSON if present
+            if row_dict.get('metadata'):
+                row_dict['metadata'] = json.loads(row_dict['metadata'])
+            results.append(row_dict)
+        return results
+
+    def get_registry_names(self) -> List[str]:
+        """
+        Get all registry names that have been created.
+
+        Returns:
+            List of registry names (e.g., ['magic_schools', 'damage_types'])
+        """
+        cursor = self.conn.execute("""
+            SELECT DISTINCT registry_name
+            FROM module_registries
+            ORDER BY registry_name
+        """)
+        return [row['registry_name'] for row in cursor.fetchall()]
+
     def get_component_types(self) -> List[Dict[str, Any]]:
         """Get all registered component types."""
         cursor = self.conn.execute("""

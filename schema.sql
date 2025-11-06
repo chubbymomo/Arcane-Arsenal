@@ -28,6 +28,29 @@ CREATE TABLE event_types (
     created_at TIMESTAMP NOT NULL
 );
 
+CREATE TABLE roll_types (
+    type TEXT PRIMARY KEY,
+    description TEXT,
+    module TEXT,
+    category TEXT,  -- For grouping: 'combat', 'skill', 'saving_throw', etc.
+    created_at TIMESTAMP NOT NULL
+);
+
+-- Generic registry for module-defined enums
+-- Allows modules to create custom registries without modifying core schema
+-- Examples: magic_schools, damage_types, armor_types, condition_types
+CREATE TABLE module_registries (
+    registry_name TEXT NOT NULL,  -- Name of the registry (e.g., 'magic_schools')
+    key TEXT NOT NULL,             -- Unique key within registry (e.g., 'evocation')
+    description TEXT,              -- Human-readable description
+    module TEXT NOT NULL,          -- Which module provides this entry
+    metadata JSON,                 -- Flexible storage for extra fields (category, etc.)
+    created_at TIMESTAMP NOT NULL,
+    PRIMARY KEY (registry_name, key)
+);
+
+CREATE INDEX idx_module_registries_name ON module_registries(registry_name);
+
 -- ============================================================================
 -- CORE DATA TABLES
 -- ============================================================================
