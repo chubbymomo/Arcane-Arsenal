@@ -67,10 +67,23 @@ class StateEngine:
         """Load and register validators from core components module."""
         core_module = CoreComponentsModule()
 
-        # Register validators
+        # Register component types to database (safe for existing types due to INSERT OR REPLACE)
         for comp_type in core_module.register_component_types():
+            self.storage.register_component_type(
+                comp_type.type,
+                comp_type.description,
+                comp_type.schema_version,
+                comp_type.module
+            )
             self.component_validators[comp_type.type] = comp_type
+
+        # Register relationship types to database
         for rel_type in core_module.register_relationship_types():
+            self.storage.register_relationship_type(
+                rel_type.type,
+                rel_type.description,
+                rel_type.module
+            )
             self.relationship_validators[rel_type.type] = rel_type
 
     # ========== World Initialization ==========
