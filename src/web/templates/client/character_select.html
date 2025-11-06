@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}My Characters - Arcane Arsenal{% endblock %}
+
+{% block content %}
+<div class="character-select-container">
+    <div class="page-header">
+        <h2>My Characters</h2>
+        <a href="{{ url_for('client.character_create') }}" class="btn btn-primary">+ Create New Character</a>
+    </div>
+
+    {% if characters %}
+        <div class="character-grid">
+            {% for char in characters %}
+                <div class="character-card">
+                    <div class="character-card-header">
+                        <h3>{{ char.entity.name }}</h3>
+                        {% if char.has_position %}
+                            <span class="character-location">📍 {{ char.region }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="character-card-body">
+                        <p class="character-description">{{ char.description }}</p>
+                        <div class="character-meta">
+                            <span class="meta-item">
+                                <strong>ID:</strong> {{ char.entity.id[:8] }}...
+                            </span>
+                            <span class="meta-item">
+                                <strong>Created:</strong> {{ char.entity.created_at.strftime('%Y-%m-%d') }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="character-card-footer">
+                        <a href="{{ url_for('client.character_sheet', entity_id=char.entity.id) }}" class="btn btn-primary">
+                            View Character Sheet
+                        </a>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">🎲</div>
+            <h3>No Characters Yet</h3>
+            <p>Create your first character to begin your adventure!</p>
+            <a href="{{ url_for('client.character_create') }}" class="btn btn-primary btn-large">
+                Create Your First Character
+            </a>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+.character-select-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.page-header h2 {
+    margin: 0;
+    color: var(--text-color);
+}
+
+.character-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1.5rem;
+}
+
+.character-card {
+    background: var(--card-background);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.character-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.character-card-header {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+    padding: 1.5rem;
+    color: white;
+}
+
+.character-card-header h3 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.5rem;
+}
+
+.character-location {
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
+.character-card-body {
+    padding: 1.5rem;
+}
+
+.character-description {
+    margin: 0 0 1rem 0;
+    color: var(--text-color);
+    line-height: 1.6;
+}
+
+.character-meta {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.meta-item {
+    display: inline-block;
+}
+
+.character-card-footer {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--border-color);
+    background: var(--background-color);
+}
+
+.character-card-footer .btn {
+    width: 100%;
+    justify-content: center;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    background: var(--card-background);
+    border-radius: 8px;
+    border: 2px dashed var(--border-color);
+}
+
+.empty-state-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+}
+
+.empty-state h3 {
+    margin: 0 0 0.5rem 0;
+    color: var(--text-color);
+}
+
+.empty-state p {
+    margin: 0 0 2rem 0;
+    color: var(--text-muted);
+}
+
+.btn-large {
+    padding: 1rem 2rem;
+    font-size: 1.1rem;
+}
+</style>
+{% endblock %}

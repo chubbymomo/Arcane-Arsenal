@@ -2,8 +2,9 @@
 Core Components Module for Arcane Arsenal.
 
 Provides basic component and relationship types that are available in every world:
-- Identity: Basic identification (description, tags)
+- Identity: Basic identification (description)
 - Position: Spatial location (x, y, z, region)
+- Container: Enables entities to hold other entities (capacity)
 - located_at: Entity is physically at a location
 - contains: Entity contains another entity
 """
@@ -12,6 +13,7 @@ from typing import List
 from ..base import Module, ComponentTypeDefinition, RelationshipTypeDefinition, EventTypeDefinition
 from .identity import IdentityComponent
 from .position import PositionComponent
+from .container import ContainerComponentType
 
 
 class LocatedAtRelationship(RelationshipTypeDefinition):
@@ -68,10 +70,11 @@ class CoreComponentsModule(Module):
         return "1.0.0"
 
     def register_component_types(self) -> List[ComponentTypeDefinition]:
-        """Register Identity and Position components."""
+        """Register Identity, Position, and Container components."""
         return [
             IdentityComponent(),
-            PositionComponent()
+            PositionComponent(),
+            ContainerComponentType()
         ]
 
     def register_relationship_types(self) -> List[RelationshipTypeDefinition]:
@@ -87,6 +90,7 @@ __all__ = [
     'CoreComponentsModule',
     'IdentityComponent',
     'PositionComponent',
+    'ContainerComponentType',
     'LocatedAtRelationship',
     'ContainsRelationship'
 ]

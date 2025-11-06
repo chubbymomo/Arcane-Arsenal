@@ -133,6 +133,7 @@ Messages can be dismissed by clicking the × button.
 2. **Component Schemas** - Each component type has its own schema:
    - **Identity**: Requires `description` (string)
    - **Position**: All fields optional: `x`, `y`, `z` (numbers), `region` (string)
+   - **Container**: Requires `capacity` (integer or null for unlimited)
 
 3. **Relationship Types** - Currently available:
    - **located_at**: Entity is physically at a location
@@ -151,17 +152,34 @@ Common errors and solutions:
 - Use `{"key": "value"}` format, not `{key: value}`
 
 **"Component type X not registered"**
-- Only use registered component types: Identity, Position
+- Only use registered component types: Identity, Position, Container
 - Check the Types page to see available types
 
 **"Validation failed"**
 - Your data doesn't match the component schema
 - For Identity: Must include `description` field
+- For Container: Must include `capacity` field (integer or null)
 - Check the error message for specific field issues
 
 **"Entity not found"**
 - The entity may have been deleted
 - Refresh the page to see current state
+
+**"Cannot position relative to entity X: entity does not exist"** (INVALID_PARENT)
+- The region field references a non-existent entity
+- Use a valid entity ID or a named region like "overworld"
+
+**"Cannot position relative to entity X: parent has no Position component"** (INVALID_PARENT)
+- The parent entity must have a Position component
+- Add Position to the parent first, then position children relative to it
+
+**"Cannot position relative to entity X: would create circular reference"** (CIRCULAR_REFERENCE)
+- Entities cannot be positioned relative to themselves or their descendants
+- Example: Table → Mug is OK, but Mug → Table when Table → Mug already exists is circular
+
+**"Region X is at capacity"** (REGION_FULL)
+- The container is full (has reached its capacity limit)
+- Remove items or choose a different container
 
 ## Advanced Usage
 
@@ -188,7 +206,14 @@ Common errors and solutions:
    Key → Identity
    ```
 
-4. **Link with Relationships**
+4. **Create Container Entities**
+   ```
+   Chest → Identity + Position + Container {"capacity": 10}
+   Bag of Holding → Identity + Container {"capacity": null}
+   Backpack → Identity + Container {"capacity": 20}
+   ```
+
+5. **Link with Relationships**
    ```
    Hero → located_at → Tavern
    Tavern → contains → Sword
