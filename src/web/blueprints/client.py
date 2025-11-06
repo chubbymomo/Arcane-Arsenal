@@ -23,25 +23,26 @@ def get_engine() -> StateEngine:
 
 @client_bp.route('/')
 def index():
-    """Character selection screen - list all characters."""
+    """Character selection screen - list all player characters."""
     engine = get_engine()
 
-    # Query for character entities (entities with Identity component)
-    # In Phase 2, we'll filter by CharacterStats component
-    all_entities = engine.query_entities(['Identity'])
+    # Query for player character entities (entities with PlayerCharacter component)
+    # This explicitly filters for player-controlled characters only
+    # NPCs, monsters, items, and locations will not appear here
+    all_entities = engine.query_entities(['PlayerCharacter'])
 
     # Prepare character data
     characters = []
     for entity in all_entities:
         components = engine.get_entity_components(entity.id)
         identity = components.get('Identity', {})
-        position = components.get('Position', None)
+        position = components.get('Position', {})
 
         characters.append({
             'entity': entity,
             'description': identity.get('description', 'No description'),
-            'has_position': position is not None,
-            'region': position.get('region', 'Unknown') if position else 'Unknown'
+            'has_position': True,  # Always true due to query filter
+            'region': position.get('region', 'Unknown')
         })
 
     return render_template(
@@ -94,6 +95,14 @@ def character_create():
 
         if not position_result.success:
             flash(f'Error adding position: {position_result.error}', 'error')
+            engine.delete_entity(entity_id)  # Clean up
+            return redirect(url_for('client.character_create'))
+
+        # Add PlayerCharacter component (marks this as a player character)
+        player_result = engine.add_component(entity_id, 'PlayerCharacter', {})
+
+        if not player_result.success:
+            flash(f'Error marking as player character: {player_result.error}', 'error')
             engine.delete_entity(entity_id)  # Clean up
             return redirect(url_for('client.character_create'))
 

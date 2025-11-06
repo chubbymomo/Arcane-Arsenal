@@ -159,6 +159,26 @@ def create_entity():
         return redirect(url_for('host.index'))
 
 
+@host_bp.route('/entity/<entity_id>/update', methods=['POST'])
+def update_entity(entity_id: str):
+    """Update an entity's name."""
+    engine = get_engine()
+    name = request.form.get('name')
+
+    if not name:
+        flash('Entity name is required', 'error')
+        return redirect(url_for('host.entity_detail', entity_id=entity_id))
+
+    result = engine.update_entity(entity_id, name)
+
+    if result.success:
+        flash(f'Entity updated to "{name}"', 'success')
+    else:
+        flash(f'Error updating entity: {result.error}', 'error')
+
+    return redirect(url_for('host.entity_detail', entity_id=entity_id))
+
+
 @host_bp.route('/entity/<entity_id>/delete', methods=['POST'])
 def delete_entity(entity_id: str):
     """Delete an entity."""
