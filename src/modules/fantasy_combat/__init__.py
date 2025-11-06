@@ -173,8 +173,13 @@ class FantasyCombatModule(Module):
         return "Combat mechanics including health, armor, weapons, and damage for epic battles"
 
     def dependencies(self) -> List[str]:
-        """Fantasy combat depends on core components for basic entity functionality."""
-        return ['core_components']
+        """
+        Fantasy combat depends on core components and RNG module.
+
+        - core_components: Basic entity functionality (Position, Identity)
+        - rng: DiceParser for damage_dice validation
+        """
+        return ['core_components', 'rng']
 
     def register_component_types(self) -> List[ComponentTypeDefinition]:
         """Register Health, Armor, and Weapon components."""

@@ -215,7 +215,8 @@ class ModuleLoader:
             all_modules[module.name] = module
 
         # Collect all modules and dependencies
-        for module in modules_by_name.values():
+        # Create a list copy to avoid "dictionary changed size during iteration" error
+        for module in list(modules_by_name.values()):
             collect_dependencies(module)
 
         # Topological sort

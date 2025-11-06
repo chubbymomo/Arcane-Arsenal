@@ -48,7 +48,7 @@ class ContainerComponentType(ComponentTypeDefinition):
     type = 'Container'
     description = 'Enables an entity to contain other entities with optional capacity limits'
     schema_version = '1.0.0'
-    module = 'core'
+    module = 'core_components'
 
     def get_schema(self) -> Dict[str, Any]:
         """
