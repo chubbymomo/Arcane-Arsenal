@@ -5,8 +5,9 @@ Provides character selection, creation, and viewing for players.
 Eventually will include action interface and gameplay features.
 """
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, session
 import json as json_module
+from functools import wraps
 
 from src.core.state_engine import StateEngine
 
@@ -14,14 +15,27 @@ from src.core.state_engine import StateEngine
 client_bp = Blueprint('client', __name__, url_prefix='/client', template_folder='../templates/client')
 
 
+def require_world(f):
+    """Decorator to ensure a world is selected before accessing routes."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'world_path' not in session:
+            flash('Please select a world first', 'warning')
+            return redirect(url_for('index'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
 def get_engine() -> StateEngine:
-    """Get StateEngine instance for current world."""
-    return StateEngine(current_app.config['WORLD_PATH'])
+    """Get StateEngine instance for current world from session."""
+    world_path = session.get('world_path')
+    return StateEngine(world_path)
 
 
 # ========== View Endpoints ==========
 
 @client_bp.route('/')
+@require_world
 def index():
     """Character selection screen - list all player characters."""
     engine = get_engine()
@@ -52,6 +66,7 @@ def index():
 
 
 @client_bp.route('/character/create', methods=['GET', 'POST'])
+@require_world
 def character_create():
     """Character creation form."""
     engine = get_engine()
@@ -128,6 +143,7 @@ def character_create():
 
 
 @client_bp.route('/character/<entity_id>')
+@require_world
 def character_sheet(entity_id: str):
     """View character sheet."""
     engine = get_engine()

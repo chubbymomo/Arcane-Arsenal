@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcane Arsenal - World Selector</title>
+    <style>
+        :root {
+            --primary-color: #4a90e2;
+            --background: #1a1a2e;
+            --card-background: #16213e;
+            --text-color: #eaeaea;
+            --border-color: #0f3460;
+            --success: #2ecc71;
+            --warning: #f39c12;
+            --error: #e74c3c;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--background) 0%, #0f3460 100%);
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(90deg, #4a90e2, #64b5f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            color: #aaa;
+            font-size: 1.1rem;
+        }
+
+        .world-selector-card {
+            background: var(--card-background);
+            border-radius: 12px;
+            padding: 2.5rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-color);
+        }
+
+        .world-selector-card h2 {
+            color: var(--primary-color);
+            margin-bottom: 1.5rem;
+            font-size: 1.5rem;
+        }
+
+        .flash-messages {
+            margin-bottom: 1.5rem;
+        }
+
+        .flash {
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+        }
+
+        .flash.success {
+            background: rgba(46, 204, 113, 0.2);
+            border-left: 4px solid var(--success);
+        }
+
+        .flash.warning {
+            background: rgba(243, 156, 18, 0.2);
+            border-left: 4px solid var(--warning);
+        }
+
+        .flash.error {
+            background: rgba(231, 76, 60, 0.2);
+            border-left: 4px solid var(--error);
+        }
+
+        .flash.info {
+            background: rgba(74, 144, 226, 0.2);
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .worlds-list {
+            list-style: none;
+            margin-bottom: 1.5rem;
+        }
+
+        .world-item {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+            transition: all 0.2s;
+        }
+
+        .world-item:hover {
+            background: rgba(74, 144, 226, 0.1);
+            border-color: var(--primary-color);
+            transform: translateX(4px);
+        }
+
+        .world-item label {
+            display: flex;
+            align-items: center;
+            padding: 1.25rem;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .world-item input[type="radio"] {
+            margin-right: 1rem;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .world-info {
+            flex: 1;
+        }
+
+        .world-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .world-path {
+            font-size: 0.85rem;
+            color: #888;
+            font-family: monospace;
+        }
+
+        .no-worlds {
+            text-align: center;
+            padding: 2rem;
+            color: #888;
+        }
+
+        .no-worlds-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0.75rem 2rem;
+            font-size: 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 600;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: #357abd;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(74, 144, 226, 0.4);
+        }
+
+        .btn:disabled {
+            background: #555;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .btn-secondary {
+            background: #555;
+        }
+
+        .btn-secondary:hover {
+            background: #666;
+        }
+
+        .actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .help-text {
+            font-size: 0.9rem;
+            color: #888;
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .help-text strong {
+            color: var(--text-color);
+        }
+
+        @media (max-width: 600px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .world-selector-card {
+                padding: 1.5rem;
+            }
+
+            .actions {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚔️ Arcane Arsenal</h1>
+            <p>Select a world to begin your adventure</p>
+        </div>
+
+        <div class="world-selector-card">
+            <h2>Available Worlds</h2>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="flash-messages">
+                        {% for category, message in messages %}
+                            <div class="flash {{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            {% if worlds %}
+                <form method="POST" action="/select_world" id="world-form">
+                    <ul class="worlds-list">
+                        {% for world in worlds %}
+                            <li class="world-item">
+                                <label>
+                                    <input type="radio" name="world_name" value="{{ world.name }}" required>
+                                    <div class="world-info">
+                                        <div class="world-name">{{ world.display_name }}</div>
+                                        <div class="world-path">{{ world.path }}</div>
+                                    </div>
+                                </label>
+                            </li>
+                        {% endfor %}
+                    </ul>
+
+                    <div class="actions">
+                        <button type="submit" class="btn">Load World →</button>
+                        <span style="color: #888; font-size: 0.9rem;">{{ worlds|length }} world(s) available</span>
+                    </div>
+                </form>
+            {% else %}
+                <div class="no-worlds">
+                    <div class="no-worlds-icon">📦</div>
+                    <p><strong>No worlds found</strong></p>
+                    <p style="margin-top: 0.5rem;">Create a world using the CLI:</p>
+                    <p style="margin-top: 1rem; font-family: monospace; background: rgba(0,0,0,0.3); padding: 0.75rem; border-radius: 4px; font-size: 0.9rem;">
+                        python -m src.cli.commands init worlds/my_world "My World"
+                    </p>
+                </div>
+            {% endif %}
+
+            <div class="help-text">
+                <strong>Quick Start:</strong><br>
+                • <strong>Create a world:</strong> <code>python -m src.cli.commands init worlds/my_world "My World"</code><br>
+                • <strong>Client Interface:</strong> For players to manage characters<br>
+                • <strong>Host Interface:</strong> For DMs to manage world state
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Auto-submit form when radio button is clicked
+        const form = document.getElementById('world-form');
+        const radios = document.querySelectorAll('input[type="radio"][name="world_name"]');
+
+        radios.forEach(radio => {
+            radio.addEventListener('change', () => {
+                // Small delay for UX (shows the selection animation)
+                setTimeout(() => form.submit(), 200);
+            });
+        });
+    </script>
+</body>
+</html>
