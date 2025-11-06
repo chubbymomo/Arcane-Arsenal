@@ -3,17 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Arcane Arsenal - World Selector</title>
+    <title>Arcane Arsenal - Realm Selection</title>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:wght@400;600&display=swap');
+
         :root {
-            --primary-color: #4a90e2;
-            --background: #1a1a2e;
-            --card-background: #16213e;
-            --text-color: #eaeaea;
-            --border-color: #0f3460;
-            --success: #2ecc71;
-            --warning: #f39c12;
-            --error: #e74c3c;
+            --primary: #d4af37;
+            --primary-dark: #b8942b;
+            --secondary: #8b4513;
+            --background: #0a0a0f;
+            --card-background: #1a1520;
+            --card-border: #2d1b3d;
+            --text: #f0e6d6;
+            --text-muted: #a99b8a;
+            --accent: #9b59b6;
+            --success: #27ae60;
+            --warning: #e67e22;
+            --error: #c0392b;
+            --shadow: rgba(0, 0, 0, 0.5);
         }
 
         * {
@@ -23,19 +30,37 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, var(--background) 0%, #0f3460 100%);
-            color: var(--text-color);
+            font-family: 'Crimson Text', serif;
+            background: linear-gradient(135deg, var(--background) 0%, #1a0f2e 100%);
+            color: var(--text);
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
             padding: 2rem;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image:
+                radial-gradient(circle at 20% 50%, rgba(212, 175, 55, 0.05) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(155, 89, 182, 0.05) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
         }
 
         .container {
-            max-width: 800px;
+            max-width: 900px;
             width: 100%;
+            position: relative;
+            z-index: 1;
         }
 
         .header {
@@ -44,31 +69,59 @@
         }
 
         .header h1 {
-            font-size: 3rem;
+            font-family: 'Cinzel', serif;
+            font-size: 3.5rem;
+            font-weight: 700;
             margin-bottom: 0.5rem;
-            background: linear-gradient(90deg, #4a90e2, #64b5f6);
+            background: linear-gradient(135deg, var(--primary), #ffd700, var(--primary));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
+            text-shadow: 0 0 30px rgba(212, 175, 55, 0.3);
+            letter-spacing: 0.1em;
         }
 
-        .header p {
-            color: #aaa;
-            font-size: 1.1rem;
+        .header .subtitle {
+            font-family: 'Cinzel', serif;
+            color: var(--text-muted);
+            font-size: 1.3rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            font-weight: 400;
         }
 
-        .world-selector-card {
-            background: var(--card-background);
-            border-radius: 12px;
+        .realm-selector-card {
+            background: linear-gradient(145deg, var(--card-background), #211528);
+            border-radius: 16px;
             padding: 2.5rem;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-            border: 1px solid var(--border-color);
+            box-shadow: 0 20px 60px var(--shadow),
+                        0 0 0 1px var(--card-border),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            border: 2px solid var(--card-border);
+            position: relative;
         }
 
-        .world-selector-card h2 {
-            color: var(--primary-color);
+        .realm-selector-card::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            border-radius: 16px;
+            opacity: 0.1;
+            z-index: -1;
+        }
+
+        .realm-selector-card h2 {
+            font-family: 'Cinzel', serif;
+            color: var(--primary);
             margin-bottom: 1.5rem;
-            font-size: 1.5rem;
+            font-size: 1.8rem;
+            letter-spacing: 0.05em;
+            text-align: center;
+            text-transform: uppercase;
         }
 
         .flash-messages {
@@ -76,122 +129,202 @@
         }
 
         .flash {
-            padding: 1rem;
-            border-radius: 6px;
-            margin-bottom: 0.5rem;
+            padding: 1rem 1.25rem;
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+            font-size: 1.05rem;
+            border-left: 4px solid;
         }
 
         .flash.success {
-            background: rgba(46, 204, 113, 0.2);
-            border-left: 4px solid var(--success);
+            background: rgba(39, 174, 96, 0.15);
+            border-color: var(--success);
+            color: #7bed9f;
         }
 
         .flash.warning {
-            background: rgba(243, 156, 18, 0.2);
-            border-left: 4px solid var(--warning);
+            background: rgba(230, 126, 34, 0.15);
+            border-color: var(--warning);
+            color: #f8b739;
         }
 
         .flash.error {
-            background: rgba(231, 76, 60, 0.2);
-            border-left: 4px solid var(--error);
+            background: rgba(192, 57, 43, 0.15);
+            border-color: var(--error);
+            color: #ff6b81;
         }
 
         .flash.info {
-            background: rgba(74, 144, 226, 0.2);
-            border-left: 4px solid var(--primary-color);
+            background: rgba(155, 89, 182, 0.15);
+            border-color: var(--accent);
+            color: #b8a0d0;
         }
 
-        .worlds-list {
+        .tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            border-bottom: 2px solid var(--card-border);
+        }
+
+        .tab {
+            font-family: 'Cinzel', serif;
+            padding: 0.75rem 1.5rem;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 1.1rem;
+            letter-spacing: 0.05em;
+            transition: all 0.3s;
+            border-bottom: 3px solid transparent;
+            position: relative;
+            bottom: -2px;
+        }
+
+        .tab:hover {
+            color: var(--primary);
+        }
+
+        .tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+            text-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .realms-list {
             list-style: none;
             margin-bottom: 1.5rem;
         }
 
-        .world-item {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            margin-bottom: 0.75rem;
-            transition: all 0.2s;
+        .realm-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 2px solid var(--card-border);
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
         }
 
-        .world-item:hover {
-            background: rgba(74, 144, 226, 0.1);
-            border-color: var(--primary-color);
-            transform: translateX(4px);
+        .realm-item::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: linear-gradient(180deg, var(--primary), var(--accent));
+            transform: scaleY(0);
+            transition: transform 0.3s;
         }
 
-        .world-item label {
+        .realm-item:hover {
+            background: rgba(212, 175, 55, 0.05);
+            border-color: var(--primary);
+            transform: translateX(8px);
+        }
+
+        .realm-item:hover::before {
+            transform: scaleY(1);
+        }
+
+        .realm-item label {
             display: flex;
             align-items: center;
-            padding: 1.25rem;
+            padding: 1.5rem;
             cursor: pointer;
             width: 100%;
         }
 
-        .world-item input[type="radio"] {
-            margin-right: 1rem;
-            width: 20px;
-            height: 20px;
+        .realm-item input[type="radio"] {
+            margin-right: 1.25rem;
+            width: 22px;
+            height: 22px;
             cursor: pointer;
+            accent-color: var(--primary);
         }
 
-        .world-info {
+        .realm-info {
             flex: 1;
         }
 
-        .world-name {
-            font-size: 1.1rem;
+        .realm-name {
+            font-family: 'Cinzel', serif;
+            font-size: 1.3rem;
             font-weight: 600;
             margin-bottom: 0.25rem;
+            color: var(--text);
         }
 
-        .world-path {
-            font-size: 0.85rem;
-            color: #888;
-            font-family: monospace;
+        .realm-path {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-family: 'Courier New', monospace;
         }
 
-        .no-worlds {
+        .no-realms {
             text-align: center;
-            padding: 2rem;
-            color: #888;
+            padding: 3rem 2rem;
+            color: var(--text-muted);
         }
 
-        .no-worlds-icon {
-            font-size: 3rem;
+        .no-realms-icon {
+            font-size: 4rem;
             margin-bottom: 1rem;
-        }
-
-        .btn {
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            padding: 0.75rem 2rem;
-            font-size: 1rem;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-weight: 600;
-        }
-
-        .btn:hover:not(:disabled) {
-            background: #357abd;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(74, 144, 226, 0.4);
-        }
-
-        .btn:disabled {
-            background: #555;
-            cursor: not-allowed;
             opacity: 0.5;
         }
 
+        .btn {
+            font-family: 'Cinzel', serif;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: #1a1520;
+            border: none;
+            padding: 0.9rem 2.5rem;
+            font-size: 1.05rem;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);
+        }
+
+        .btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #ffd700, var(--primary));
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(212, 175, 55, 0.5);
+        }
+
+        .btn:disabled {
+            background: #444;
+            cursor: not-allowed;
+            opacity: 0.5;
+            box-shadow: none;
+        }
+
         .btn-secondary {
-            background: #555;
+            background: linear-gradient(135deg, #444, #333);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
         }
 
         .btn-secondary:hover {
-            background: #666;
+            background: linear-gradient(135deg, #555, #444);
         }
 
         .actions {
@@ -201,30 +334,198 @@
             align-items: center;
         }
 
-        .help-text {
-            font-size: 0.9rem;
-            color: #888;
-            margin-top: 1.5rem;
-            padding-top: 1.5rem;
-            border-top: 1px solid var(--border-color);
+        .form-group {
+            margin-bottom: 1.5rem;
         }
 
-        .help-text strong {
-            color: var(--text-color);
+        .form-group label {
+            display: block;
+            font-family: 'Cinzel', serif;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+            font-size: 1rem;
+            letter-spacing: 0.05em;
+        }
+
+        .form-group input[type="text"] {
+            width: 100%;
+            padding: 0.9rem 1.2rem;
+            background: rgba(0, 0, 0, 0.3);
+            border: 2px solid var(--card-border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 1.05rem;
+            font-family: 'Crimson Text', serif;
+            transition: all 0.3s;
+        }
+
+        .form-group input[type="text"]:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1);
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        .form-group .help-text {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }
+
+        .modules-section {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            border: 1px solid var(--card-border);
+        }
+
+        .modules-section h3 {
+            font-family: 'Cinzel', serif;
+            color: var(--primary);
+            margin-bottom: 1rem;
+            font-size: 1.3rem;
+            letter-spacing: 0.05em;
+        }
+
+        .module-list {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .module-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 2px solid var(--card-border);
+            border-radius: 8px;
+            padding: 1.25rem;
+            transition: all 0.3s;
+        }
+
+        .module-item:hover:not(.module-core) {
+            border-color: rgba(212, 175, 55, 0.3);
+            background: rgba(212, 175, 55, 0.05);
+        }
+
+        .module-item.module-core {
+            border-color: var(--primary);
+            background: rgba(212, 175, 55, 0.08);
+        }
+
+        .module-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        .module-checkbox {
+            width: 22px;
+            height: 22px;
+            margin-top: 0.2rem;
+            cursor: pointer;
+            accent-color: var(--primary);
+        }
+
+        .module-checkbox:disabled {
+            cursor: not-allowed;
+        }
+
+        .module-details {
+            flex: 1;
+        }
+
+        .module-title {
+            font-family: 'Cinzel', serif;
+            font-size: 1.15rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            color: var(--text);
+        }
+
+        .module-core-badge {
+            display: inline-block;
+            background: var(--primary);
+            color: #1a1520;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            margin-left: 0.5rem;
+            letter-spacing: 0.05em;
+        }
+
+        .module-description {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            line-height: 1.5;
+            margin-bottom: 0.5rem;
+        }
+
+        .module-meta {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-family: 'Courier New', monospace;
+        }
+
+        .module-dependencies {
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid var(--card-border);
+            font-size: 0.9rem;
+            color: var(--warning);
+        }
+
+        .help-text-section {
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 2px solid var(--card-border);
+            font-size: 0.95rem;
+            color: var(--text-muted);
+        }
+
+        .help-text-section strong {
+            color: var(--primary);
+            font-family: 'Cinzel', serif;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
         }
 
         @media (max-width: 600px) {
             .header h1 {
-                font-size: 2rem;
+                font-size: 2.5rem;
             }
 
-            .world-selector-card {
+            .header .subtitle {
+                font-size: 1rem;
+            }
+
+            .realm-selector-card {
                 padding: 1.5rem;
+            }
+
+            .tabs {
+                flex-direction: column;
+                gap: 0;
+            }
+
+            .tab {
+                border-bottom: 1px solid var(--card-border);
+                border-left: 3px solid transparent;
+            }
+
+            .tab.active {
+                border-left-color: var(--primary);
+                border-bottom-color: var(--card-border);
             }
 
             .actions {
                 flex-direction: column;
-                gap: 0.5rem;
+                gap: 1rem;
             }
 
             .btn {
@@ -236,13 +537,11 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>⚔️ Arcane Arsenal</h1>
-            <p>Select a world to begin your adventure</p>
+            <h1>⚔️ ARCANE ARSENAL</h1>
+            <p class="subtitle">Realm Portal</p>
         </div>
 
-        <div class="world-selector-card">
-            <h2>Available Worlds</h2>
-
+        <div class="realm-selector-card">
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                     <div class="flash-messages">
@@ -253,57 +552,269 @@
                 {% endif %}
             {% endwith %}
 
-            {% if worlds %}
-                <form method="POST" action="/select_world" id="world-form">
-                    <ul class="worlds-list">
-                        {% for world in worlds %}
-                            <li class="world-item">
-                                <label>
-                                    <input type="radio" name="world_name" value="{{ world.name }}" required>
-                                    <div class="world-info">
-                                        <div class="world-name">{{ world.display_name }}</div>
-                                        <div class="world-path">{{ world.path }}</div>
-                                    </div>
-                                </label>
-                            </li>
-                        {% endfor %}
-                    </ul>
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('select')">Enter Realm</button>
+                <button class="tab" onclick="switchTab('create')">Forge New Realm</button>
+            </div>
 
-                    <div class="actions">
-                        <button type="submit" class="btn">Load World →</button>
-                        <span style="color: #888; font-size: 0.9rem;">{{ worlds|length }} world(s) available</span>
+            <!-- Select Existing Realm Tab -->
+            <div id="select-tab" class="tab-content active">
+                <h2>Select Your Realm</h2>
+
+                {% if worlds %}
+                    <form method="POST" action="/select_world" id="world-form">
+                        <ul class="realms-list">
+                            {% for world in worlds %}
+                                <li class="realm-item">
+                                    <label>
+                                        <input type="radio" name="world_name" value="{{ world.name }}" required>
+                                        <div class="realm-info">
+                                            <div class="realm-name">{{ world.display_name }}</div>
+                                            <div class="realm-path">{{ world.path }}</div>
+                                        </div>
+                                    </label>
+                                </li>
+                            {% endfor %}
+                        </ul>
+
+                        <div class="actions">
+                            <button type="submit" class="btn">Enter Realm →</button>
+                            <span style="color: var(--text-muted); font-size: 0.95rem;">{{ worlds|length }} realm(s) discovered</span>
+                        </div>
+                    </form>
+                {% else %}
+                    <div class="no-realms">
+                        <div class="no-realms-icon">🏰</div>
+                        <p><strong>No Realms Discovered</strong></p>
+                        <p style="margin-top: 0.5rem;">Forge a new realm to begin your adventure</p>
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Create New Realm Tab -->
+            <div id="create-tab" class="tab-content">
+                <h2>Forge a New Realm</h2>
+
+                <form method="POST" action="/create_world" id="create-form">
+                    <div class="form-group">
+                        <label for="realm_name">Realm Name</label>
+                        <input type="text" id="realm_name" name="realm_name" required
+                               placeholder="The Forgotten Kingdom">
+                        <div class="help-text">The display name for your realm</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="world_name">Realm Folder</label>
+                        <input type="text" id="world_name" name="world_name" required
+                               placeholder="forgotten_kingdom">
+                        <div class="help-text">Folder name (alphanumeric, underscores, and hyphens only)</div>
+                    </div>
+
+                    <div class="modules-section">
+                        <h3>⚡ Select Arcane Modules</h3>
+                        <div id="modules-loading" class="loading">
+                            Discovering available arcane powers...
+                        </div>
+                        <div id="modules-list" class="module-list" style="display: none;">
+                            <!-- Modules will be loaded here via JavaScript -->
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 2rem;">
+                        <button type="submit" class="btn">Forge Realm ⚔️</button>
                     </div>
                 </form>
-            {% else %}
-                <div class="no-worlds">
-                    <div class="no-worlds-icon">📦</div>
-                    <p><strong>No worlds found</strong></p>
-                    <p style="margin-top: 0.5rem;">Create a world using the CLI:</p>
-                    <p style="margin-top: 1rem; font-family: monospace; background: rgba(0,0,0,0.3); padding: 0.75rem; border-radius: 4px; font-size: 0.9rem;">
-                        python -m src.cli.commands init worlds/my_world "My World"
-                    </p>
-                </div>
-            {% endif %}
+            </div>
 
-            <div class="help-text">
-                <strong>Quick Start:</strong><br>
-                • <strong>Create a world:</strong> <code>python -m src.cli.commands init worlds/my_world "My World"</code><br>
-                • <strong>Client Interface:</strong> For players to manage characters<br>
-                • <strong>Host Interface:</strong> For DMs to manage world state
+            <div class="help-text-section">
+                <strong>About Arcane Arsenal:</strong><br>
+                • <strong>Realms:</strong> Self-contained game worlds with their own entities and state<br>
+                • <strong>Modules:</strong> Arcane powers that add components, relationships, and game mechanics<br>
+                • <strong>Core Components:</strong> Essential magic required for all realms (automatically included)<br>
             </div>
         </div>
     </div>
 
     <script>
-        // Auto-submit form when radio button is clicked
-        const form = document.getElementById('world-form');
-        const radios = document.querySelectorAll('input[type="radio"][name="world_name"]');
-
-        radios.forEach(radio => {
-            radio.addEventListener('change', () => {
-                // Small delay for UX (shows the selection animation)
-                setTimeout(() => form.submit(), 200);
+        // Tab switching
+        function switchTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
             });
+            event.target.classList.add('active');
+
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(tabName + '-tab').classList.add('active');
+
+            // Load modules when switching to create tab
+            if (tabName === 'create' && !window.modulesLoaded) {
+                loadModules();
+            }
+        }
+
+        // Auto-submit form when radio button is clicked
+        const worldForm = document.getElementById('world-form');
+        if (worldForm) {
+            const radios = worldForm.querySelectorAll('input[type="radio"][name="world_name"]');
+            radios.forEach(radio => {
+                radio.addEventListener('change', () => {
+                    setTimeout(() => worldForm.submit(), 200);
+                });
+            });
+        }
+
+        // Load available modules
+        let modulesData = {};
+        window.modulesLoaded = false;
+
+        async function loadModules() {
+            if (window.modulesLoaded) return;
+
+            try {
+                const response = await fetch('/api/available_modules');
+                const data = await response.json();
+                modulesData = {};
+
+                // Build module lookup
+                data.modules.forEach(mod => {
+                    modulesData[mod.name] = mod;
+                });
+
+                renderModules(data.modules);
+                window.modulesLoaded = true;
+            } catch (error) {
+                document.getElementById('modules-loading').innerHTML =
+                    '<div style="color: var(--error);">Failed to load modules: ' + error.message + '</div>';
+            }
+        }
+
+        function renderModules(modules) {
+            const container = document.getElementById('modules-list');
+            const loading = document.getElementById('modules-loading');
+
+            if (modules.length === 0) {
+                loading.innerHTML = '<div style="color: var(--text-muted);">No modules found</div>';
+                return;
+            }
+
+            container.innerHTML = '';
+            modules.forEach(mod => {
+                const item = createModuleItem(mod);
+                container.appendChild(item);
+            });
+
+            loading.style.display = 'none';
+            container.style.display = 'grid';
+
+            // Setup dependency handling
+            setupDependencyHandling();
+        }
+
+        function createModuleItem(mod) {
+            const div = document.createElement('div');
+            div.className = 'module-item' + (mod.is_core ? ' module-core' : '');
+
+            const checked = mod.is_core || mod.name === 'core_components';
+            const disabled = mod.is_core || mod.name === 'core_components';
+
+            let html = `
+                <div class="module-header">
+                    <input type="checkbox"
+                           class="module-checkbox"
+                           name="modules"
+                           value="${mod.name}"
+                           id="module-${mod.name}"
+                           data-dependencies='${JSON.stringify(mod.dependencies)}'
+                           ${checked ? 'checked' : ''}
+                           ${disabled ? 'disabled' : ''}>
+                    <div class="module-details">
+                        <div class="module-title">
+                            ${mod.display_name}
+                            ${mod.is_core ? '<span class="module-core-badge">CORE</span>' : ''}
+                        </div>
+                        <div class="module-description">${mod.description}</div>
+                        <div class="module-meta">
+                            <span>v${mod.version}</span>
+                            <span>ID: ${mod.name}</span>
+                        </div>
+            `;
+
+            if (mod.dependencies && mod.dependencies.length > 0) {
+                html += `
+                        <div class="module-dependencies">
+                            ⚠️ Requires: ${mod.dependencies.map(dep =>
+                                modulesData[dep] ? modulesData[dep].display_name : dep
+                            ).join(', ')}
+                        </div>
+                `;
+            }
+
+            html += `
+                    </div>
+                </div>
+            `;
+
+            div.innerHTML = html;
+            return div;
+        }
+
+        function setupDependencyHandling() {
+            const checkboxes = document.querySelectorAll('.module-checkbox:not([disabled])');
+
+            checkboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', (e) => {
+                    const moduleName = e.target.value;
+                    const isChecked = e.target.checked;
+
+                    if (isChecked) {
+                        // Auto-check dependencies
+                        const deps = JSON.parse(e.target.dataset.dependencies || '[]');
+                        deps.forEach(dep => {
+                            const depCheckbox = document.getElementById('module-' + dep);
+                            if (depCheckbox && !depCheckbox.checked) {
+                                depCheckbox.checked = true;
+                            }
+                        });
+                    } else {
+                        // Check if any enabled module depends on this one
+                        const dependents = [];
+                        checkboxes.forEach(cb => {
+                            if (cb.checked && cb.value !== moduleName) {
+                                const deps = JSON.parse(cb.dataset.dependencies || '[]');
+                                if (deps.includes(moduleName)) {
+                                    dependents.push(modulesData[cb.value]?.display_name || cb.value);
+                                }
+                            }
+                        });
+
+                        if (dependents.length > 0) {
+                            e.preventDefault();
+                            alert('Cannot disable this module.\n\nThe following modules depend on it:\n• ' + dependents.join('\n• '));
+                            e.target.checked = true;
+                        }
+                    }
+                });
+            });
+        }
+
+        // Auto-generate folder name from realm name
+        document.getElementById('realm_name')?.addEventListener('input', (e) => {
+            const folderInput = document.getElementById('world_name');
+            if (!folderInput.dataset.manuallyEdited) {
+                const folderName = e.target.value
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, '_')
+                    .replace(/^_+|_+$/g, '');
+                folderInput.value = folderName;
+            }
+        });
+
+        document.getElementById('world_name')?.addEventListener('input', () => {
+            document.getElementById('world_name').dataset.manuallyEdited = 'true';
         });
     </script>
 </body>

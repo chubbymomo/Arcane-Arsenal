@@ -155,8 +155,9 @@ class Module(ABC):
     1. Subclass Module
     2. Implement name and version properties
     3. Implement register_* methods to provide types
-    4. Optional: implement initialize() for setup
-    5. Optional: implement on_event() to react to events
+    4. Optional: implement dependencies() to specify required modules
+    5. Optional: implement initialize() for setup
+    6. Optional: implement on_event() to react to events
     """
 
     @property
@@ -170,6 +171,51 @@ class Module(ABC):
     def version(self) -> str:
         """Module version (semver, e.g., '1.0.0')"""
         pass
+
+    @property
+    def display_name(self) -> str:
+        """
+        Human-readable display name for this module.
+
+        Override to provide a more descriptive name for UIs.
+        Defaults to the module name.
+        """
+        return self.name.replace('_', ' ').title()
+
+    @property
+    def description(self) -> str:
+        """
+        Description of what this module provides.
+
+        Override to provide detailed information about the module.
+        """
+        return f"{self.display_name} module"
+
+    @property
+    def is_core(self) -> bool:
+        """
+        Whether this is a core module that cannot be disabled.
+
+        Core modules are required for basic functionality and are
+        automatically included in all worlds.
+        """
+        return False
+
+    def dependencies(self) -> List[str]:
+        """
+        Return list of module names that this module depends on.
+
+        Dependencies will be loaded before this module, and users cannot
+        enable this module without also enabling its dependencies.
+
+        Returns:
+            List of module names (e.g., ['core_components', 'stats'])
+
+        Example:
+            def dependencies(self) -> List[str]:
+                return ['core_components', 'stats']
+        """
+        return []
 
     def initialize(self, engine: 'StateEngine') -> None:
         """

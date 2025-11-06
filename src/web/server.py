@@ -16,6 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.core.state_engine import StateEngine
+from src.core.module_loader import ModuleLoader
 from src.web.blueprints import client_bp, host_bp
 
 
@@ -110,6 +111,66 @@ def create_app(worlds_dir: str = 'worlds') -> Flask:
         session.pop('world_name', None)
         flash('World unloaded', 'info')
         return redirect(url_for('index'))
+
+    @app.route('/api/available_modules')
+    def api_available_modules():
+        """JSON API: Get all available modules for world creation."""
+        loader = ModuleLoader()
+        modules = loader.discover_available_modules()
+        return jsonify({'modules': modules})
+
+    @app.route('/create_world', methods=['POST'])
+    def create_world():
+        """Create a new world with selected modules."""
+        try:
+            world_name = request.form.get('world_name', '').strip()
+            realm_name = request.form.get('realm_name', '').strip()
+            selected_modules = request.form.getlist('modules')
+
+            # Validation
+            if not world_name:
+                flash('Please provide a realm folder name', 'error')
+                return redirect(url_for('index'))
+
+            if not realm_name:
+                flash('Please provide a realm display name', 'error')
+                return redirect(url_for('index'))
+
+            # Sanitize world_name for filesystem
+            import re
+            world_name = re.sub(r'[^a-zA-Z0-9_-]', '_', world_name)
+
+            world_path = os.path.join(worlds_dir, world_name)
+
+            # Check if world already exists
+            if os.path.exists(os.path.join(world_path, 'world.db')):
+                flash(f'A realm named "{world_name}" already exists', 'error')
+                return redirect(url_for('index'))
+
+            # Ensure core_components is always included
+            if not selected_modules:
+                selected_modules = ['core_components']
+            elif 'core_components' not in selected_modules:
+                selected_modules.insert(0, 'core_components')
+
+            # Create the world
+            engine = StateEngine.initialize_world(
+                world_path=world_path,
+                world_name=realm_name,
+                modules=selected_modules
+            )
+
+            flash(f'Realm "{realm_name}" created successfully with {len(selected_modules)} arcane module(s)', 'success')
+
+            # Auto-select the new world
+            session['world_path'] = world_path
+            session['world_name'] = world_name
+
+            return redirect(url_for('client.index'))
+
+        except Exception as e:
+            flash(f'Failed to create realm: {str(e)}', 'error')
+            return redirect(url_for('index'))
 
     # ========== API Endpoints ==========
 

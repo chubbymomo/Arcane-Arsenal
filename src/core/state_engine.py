@@ -120,7 +120,7 @@ class StateEngine:
     # ========== World Initialization ==========
 
     @staticmethod
-    def initialize_world(world_path: str, world_name: str) -> 'StateEngine':
+    def initialize_world(world_path: str, world_name: str, modules: List[str] = None) -> 'StateEngine':
         """
         Create a new world and return initialized engine.
 
@@ -129,11 +129,13 @@ class StateEngine:
         2. Create database with schema
         3. Create 'system' entity
         4. Register core event types
-        5. Emit world.created event
+        5. Create config.json with specified modules
+        6. Emit world.created event
 
         Args:
             world_path: Directory where world will be created
             world_name: Name of the world
+            modules: List of module names to enable (default: ['core_components'])
 
         Returns:
             Initialized StateEngine instance
@@ -168,20 +170,31 @@ class StateEngine:
         system_entity = Entity.create('System', entity_id='system')
         storage.save_entity(system_entity)
 
-        # Create default config.json (loads core_components only by default)
+        # Create config.json with specified modules
         config_path = os.path.join(world_path, 'config.json')
-        default_config = {
+        if modules is None:
+            modules = ['core_components']  # Safe default - only core
+
+        # Ensure core_components is always included
+        if 'core_components' not in modules:
+            modules = ['core_components'] + modules
+
+        config = {
             'world_name': world_name,
-            'modules': ['core_components']  # Safe default - only core
+            'modules': modules
         }
         with open(config_path, 'w') as f:
-            json.dump(default_config, f, indent=2)
+            json.dump(config, f, indent=2)
 
         # Log world creation event
         event_bus = EventBus(storage)
         event = Event.create(
             event_type='world.created',
-            data={'world_name': world_name, 'world_path': world_path},
+            data={
+                'world_name': world_name,
+                'world_path': world_path,
+                'modules': modules
+            },
             actor_id='system'
         )
         event_bus.publish(event)
