@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Arcane Arsenal{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>🏠 Dungeon Master Dashboard</h2>
+    <p style="color: var(--text-muted); margin-bottom: 2rem;">Welcome to your realm management center</p>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+        <!-- Stats Cards -->
+        <div class="stat-card">
+            <div class="stat-icon">📜</div>
+            <div class="stat-value">{{ entity_count }}</div>
+            <div class="stat-label">Entities</div>
+            <a href="{{ url_for('host.entities') }}" class="btn btn-small" style="margin-top: 1rem;">View All</a>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon">⚡</div>
+            <div class="stat-value">{{ event_count }}</div>
+            <div class="stat-label">Recent Events</div>
+            <a href="{{ url_for('host.events') }}" class="btn btn-small" style="margin-top: 1rem;">View Log</a>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon">🎭</div>
+            <div class="stat-value">{{ player_count }}</div>
+            <div class="stat-label">Player Champions</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon">⚙️</div>
+            <div class="stat-value">{{ component_type_count }}</div>
+            <div class="stat-label">Component Types</div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="card" style="margin-top: 2rem;">
+        <h3>⚡ Quick Actions</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1rem;">
+            <button class="btn" onclick="document.getElementById('quick-create').style.display='block'">
+                ✨ Create Entity
+            </button>
+            <a href="{{ url_for('host.entities') }}" class="btn btn-secondary">
+                📋 Manage Entities
+            </a>
+            <a href="{{ url_for('host.events') }}" class="btn btn-secondary">
+                📊 View Events
+            </a>
+            <a href="{{ url_for('client.index') }}" class="btn btn-secondary">
+                🎮 Player View
+            </a>
+        </div>
+    </div>
+
+    <!-- Quick Create Form -->
+    <div id="quick-create" style="display: none; margin-top: 2rem;" class="card">
+        <h3>Create New Entity</h3>
+        <form method="POST" action="{{ url_for('host.create_entity') }}">
+            <div style="margin-bottom: 1rem;">
+                <label for="name">Entity Name</label>
+                <input type="text" id="name" name="name" required placeholder="Enter entity name">
+            </div>
+            <div style="display: flex; gap: 1rem;">
+                <button type="submit" class="btn">Create</button>
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('quick-create').style.display='none'">Cancel</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Recent Activity -->
+    {% if recent_events %}
+    <div class="card" style="margin-top: 2rem;">
+        <h3>📜 Recent Activity</h3>
+        <div style="margin-top: 1rem;">
+            {% for event in recent_events %}
+            <div style="padding: 0.75rem; background: rgba(0, 0, 0, 0.2); border-radius: 6px; margin-bottom: 0.5rem; border-left: 3px solid var(--primary);">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <strong style="color: var(--primary);">{{ event.event_type }}</strong>
+                        {% if event.entity_name %}
+                        <span style="color: var(--text-muted);">→ {{ event.entity_name }}</span>
+                        {% endif %}
+                    </div>
+                    <span style="color: var(--text-muted); font-size: 0.85rem;">{{ event.event.timestamp.strftime('%H:%M:%S') }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <div style="margin-top: 1rem;">
+            <a href="{{ url_for('host.events') }}" class="btn btn-secondary btn-small">View All Events →</a>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Module Info -->
+    <div class="card" style="margin-top: 2rem;">
+        <h3>⚙️ Loaded Modules</h3>
+        <div style="margin-top: 1rem;">
+            {% for module in modules %}
+            <div style="padding: 0.75rem; background: rgba(212, 175, 55, 0.05); border-radius: 6px; margin-bottom: 0.5rem; border: 1px solid var(--card-border);">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <strong>{{ module.display_name }}</strong>
+                        {% if module.is_core %}
+                        <span style="display: inline-block; background: var(--primary); color: #1a1520; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.7rem; margin-left: 0.5rem;">CORE</span>
+                        {% endif %}
+                    </div>
+                    <span style="color: var(--text-muted); font-size: 0.85rem;">v{{ module.version }}</span>
+                </div>
+                <div style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.25rem;">{{ module.description }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<style>
+    .stat-card {
+        background: linear-gradient(145deg, rgba(212, 175, 55, 0.05), rgba(155, 89, 182, 0.05));
+        border: 2px solid var(--card-border);
+        border-radius: 12px;
+        padding: 2rem;
+        text-align: center;
+        transition: all 0.3s;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-4px);
+        border-color: var(--primary);
+        box-shadow: 0 8px 24px rgba(212, 175, 55, 0.2);
+    }
+
+    .stat-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+    }
+
+    .stat-value {
+        font-family: 'Cinzel', serif;
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: var(--primary);
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-label {
+        color: var(--text-muted);
+        font-size: 0.95rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        font-family: 'Cinzel', serif;
+    }
+</style>
+{% endblock %}

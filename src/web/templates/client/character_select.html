@@ -5,8 +5,7 @@
 {% block content %}
 <div class="character-select-container">
     <div class="page-header">
-        <h2>My Characters</h2>
-        <a href="{{ url_for('client.character_create') }}" class="btn btn-primary">+ Create New Character</a>
+        <h2>🎭 My Champions</h2>
     </div>
 
     {% if characters %}
@@ -41,10 +40,10 @@
     {% else %}
         <div class="empty-state">
             <div class="empty-state-icon">🎲</div>
-            <h3>No Characters Yet</h3>
-            <p>Create your first character to begin your adventure!</p>
-            <a href="{{ url_for('client.character_create') }}" class="btn btn-primary btn-large">
-                Create Your First Character
+            <h3>No Champions Yet</h3>
+            <p>Forge your first champion to begin your epic adventure!</p>
+            <a href="{{ url_for('client.character_create') }}" class="btn" style="padding: 1rem 2rem; font-size: 1.1rem;">
+                ✨ Forge Your First Champion
             </a>
         </div>
     {% endif %}

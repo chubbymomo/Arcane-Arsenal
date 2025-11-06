@@ -267,8 +267,15 @@
         }
 
         .btn-secondary {
-            background: linear-gradient(135deg, #444, #333);
+            background: linear-gradient(135deg, #555, #444);
+            color: var(--text);
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: linear-gradient(135deg, #666, #555);
+            border-color: rgba(255, 255, 255, 0.2);
         }
 
         .btn-danger {
@@ -385,11 +392,12 @@
     <header>
         <h1>🎲 Arcane Arsenal - Dungeon Master</h1>
         <div class="realm-info">
-            Realm: <strong>{{ session.get('world_name', 'Unknown') }}</strong>
+            Realm: <strong>{{ session.get('world_display_name', session.get('world_name', 'Unknown')) }}</strong>
             <a href="{{ url_for('switch_world') }}">⤴ Return to Realm Portal</a>
         </div>
         <nav>
-            <a href="{{ url_for('host.index') }}">📜 Entities</a>
+            <a href="{{ url_for('host.index') }}">🏠 Dashboard</a>
+            <a href="{{ url_for('host.entities') }}">📜 Entities</a>
             <a href="{{ url_for('host.events') }}">⚡ Events</a>
             <span class="nav-separator">|</span>
             <a href="{{ url_for('client.index') }}" class="nav-switch">⚔️ Adventurer View</a>

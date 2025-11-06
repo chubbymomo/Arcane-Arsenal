@@ -91,15 +91,28 @@ def create_app(worlds_dir: str = 'worlds') -> Flask:
 
         world_path = os.path.join(worlds_dir, world_name)
         db_path = os.path.join(world_path, 'world.db')
+        config_path = os.path.join(world_path, 'config.json')
 
         if not os.path.exists(db_path):
             flash(f'World "{world_name}" not found', 'error')
             return redirect(url_for('index'))
 
-        # Store world in session
+        # Get display name from config
+        display_name = world_name
+        if os.path.exists(config_path):
+            try:
+                import json
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                    display_name = config.get('world_name', world_name)
+            except:
+                pass
+
+        # Store world in session (both folder name and display name)
         session['world_path'] = world_path
-        session['world_name'] = world_name
-        flash(f'Loaded world: {world_name}', 'success')
+        session['world_name'] = world_name  # Folder name for file operations
+        session['world_display_name'] = display_name  # Aesthetic name for UI
+        flash(f'Entered realm: {display_name}', 'success')
 
         # Redirect to client interface
         return redirect(url_for('client.index'))
@@ -109,7 +122,8 @@ def create_app(worlds_dir: str = 'worlds') -> Flask:
         """Clear world selection and return to selector."""
         session.pop('world_path', None)
         session.pop('world_name', None)
-        flash('World unloaded', 'info')
+        session.pop('world_display_name', None)
+        flash('Returned to Realm Portal', 'info')
         return redirect(url_for('index'))
 
     @app.route('/api/available_modules')
@@ -165,6 +179,7 @@ def create_app(worlds_dir: str = 'worlds') -> Flask:
             # Auto-select the new world
             session['world_path'] = world_path
             session['world_name'] = world_name
+            session['world_display_name'] = realm_name
 
             return redirect(url_for('client.index'))
 
