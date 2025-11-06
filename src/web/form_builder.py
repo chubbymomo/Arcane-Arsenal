@@ -8,8 +8,11 @@ Generates HTML forms from component schemas and UI metadata, supporting:
 - Help text and labels
 """
 
+import logging
 from typing import Dict, Any, Optional, List
 from markupsafe import Markup, escape
+
+logger = logging.getLogger(__name__)
 
 
 class FormBuilder:
@@ -290,7 +293,8 @@ class FormBuilder:
         try:
             registry = self.engine.create_registry(registry_name, 'generic_fantasy')
             options = registry.get_all()
-        except:
+        except Exception as e:
+            logger.error(f"Failed to load registry '{registry_name}': {e}")
             return f'<p class="text-danger">Error: registry "{escape(registry_name)}" not found</p>'
 
         html = [f'<select id="{escape(name)}" name="{escape(name)}" class="form-control">']
@@ -312,7 +316,8 @@ class FormBuilder:
         try:
             registry = self.engine.create_registry(registry_name, 'generic_fantasy')
             options = registry.get_all()
-        except:
+        except Exception as e:
+            logger.error(f"Failed to load registry '{registry_name}' for multiselect: {e}")
             return f'<p class="text-danger">Error: registry "{escape(registry_name)}" not found</p>'
 
         value_list = value if isinstance(value, list) else []

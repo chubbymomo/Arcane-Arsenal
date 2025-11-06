@@ -5,12 +5,15 @@ Provides character selection, creation, and viewing for players.
 Eventually will include action interface and gameplay features.
 """
 
+import logging
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, session
 import json as json_module
 from functools import wraps
 
 from src.core.state_engine import StateEngine
 from src.web.form_builder import FormBuilder
+
+logger = logging.getLogger(__name__)
 
 # Create blueprint
 client_bp = Blueprint('client', __name__, url_prefix='/client', template_folder='../templates/client')
@@ -240,19 +243,22 @@ def character_builder():
     try:
         races_registry = engine.create_registry('races', 'generic_fantasy')
         races = races_registry.get_all()
-    except:
+    except Exception as e:
+        logger.warning(f"Failed to load races registry: {e}")
         races = []
 
     try:
         classes_registry = engine.create_registry('classes', 'generic_fantasy')
         classes = classes_registry.get_all()
-    except:
+    except Exception as e:
+        logger.warning(f"Failed to load classes registry: {e}")
         classes = []
 
     try:
         alignments_registry = engine.create_registry('alignments', 'generic_fantasy')
         alignments = alignments_registry.get_all()
-    except:
+    except Exception as e:
+        logger.warning(f"Failed to load alignments registry: {e}")
         alignments = []
 
     # Get available regions

@@ -49,12 +49,12 @@ class EquipmentSystem:
             Result with success/error status
         """
         # 1. Validate item has Equippable component
-        equippable = self.engine.get_component(item_id, 'equippable')
+        equippable = self.engine.get_component(item_id, 'Equippable')
         if not equippable:
             return Result.fail("Item is not equippable", "ITEM_NOT_EQUIPPABLE")
 
-        slot = equippable['slot']
-        two_handed = equippable.get('two_handed', False)
+        slot = equippable.data['slot']
+        two_handed = equippable.data.get('two_handed', False)
 
         # 2. Validate character owns the item
         owns_relationships = self.engine.get_relationships(
@@ -67,10 +67,10 @@ class EquipmentSystem:
             return Result.fail("Character does not own this item", "NOT_OWNED")
 
         # 3. Check requirements (optional - only if attributes exist)
-        required_strength = equippable.get('required_strength')
+        required_strength = equippable.data.get('required_strength')
         if required_strength:
             attributes = self.engine.get_component(character_id, 'Attributes')
-            if attributes and attributes.get('strength', 0) < required_strength:
+            if attributes and attributes.data.get('strength', 0) < required_strength:
                 return Result.fail(
                     f"Requires {required_strength} strength",
                     "INSUFFICIENT_STRENGTH"
@@ -84,15 +84,15 @@ class EquipmentSystem:
         )
 
         for rel in equipped_rels:
-            other_equippable = self.engine.get_component(rel.to_entity, 'equippable')
+            other_equippable = self.engine.get_component(rel.to_entity, 'Equippable')
             if other_equippable:
-                other_slot = other_equippable['slot']
+                other_slot = other_equippable.data['slot']
                 # Unequip if same slot, or if two-handed weapon conflicts
                 if other_slot == slot:
                     self.engine.delete_relationship(rel.id)
                 elif two_handed and other_slot in ['main_hand', 'off_hand']:
                     self.engine.delete_relationship(rel.id)
-                elif slot in ['main_hand', 'off_hand'] and other_equippable.get('two_handed'):
+                elif slot in ['main_hand', 'off_hand'] and other_equippable.data.get('two_handed'):
                     self.engine.delete_relationship(rel.id)
 
         # 5. Create equipped relationship
@@ -171,7 +171,7 @@ class EquipmentSystem:
             entity = self.engine.get_entity(rel.to_entity)
             if entity and entity.is_active():
                 components = self.engine.get_entity_components(rel.to_entity)
-                equippable = components.get('equippable', {})
+                equippable = components.get('Equippable', {})
                 items.append({
                     'entity': entity,
                     'slot': equippable.get('slot', 'unknown'),

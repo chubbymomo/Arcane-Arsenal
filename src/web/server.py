@@ -7,6 +7,7 @@ Flask app with separate client (player) and host (DM) interfaces.
 - /host: DM interface for full state management
 """
 
+import logging
 from flask import Flask, jsonify, request, redirect, url_for, session, render_template, flash
 import sys
 import os
@@ -18,6 +19,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.core.state_engine import StateEngine
 from src.core.module_loader import ModuleLoader
 from src.web.blueprints import client_bp, host_bp
+
+logger = logging.getLogger(__name__)
 
 
 def create_app(worlds_dir: str = 'worlds') -> Flask:
@@ -60,7 +63,8 @@ def create_app(worlds_dir: str = 'worlds') -> Flask:
                         with open(config_path, 'r') as f:
                             config = json.load(f)
                             world_info['display_name'] = config.get('world_name', item)
-                    except:
+                    except Exception as e:
+                        logger.warning(f"Failed to read config for world '{item}': {e}")
                         world_info['display_name'] = item
                 else:
                     world_info['display_name'] = item
@@ -105,8 +109,8 @@ def create_app(worlds_dir: str = 'worlds') -> Flask:
                 with open(config_path, 'r') as f:
                     config = json.load(f)
                     display_name = config.get('world_name', world_name)
-            except:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to read config when selecting world '{world_name}': {e}")
 
         # Store world in session (both folder name and display name)
         session['world_path'] = world_path
@@ -249,8 +253,8 @@ def create_app(worlds_dir: str = 'worlds') -> Flask:
                     with open(config_path, 'r') as f:
                         config = json.load(f)
                         display_name = config.get('world_name', world_name)
-                except:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to read config when deleting world '{world_name}': {e}")
 
             # If currently selected world is being deleted, clear session
             if session.get('world_path') == world_path:
