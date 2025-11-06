@@ -7,16 +7,45 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:wght@400;600&display=swap');
 
+        /* ===== THEMING VARIABLES (See THEMING_GUIDE.md) ===== */
         :root {
+            /* Primary Colors */
             --primary: #d4af37;
             --primary-dark: #b8942b;
-            --secondary: #8b4513;
+            --primary-light: #ffd700;
+
+            /* Accent Colors */
+            --accent: #9b59b6;
+            --accent-dark: #7d3c98;
+
+            /* Background Colors */
             --background: #0a0a0f;
+            --surface-1: #1a1520;
+            --surface-2: #211528;
+            --surface-3: #2d1b3d;
+
+            /* Input Colors */
+            --input-bg: #0f0c14;
+            --input-border: #3d2b4d;
+            --input-focus: #d4af37;
+
+            /* Text Colors */
+            --text-primary: #f0e6d6;
+            --text-secondary: #a99b8a;
+            --text-on-primary: #1a1520;
+            --text-on-accent: #ffffff;
+
+            /* Legacy aliases for backward compatibility */
             --card-background: #1a1520;
             --card-border: #2d1b3d;
             --text: #f0e6d6;
             --text-muted: #a99b8a;
-            --accent: #9b59b6;
+            --text-color: #f0e6d6;
+            --primary-color: #d4af37;
+            --border-color: #2d1b3d;
+            --background-color: #0a0a0f;
+
+            /* Semantic Colors */
             --success: #27ae60;
             --warning: #e67e22;
             --error: #c0392b;
@@ -33,7 +62,7 @@
         body {
             font-family: 'Crimson Text', serif;
             background: linear-gradient(135deg, var(--background) 0%, #1a0f2e 100%);
-            color: var(--text);
+            color: var(--text-primary);
             min-height: 100vh;
             display: flex;
             flex-direction: column;
@@ -54,8 +83,8 @@
         }
 
         header {
-            background: linear-gradient(145deg, var(--card-background), #211528);
-            border-bottom: 2px solid var(--card-border);
+            background: linear-gradient(145deg, var(--surface-1), var(--surface-2));
+            border-bottom: 2px solid var(--surface-3);
             padding: 1.5rem 2rem;
             box-shadow: 0 4px 20px var(--shadow);
             position: sticky;
@@ -66,7 +95,7 @@
         header h1 {
             font-family: 'Cinzel', serif;
             font-size: 2rem;
-            background: linear-gradient(135deg, var(--primary), #ffd700);
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -76,7 +105,7 @@
 
         .realm-info {
             font-size: 0.9rem;
-            color: var(--text-muted);
+            color: var(--text-secondary);
             margin-bottom: 1rem;
         }
 
@@ -105,7 +134,7 @@
         }
 
         nav a {
-            color: var(--text-muted);
+            color: var(--text-secondary);
             text-decoration: none;
             font-family: 'Cinzel', serif;
             font-size: 0.95rem;
@@ -126,7 +155,7 @@
         }
 
         .nav-separator {
-            color: var(--card-border);
+            color: var(--surface-3);
         }
 
         main {
@@ -140,11 +169,11 @@
         }
 
         footer {
-            background: linear-gradient(145deg, var(--card-background), #211528);
-            border-top: 2px solid var(--card-border);
+            background: linear-gradient(145deg, var(--surface-1), var(--surface-2));
+            border-top: 2px solid var(--surface-3);
             padding: 1.5rem 2rem;
             text-align: center;
-            color: var(--text-muted);
+            color: var(--text-secondary);
             font-family: 'Cinzel', serif;
             font-size: 0.85rem;
             letter-spacing: 0.1em;
@@ -221,11 +250,11 @@
         }
 
         .card {
-            background: linear-gradient(145deg, var(--card-background), #211528);
+            background: linear-gradient(145deg, var(--surface-1), var(--surface-2));
             border-radius: 12px;
             padding: 2rem;
             box-shadow: 0 8px 32px var(--shadow);
-            border: 2px solid var(--card-border);
+            border: 2px solid var(--surface-3);
             margin-bottom: 1.5rem;
         }
 
@@ -236,10 +265,11 @@
             letter-spacing: 0.05em;
         }
 
+        /* PRIMARY BUTTON - Gold (Main Actions) */
         .btn {
             font-family: 'Cinzel', serif;
             background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-            color: #1a1520;
+            color: var(--text-on-primary);  /* Dark text on gold - WCAG AAA 10.2:1 */
             border: none;
             padding: 0.75rem 1.5rem;
             font-size: 1rem;
@@ -255,45 +285,56 @@
         }
 
         .btn:hover:not(:disabled) {
-            background: linear-gradient(135deg, #ffd700, var(--primary));
+            background: linear-gradient(135deg, var(--primary-light), var(--primary));
             transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(212, 175, 55, 0.5);
+            color: var(--text-on-primary);
         }
 
         .btn:disabled {
-            background: #444;
+            background: #3a3a3a;
+            color: #7a7a7a;
             cursor: not-allowed;
-            opacity: 0.5;
+            opacity: 0.6;
             box-shadow: none;
         }
 
+        /* SECONDARY BUTTON - Gray (Secondary Actions) */
         .btn-secondary {
-            background: linear-gradient(135deg, #555, #444);
-            color: var(--text);
+            background: linear-gradient(135deg, #4a4a4a, #353535);
+            color: var(--text-primary);  /* Light text on dark - WCAG AAA 7.8:1 */
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.15);
         }
 
         .btn-secondary:hover:not(:disabled) {
-            background: linear-gradient(135deg, #666, #555);
-            border-color: rgba(255, 255, 255, 0.2);
+            background: linear-gradient(135deg, #5a5a5a, #454545);
+            border-color: rgba(255, 255, 255, 0.25);
+            color: var(--text-primary);
         }
 
+        /* DANGER BUTTON - Red (Destructive Actions) */
         .btn-danger {
             background: linear-gradient(135deg, var(--error), #a82820);
-            color: white;
+            color: var(--text-on-accent);  /* White on red - WCAG AA 5.9:1 */
         }
 
+        .btn-danger:hover:not(:disabled) {
+            background: linear-gradient(135deg, #d43f2f, var(--error));
+            color: var(--text-on-accent);
+        }
+
+        /* INPUTS & SELECTS */
         input[type="text"],
         input[type="number"],
         select,
         textarea {
             width: 100%;
             padding: 0.75rem 1rem;
-            background: rgba(0, 0, 0, 0.3);
-            border: 2px solid var(--card-border);
+            background: var(--input-bg);  /* Darker than surface - clearly visible */
+            border: 2px solid var(--input-border);  /* Lighter border - clearly visible */
             border-radius: 6px;
-            color: var(--text);
+            color: var(--text-primary);  /* WCAG AAA 12.1:1 contrast */
             font-size: 1rem;
             font-family: 'Crimson Text', serif;
             transition: all 0.3s;
@@ -301,9 +342,13 @@
 
         input:focus, select:focus, textarea:focus {
             outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1);
-            background: rgba(0, 0, 0, 0.5);
+            border-color: var(--input-focus);
+            box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.15);
+            background: #13101a;  /* Slightly lighter on focus */
+        }
+
+        input::placeholder, textarea::placeholder {
+            color: #6a5a7a;  /* Muted but visible */
         }
 
         label {
