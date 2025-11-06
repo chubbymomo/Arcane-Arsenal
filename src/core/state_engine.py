@@ -458,7 +458,7 @@ class StateEngine:
 
             # Spatial validation for Position components
             if component_type == 'Position':
-                validation_result = self._validate_position_data(entity_id, data)
+                validation_result = self._validate_position_with_system(entity_id, data)
                 if not validation_result.success:
                     return validation_result
 
@@ -568,7 +568,7 @@ class StateEngine:
 
             # Spatial validation for Position components
             if component_type == 'Position':
-                validation_result = self._validate_position_data(entity_id, data)
+                validation_result = self._validate_position_with_system(entity_id, data)
                 if not validation_result.success:
                     return validation_result
 
@@ -944,112 +944,14 @@ class StateEngine:
             self.storage.rollback()
             raise
 
-    # ========== Utility Methods ==========
+    # ========== Position Validation (delegates to PositionSystem) ==========
 
-    def get_world_position(self, entity_id: str) -> Optional[tuple]:
+    def _validate_position_with_system(self, entity_id: str, position_data: Dict[str, Any]) -> Result:
         """
-        Calculate absolute world position for an entity.
+        Validate Position component data using PositionSystem.
 
-        Handles hierarchical positioning by recursively adding parent positions.
-        If an entity's Position.region is another entity ID, treats x/y/z as
-        relative offsets from the parent entity's world position.
-
-        Args:
-            entity_id: Entity ID to get world position for
-
-        Returns:
-            Tuple of (x, y, z) in world coordinates, or None if entity has no Position
-
-        Example:
-            # Tavern at world position
-            tavern: Position = {"x": 100, "y": 200, "z": 0, "region": "overworld"}
-
-            # Table in tavern (relative position)
-            table: Position = {"x": 5, "y": 3, "z": 0, "region": "entity_tavern_id"}
-
-            engine.get_world_position(table_id)  # Returns (105, 203, 0)
-
-        Note:
-            - If region is not an entity ID, returns position as-is
-            - Handles multiple levels of nesting (table → room → building → world)
-            - Returns None if Position component missing at any level
-            - Detects circular references (max depth 100)
-        """
-        MAX_DEPTH = 100  # Prevent infinite loops from circular references
-        depth = 0
-
-        current_id = entity_id
-        total_x, total_y, total_z = 0.0, 0.0, 0.0
-
-        while current_id and depth < MAX_DEPTH:
-            # Get position component
-            pos_component = self.get_component(current_id, 'Position')
-            if not pos_component:
-                # No position component
-                return None
-
-            pos_data = pos_component.data
-
-            # Add this level's coordinates
-            total_x += pos_data.get('x', 0)
-            total_y += pos_data.get('y', 0)
-            total_z += pos_data.get('z', 0)
-
-            # Check if region is a parent entity
-            region = pos_data.get('region', '')
-            if region and region.startswith('entity_'):
-                # Region is a parent entity ID - continue up the hierarchy
-                current_id = region
-                depth += 1
-            else:
-                # Region is a named area or empty - we're at the top level
-                break
-
-        if depth >= MAX_DEPTH:
-            # Circular reference detected
-            return None
-
-        return (total_x, total_y, total_z)
-
-    def get_entities_in_region(self, region: str, recursive: bool = False) -> List[Entity]:
-        """
-        Get all entities in a specific region.
-
-        Args:
-            region: Region name or entity ID to search for
-            recursive: If True and region is an entity ID, include entities
-                      in child regions (entities whose region is this entity's children)
-
-        Returns:
-            List of entities with Position.region matching the specified region
-
-        Example:
-            # Get all entities in the tavern
-            entities = engine.get_entities_in_region('entity_tavern_id')
-
-            # Get all entities in overworld
-            entities = engine.get_entities_in_region('overworld')
-        """
-        # Get all entities with Position component
-        positioned_entities = self.query_entities(['Position'])
-
-        # Filter by region
-        result = []
-        for entity in positioned_entities:
-            pos = self.get_component(entity.id, 'Position')
-            if pos and pos.data.get('region') == region:
-                result.append(entity)
-
-        return result
-
-    def _validate_position_data(self, entity_id: str, position_data: Dict[str, Any]) -> Result:
-        """
-        Validate Position component data for spatial consistency.
-
-        Checks:
-        - If region is an entity ID, that entity must exist
-        - If region is an entity ID, that entity must have a Position component
-        - No circular references (entity can't be positioned relative to itself or descendants)
+        This is a wrapper that delegates to the PositionSystem from the core_components module.
+        Keeps StateEngine generic while allowing Position-specific validation.
 
         Args:
             entity_id: Entity that will have this position
@@ -1058,128 +960,11 @@ class StateEngine:
         Returns:
             Result indicating success or validation error
         """
-        region = position_data.get('region', '')
+        # Get PositionSystem from core_components module
+        from src.modules.core_components.systems import PositionSystem
 
-        # If region is empty or a named area (not entity ID), it's valid
-        if not region or not region.startswith('entity_'):
-            return Result.ok({})
-
-        parent_id = region
-
-        # Check parent exists
-        parent_entity = self.get_entity(parent_id)
-        if not parent_entity:
-            return Result.fail(
-                f"Cannot position relative to entity '{parent_id}': entity does not exist",
-                "INVALID_PARENT"
-            )
-
-        # Check parent is active
-        if not parent_entity.is_active():
-            return Result.fail(
-                f"Cannot position relative to entity '{parent_id}': entity is deleted",
-                "INVALID_PARENT"
-            )
-
-        # Check parent has Position component
-        parent_position = self.get_component(parent_id, 'Position')
-        if not parent_position:
-            return Result.fail(
-                f"Cannot position relative to entity '{parent_id}': parent has no Position component",
-                "INVALID_PARENT"
-            )
-
-        # Check for circular references by simulating the hierarchy
-        MAX_DEPTH = 100
-        visited = {entity_id}  # Start with the entity being positioned
-        current_id = parent_id
-        depth = 0
-
-        while current_id and depth < MAX_DEPTH:
-            # If we've seen this entity before, it's a circular reference
-            if current_id in visited:
-                return Result.fail(
-                    f"Cannot position relative to entity '{parent_id}': would create circular reference",
-                    "CIRCULAR_REFERENCE"
-                )
-
-            visited.add(current_id)
-
-            # Get this entity's position to check its parent
-            pos = self.get_component(current_id, 'Position')
-            if not pos:
-                break  # Reached top level
-
-            # Check if this entity's region is also an entity
-            next_region = pos.data.get('region', '')
-            if next_region and next_region.startswith('entity_'):
-                current_id = next_region
-                depth += 1
-            else:
-                break  # Reached top level
-
-        return Result.ok({})
-
-    def count_entities_in_region(self, region: str) -> int:
-        """
-        Count entities in a specific region.
-
-        Args:
-            region: Region name or entity ID
-
-        Returns:
-            Number of entities with Position.region matching the specified region
-        """
-        return len(self.get_entities_in_region(region))
-
-    def can_add_to_region(self, region: str) -> Result:
-        """
-        Check if an entity can be added to a region.
-
-        Validates:
-        - Region exists (if it's an entity ID)
-        - Container capacity (if region entity has Container component)
-
-        Args:
-            region: Region name or entity ID
-
-        Returns:
-            Result.ok() if can add, Result.fail() with reason if cannot
-        """
-        # If region is a named area (not entity ID), always allow
-        if not region.startswith('entity_'):
-            return Result.ok({})
-
-        # Check region entity exists
-        region_entity = self.get_entity(region)
-        if not region_entity:
-            return Result.fail(
-                f"Region entity '{region}' does not exist",
-                "REGION_NOT_FOUND"
-            )
-
-        if not region_entity.is_active():
-            return Result.fail(
-                f"Region entity '{region}' is deleted",
-                "REGION_DELETED"
-            )
-
-        # Check Container component if it exists
-        container = self.get_component(region, 'Container')
-        if container:
-            capacity = container.data.get('capacity')
-
-            # If capacity is None/null, it's unlimited (bag of holding)
-            if capacity is not None:
-                current_count = self.count_entities_in_region(region)
-
-                if current_count >= capacity:
-                    return Result.fail(
-                        f"Region '{region}' is at capacity ({capacity}/{capacity})",
-                        "REGION_FULL"
-                    )
-
-        return Result.ok({'region': region})
+        position_system = PositionSystem(self)
+        return position_system.validate_position_data(entity_id, position_data)
 
     def close(self) -> None:
         """Close storage connection."""

@@ -7,6 +7,7 @@ import tempfile
 import shutil
 from pathlib import Path
 from src.core.state_engine import StateEngine
+from src.modules.core_components.systems import PositionSystem
 
 
 @pytest.fixture
@@ -207,6 +208,7 @@ def test_events(world_path):
 def test_hierarchical_positioning(world_path):
     """Test hierarchical positioning for nested spaces."""
     engine = StateEngine.initialize_world(world_path, 'Test World')
+    position_system = PositionSystem(engine)
 
     # Create tavern at absolute world position
     tavern_result = engine.create_entity('The Golden Tankard')
@@ -239,36 +241,36 @@ def test_hierarchical_positioning(world_path):
     })
 
     # Test get_world_position() for absolute position
-    tavern_pos = engine.get_world_position(tavern_id)
+    tavern_pos = position_system.get_world_position(tavern_id)
     assert tavern_pos == (100.0, 200.0, 0.0)
 
     # Test get_world_position() for relative position (table in tavern)
-    table_pos = engine.get_world_position(table_id)
+    table_pos = position_system.get_world_position(table_id)
     assert table_pos == (105.0, 203.0, 0.0)
 
     # Test get_world_position() for nested position (mug on table)
-    mug_pos = engine.get_world_position(mug_id)
+    mug_pos = position_system.get_world_position(mug_id)
     assert mug_pos == (105.5, 203.5, 1.2)
 
     # Test get_entities_in_region() for tavern
-    entities_in_tavern = engine.get_entities_in_region(tavern_id)
+    entities_in_tavern = position_system.get_entities_in_region(tavern_id)
     assert len(entities_in_tavern) == 1
     assert entities_in_tavern[0].id == table_id
 
     # Test get_entities_in_region() for table
-    entities_on_table = engine.get_entities_in_region(table_id)
+    entities_on_table = position_system.get_entities_in_region(table_id)
     assert len(entities_on_table) == 1
     assert entities_on_table[0].id == mug_id
 
     # Test get_entities_in_region() for named region
-    entities_in_overworld = engine.get_entities_in_region('overworld')
+    entities_in_overworld = position_system.get_entities_in_region('overworld')
     assert len(entities_in_overworld) == 1
     assert entities_in_overworld[0].id == tavern_id
 
     # Test entity without Position component
     no_pos_result = engine.create_entity('Abstract Entity')
     no_pos_id = no_pos_result.data['id']
-    assert engine.get_world_position(no_pos_id) is None
+    assert position_system.get_world_position(no_pos_id) is None
 
     # Test circular reference detection
     circular_result = engine.create_entity('Circular Entity')
@@ -280,7 +282,7 @@ def test_hierarchical_positioning(world_path):
         'region': circular_id  # Points to itself
     })
     # Should return None when circular reference detected
-    assert engine.get_world_position(circular_id) is None
+    assert position_system.get_world_position(circular_id) is None
 
 
 def test_spatial_validation(world_path):
@@ -363,6 +365,7 @@ def test_spatial_validation(world_path):
 def test_container_component(world_path):
     """Test Container component and capacity validation."""
     engine = StateEngine.initialize_world(world_path, 'Test World')
+    position_system = PositionSystem(engine)
 
     # Create chest with limited capacity
     chest_result = engine.create_entity('Wooden Chest')
@@ -391,7 +394,7 @@ def test_container_component(world_path):
     assert result.success is True
 
     # Test: can_add_to_region for empty chest
-    result = engine.can_add_to_region(chest_id)
+    result = position_system.can_add_to_region(chest_id)
     assert result.success is True
 
     # Add first item to chest
@@ -405,7 +408,7 @@ def test_container_component(world_path):
     })
 
     # Test: count_entities_in_region
-    count = engine.count_entities_in_region(chest_id)
+    count = position_system.count_entities_in_region(chest_id)
     assert count == 1
 
     # Add second item to chest
@@ -418,11 +421,11 @@ def test_container_component(world_path):
         'region': chest_id
     })
 
-    count = engine.count_entities_in_region(chest_id)
+    count = position_system.count_entities_in_region(chest_id)
     assert count == 2
 
     # Test: can_add_to_region when at capacity
-    result = engine.can_add_to_region(chest_id)
+    result = position_system.can_add_to_region(chest_id)
     assert result.success is False
     assert result.error_code == 'REGION_FULL'
 
@@ -430,7 +433,7 @@ def test_container_component(world_path):
     for i in range(10):
         item_result = engine.create_entity(f'Item {i}')
         item_id = item_result.data['id']
-        result = engine.can_add_to_region(bag_id)
+        result = position_system.can_add_to_region(bag_id)
         assert result.success is True  # Always succeeds
         engine.add_component(item_id, 'Position', {
             'x': 0,
@@ -439,11 +442,11 @@ def test_container_component(world_path):
             'region': bag_id
         })
 
-    count = engine.count_entities_in_region(bag_id)
+    count = position_system.count_entities_in_region(bag_id)
     assert count == 10
 
     # Can still add more
-    result = engine.can_add_to_region(bag_id)
+    result = position_system.can_add_to_region(bag_id)
     assert result.success is True
 
 

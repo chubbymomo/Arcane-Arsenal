@@ -295,7 +295,9 @@ def character_sheet(entity_id: str):
     position = components.get('Position', {})
 
     # Get world position if available
-    world_pos = engine.get_world_position(entity_id)
+    from src.modules.core_components.systems import PositionSystem
+    position_system = PositionSystem(engine)
+    world_pos = position_system.get_world_position(entity_id)
 
     # Get relationships
     relationships = engine.get_relationships(entity_id)
@@ -329,7 +331,7 @@ def character_sheet(entity_id: str):
     if position:
         region = position.get('region')
         if region:
-            nearby_entities = engine.get_entities_in_region(region)
+            nearby_entities = position_system.get_entities_in_region(region)
             # Filter out the character itself
             nearby_entities = [e for e in nearby_entities if e.id != entity_id]
         else:

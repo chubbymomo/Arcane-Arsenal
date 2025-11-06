@@ -8,6 +8,9 @@ Provides basic component and relationship types that are available in every worl
 - PlayerCharacter: Marks entity as player-controlled character
 - located_at: Entity is physically at a location
 - contains: Entity contains another entity
+
+Also provides:
+- PositionSystem: High-level API for spatial queries and validation
 """
 
 from typing import List
@@ -16,6 +19,7 @@ from .identity import IdentityComponent
 from .position import PositionComponent
 from .container import ContainerComponent
 from .player_character import PlayerCharacterComponent
+from .systems import PositionSystem
 
 
 class LocatedAtRelationship(RelationshipTypeDefinition):
@@ -63,6 +67,10 @@ class CoreComponentsModule(Module):
     initializing a world.
     """
 
+    def __init__(self):
+        """Initialize core components module."""
+        self._position_system = None
+
     @property
     def name(self) -> str:
         return "core_components"
@@ -103,6 +111,23 @@ class CoreComponentsModule(Module):
         categories.register('info', 'Descriptive information', {'order': 8})
         categories.register('misc', 'Miscellaneous components', {'order': 9})
 
+        # Initialize PositionSystem for spatial operations
+        self._position_system = PositionSystem(engine)
+
+    def get_position_system(self) -> PositionSystem:
+        """
+        Get the position system for this module.
+
+        Returns:
+            PositionSystem instance
+
+        Raises:
+            RuntimeError: If module has not been initialized
+        """
+        if self._position_system is None:
+            raise RuntimeError("Core components module not initialized. Call initialize() first.")
+        return self._position_system
+
     def register_component_types(self) -> List[ComponentTypeDefinition]:
         """Register Identity, Position, Container, and PlayerCharacter components."""
         return [
@@ -128,5 +153,6 @@ __all__ = [
     'ContainerComponent',
     'PlayerCharacterComponent',
     'LocatedAtRelationship',
-    'ContainsRelationship'
+    'ContainsRelationship',
+    'PositionSystem'
 ]
