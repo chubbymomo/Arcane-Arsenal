@@ -281,6 +281,229 @@ class TestWeaponValidation:
         assert not result.success
 
 
+class TestArmorTypeValidation:
+    """Test Armor component armor_type field validation."""
+
+    def test_armor_type_valid(self, temp_world):
+        """Test that valid armor types are accepted."""
+        engine = StateEngine.initialize_world(
+            world_path=temp_world,
+            world_name="Test World",
+            modules=['fantasy_combat']
+        )
+
+        # Create armor entity
+        result = engine.create_entity("Plate Armor")
+        assert result.success
+        armor_id = result.data['id']
+
+        # Valid armor types from registry: light, medium, heavy, shield
+        valid_types = ['light', 'medium', 'heavy', 'shield']
+
+        for armor_type in valid_types:
+            result = engine.add_component(armor_id, "armor", {
+                "armor_class": 15,
+                "armor_type": armor_type
+            })
+
+            # If component already exists, update it
+            if not result.success and "already has" in result.error:
+                result = engine.update_component(armor_id, "armor", {
+                    "armor_class": 15,
+                    "armor_type": armor_type
+                })
+
+            assert result.success, f"Failed for armor_type: {armor_type}"
+
+    def test_armor_type_invalid(self, temp_world):
+        """Test that invalid armor types are rejected."""
+        engine = StateEngine.initialize_world(
+            world_path=temp_world,
+            world_name="Test World",
+            modules=['fantasy_combat']
+        )
+
+        # Create armor entity
+        result = engine.create_entity("Mystery Armor")
+        assert result.success
+        armor_id = result.data['id']
+
+        # Invalid armor types
+        invalid_types = ['super_heavy', 'cloth', 'leather', 'chainmail', 'invalid']
+
+        for armor_type in invalid_types:
+            result = engine.add_component(armor_id, "armor", {
+                "armor_class": 15,
+                "armor_type": armor_type
+            })
+
+            # Should fail validation
+            assert not result.success, f"Should have failed for: {armor_type}"
+            assert "Invalid armor_type" in result.error
+
+    def test_armor_type_optional(self, temp_world):
+        """Test that armor_type is optional."""
+        engine = StateEngine.initialize_world(
+            world_path=temp_world,
+            world_name="Test World",
+            modules=['fantasy_combat']
+        )
+
+        # Create armor entity
+        result = engine.create_entity("Generic Armor")
+        assert result.success
+        armor_id = result.data['id']
+
+        # Add armor without armor_type (optional field)
+        result = engine.add_component(armor_id, "armor", {
+            "armor_class": 12
+        })
+
+        assert result.success
+
+
+class TestDamageTypeValidation:
+    """Test Weapon component damage_type field validation."""
+
+    def test_damage_type_valid_physical(self, temp_world):
+        """Test that valid physical damage types are accepted."""
+        engine = StateEngine.initialize_world(
+            world_path=temp_world,
+            world_name="Test World",
+            modules=['fantasy_combat']
+        )
+
+        # Create weapon entity
+        result = engine.create_entity("Sword")
+        assert result.success
+        weapon_id = result.data['id']
+
+        # Valid physical damage types
+        physical_types = ['slashing', 'piercing', 'bludgeoning']
+
+        for damage_type in physical_types:
+            result = engine.add_component(weapon_id, "weapon", {
+                "damage_dice": "1d8",
+                "damage_type": damage_type
+            })
+
+            # If component already exists, update it
+            if not result.success and "already has" in result.error:
+                result = engine.update_component(weapon_id, "weapon", {
+                    "damage_dice": "1d8",
+                    "damage_type": damage_type
+                })
+
+            assert result.success, f"Failed for damage_type: {damage_type}"
+
+    def test_damage_type_valid_elemental(self, temp_world):
+        """Test that valid elemental damage types are accepted."""
+        engine = StateEngine.initialize_world(
+            world_path=temp_world,
+            world_name="Test World",
+            modules=['fantasy_combat']
+        )
+
+        # Create weapon entity
+        result = engine.create_entity("Elemental Weapon")
+        assert result.success
+        weapon_id = result.data['id']
+
+        # Valid elemental damage types
+        elemental_types = ['fire', 'cold', 'lightning', 'thunder']
+
+        for damage_type in elemental_types:
+            result = engine.add_component(weapon_id, "weapon", {
+                "damage_dice": "2d6",
+                "damage_type": damage_type
+            })
+
+            if not result.success and "already has" in result.error:
+                result = engine.update_component(weapon_id, "weapon", {
+                    "damage_dice": "2d6",
+                    "damage_type": damage_type
+                })
+
+            assert result.success, f"Failed for damage_type: {damage_type}"
+
+    def test_damage_type_valid_magical(self, temp_world):
+        """Test that valid magical damage types are accepted."""
+        engine = StateEngine.initialize_world(
+            world_path=temp_world,
+            world_name="Test World",
+            modules=['fantasy_combat']
+        )
+
+        # Create weapon entity
+        result = engine.create_entity("Magic Weapon")
+        assert result.success
+        weapon_id = result.data['id']
+
+        # Valid magical damage types
+        magical_types = ['acid', 'poison', 'necrotic', 'radiant', 'force', 'psychic']
+
+        for damage_type in magical_types:
+            result = engine.add_component(weapon_id, "weapon", {
+                "damage_dice": "1d10",
+                "damage_type": damage_type
+            })
+
+            if not result.success and "already has" in result.error:
+                result = engine.update_component(weapon_id, "weapon", {
+                    "damage_dice": "1d10",
+                    "damage_type": damage_type
+                })
+
+            assert result.success, f"Failed for damage_type: {damage_type}"
+
+    def test_damage_type_invalid(self, temp_world):
+        """Test that invalid damage types are rejected."""
+        engine = StateEngine.initialize_world(
+            world_path=temp_world,
+            world_name="Test World",
+            modules=['fantasy_combat']
+        )
+
+        # Create weapon entity
+        result = engine.create_entity("Weird Weapon")
+        assert result.success
+        weapon_id = result.data['id']
+
+        # Invalid damage types
+        invalid_types = ['cutting', 'stabbing', 'magic', 'holy', 'dark', 'energy']
+
+        for damage_type in invalid_types:
+            result = engine.add_component(weapon_id, "weapon", {
+                "damage_dice": "1d6",
+                "damage_type": damage_type
+            })
+
+            # Should fail validation
+            assert not result.success, f"Should have failed for: {damage_type}"
+            assert "Invalid damage_type" in result.error
+
+    def test_damage_type_required(self, temp_world):
+        """Test that damage_type is required."""
+        engine = StateEngine.initialize_world(
+            world_path=temp_world,
+            world_name="Test World",
+            modules=['fantasy_combat']
+        )
+
+        # Create weapon entity
+        result = engine.create_entity("Weapon")
+        assert result.success
+        weapon_id = result.data['id']
+
+        # Try to add weapon without damage_type (required field)
+        result = engine.add_component(weapon_id, "weapon", {
+            "damage_dice": "1d8"
+        })
+
+        # Should fail (required field)
+        assert not result.success
+
+
 class TestUpdateValidation:
     """Test that validation also applies when updating components."""
 

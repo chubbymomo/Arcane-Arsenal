@@ -30,7 +30,7 @@ Usage:
 """
 
 from typing import List, Dict, Any, Optional
-from src.modules.base import (
+from ..base import (
     Module,
     ComponentTypeDefinition,
     EventTypeDefinition,

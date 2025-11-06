@@ -78,14 +78,46 @@ class ArmorComponent(ComponentTypeDefinition):
             "required": ["armor_class"]
         }
 
+    def validate_with_engine(self, data: Dict[str, Any], engine) -> bool:
+        """
+        Validate armor_type against registered armor types.
+
+        Args:
+            data: Component data to validate
+            engine: StateEngine instance for querying registered types
+
+        Returns:
+            True if valid
+
+        Raises:
+            ValueError: If armor_type is not in registered armor_types registry
+        """
+        armor_type = data.get('armor_type')
+        if not armor_type:
+            # armor_type is optional, so if not provided, validation passes
+            return True
+
+        # Get armor_types registry
+        armor_registry = engine.create_registry('armor_types', self.module)
+
+        # Validate against registry
+        try:
+            armor_registry.validate(armor_type, 'armor_type')
+        except ValueError as e:
+            raise ValueError(
+                f"Invalid armor_type '{armor_type}'. "
+                f"Valid types: {', '.join(armor_registry.get_keys())}"
+            )
+
+        return True
+
 
 class WeaponComponent(ComponentTypeDefinition):
     """
     Weapon component for attacks.
 
-    Note: damage_type and armor_type will be validated against registries
-    when a future Fantasy module implements damage_types and armor_types registries.
-    For now, they are free-form strings.
+    Validates damage_dice using RNG module's DiceParser and damage_type
+    against the fantasy_combat module's damage_types registry.
     """
 
     type = "weapon"
@@ -115,18 +147,20 @@ class WeaponComponent(ComponentTypeDefinition):
 
     def validate_with_engine(self, data: Dict[str, Any], engine) -> bool:
         """
-        Validate damage_dice field uses valid dice notation.
+        Validate damage_dice and damage_type fields.
 
         Args:
             data: Component data to validate
-            engine: StateEngine instance (not used but required by interface)
+            engine: StateEngine instance for querying registered types
 
         Returns:
             True if valid
 
         Raises:
-            ValueError: If damage_dice is not valid dice notation
+            ValueError: If damage_dice is not valid dice notation or
+                       damage_type is not in registered damage_types registry
         """
+        # Validate damage_dice (required)
         damage_dice = data.get('damage_dice')
         if not damage_dice:
             raise ValueError("damage_dice is required")
@@ -140,6 +174,23 @@ class WeaponComponent(ComponentTypeDefinition):
             raise ValueError(
                 f"Invalid damage_dice notation '{damage_dice}': {str(e)}. "
                 f"Use standard dice notation like '1d8', '2d6+3', or '1d10+1d4'."
+            )
+
+        # Validate damage_type (required)
+        damage_type = data.get('damage_type')
+        if not damage_type:
+            raise ValueError("damage_type is required")
+
+        # Get damage_types registry
+        damage_registry = engine.create_registry('damage_types', self.module)
+
+        # Validate against registry
+        try:
+            damage_registry.validate(damage_type, 'damage_type')
+        except ValueError as e:
+            raise ValueError(
+                f"Invalid damage_type '{damage_type}'. "
+                f"Valid types: {', '.join(damage_registry.get_keys())}"
             )
 
         return True
@@ -180,6 +231,42 @@ class FantasyCombatModule(Module):
         - rng: DiceParser for damage_dice validation
         """
         return ['core_components', 'rng']
+
+    def initialize(self, engine) -> None:
+        """
+        Initialize fantasy_combat module registries.
+
+        Creates and populates armor_types and damage_types registries
+        with common fantasy RPG values.
+        """
+        # Create armor types registry
+        armor_types = engine.create_registry('armor_types', self.name)
+        armor_types.register('light', 'Light armor - cloth, leather', {'weight': 'light'})
+        armor_types.register('medium', 'Medium armor - chainmail, hide', {'weight': 'medium'})
+        armor_types.register('heavy', 'Heavy armor - plate, scale', {'weight': 'heavy'})
+        armor_types.register('shield', 'Shield - adds to AC', {'weight': 'varies'})
+
+        # Create damage types registry
+        damage_types = engine.create_registry('damage_types', self.name)
+
+        # Physical damage types
+        damage_types.register('slashing', 'Slashing damage - swords, axes', {'category': 'physical'})
+        damage_types.register('piercing', 'Piercing damage - arrows, spears', {'category': 'physical'})
+        damage_types.register('bludgeoning', 'Bludgeoning damage - clubs, hammers', {'category': 'physical'})
+
+        # Elemental damage types
+        damage_types.register('fire', 'Fire damage - flames, heat', {'category': 'elemental'})
+        damage_types.register('cold', 'Cold damage - ice, frost', {'category': 'elemental'})
+        damage_types.register('lightning', 'Lightning damage - electricity', {'category': 'elemental'})
+        damage_types.register('thunder', 'Thunder damage - sonic force', {'category': 'elemental'})
+
+        # Magical damage types
+        damage_types.register('acid', 'Acid damage - corrosive', {'category': 'magical'})
+        damage_types.register('poison', 'Poison damage - toxins', {'category': 'magical'})
+        damage_types.register('necrotic', 'Necrotic damage - death energy', {'category': 'magical'})
+        damage_types.register('radiant', 'Radiant damage - holy light', {'category': 'magical'})
+        damage_types.register('force', 'Force damage - pure magical energy', {'category': 'magical'})
+        damage_types.register('psychic', 'Psychic damage - mental energy', {'category': 'magical'})
 
     def register_component_types(self) -> List[ComponentTypeDefinition]:
         """Register Health, Armor, and Weapon components."""

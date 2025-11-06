@@ -3,7 +3,7 @@ Component definitions for RNG module.
 """
 
 from typing import Dict, Any
-from src.modules.base import ComponentTypeDefinition
+from ..base import ComponentTypeDefinition
 
 
 class LuckComponent(ComponentTypeDefinition):

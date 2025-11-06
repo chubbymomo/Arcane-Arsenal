@@ -5,7 +5,7 @@ These define the valid roll_type values that can be used in roll requests.
 Other modules can register additional roll types.
 """
 
-from src.modules.base import RollTypeDefinition
+from ..base import RollTypeDefinition
 
 
 def core_roll_types():
