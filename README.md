@@ -368,6 +368,71 @@ This pattern works for any nested spaces:
 - **Map → Region → Location → Container → Object**
 - **Inventory → Backpack → Pouch → Item**
 
+### Spatial Validation & Container System
+
+Arcane Arsenal automatically validates spatial relationships to prevent AI from creating impossible configurations. The validation is **structural, not physical** - allowing fantasy elements like bags of holding while preventing logical errors.
+
+**Automatic Position Validation:**
+```python
+# ✅ Valid: Parent exists and has Position
+engine.add_component(table_id, 'Position', {
+    'x': 5, 'y': 3, 'z': 0,
+    'region': tavern_id  # tavern exists and has Position
+})
+
+# ❌ Invalid: Parent doesn't exist
+engine.add_component(item_id, 'Position', {
+    'x': 0, 'y': 0, 'z': 0,
+    'region': 'entity_nonexistent'  # Error: INVALID_PARENT
+})
+
+# ❌ Invalid: Parent has no Position component
+engine.add_component(item_id, 'Position', {
+    'x': 0, 'y': 0, 'z': 0,
+    'region': abstract_entity_id  # Error: INVALID_PARENT
+})
+
+# ❌ Invalid: Circular reference
+engine.update_component(parent_id, 'Position', {
+    'x': 0, 'y': 0, 'z': 0,
+    'region': child_id  # child is already in parent! Error: CIRCULAR_REFERENCE
+})
+```
+
+**Container Component (Optional Capacity Limits):**
+```python
+# Wooden chest with 10-item limit
+engine.add_component(chest_id, 'Container', {'capacity': 10})
+
+# Bag of Holding (unlimited capacity)
+engine.add_component(bag_id, 'Container', {'capacity': None})
+
+# AI can check before placing items
+result = engine.can_add_to_region(chest_id)
+if result.success:
+    # Chest has room
+    engine.add_component(item_id, 'Position', {'region': chest_id, 'x': 0, 'y': 0, 'z': 0})
+else:
+    # Chest is full: result.error_code == 'REGION_FULL'
+    print(f"Cannot add item: {result.error}")
+
+# Count entities in a container
+count = engine.count_entities_in_region(chest_id)
+print(f"Chest contains {count} items")
+```
+
+**Entity Type by Components:**
+- Has `Container`: Can hold items with optional capacity limits
+- Has `Position`: Can be positioned in space
+- Has both: A positioned container (chest in room, backpack on character)
+
+**Why This Helps AI:**
+- AI doesn't have to remember that deleted entities can't be parents
+- AI doesn't have to track circular references manually
+- AI can query capacity before trying to add items
+- Structural validation prevents impossible configurations
+- Physical flexibility allows fantasy elements (bags of holding, overhanging swords)
+
 ## Documentation
 
 - **[PROJECT_PLAN.md](PROJECT_PLAN.md)** - Complete architecture and design

@@ -281,3 +281,204 @@ def test_hierarchical_positioning(world_path):
     })
     # Should return None when circular reference detected
     assert engine.get_world_position(circular_id) is None
+
+
+def test_spatial_validation(world_path):
+    """Test spatial validation for Position components."""
+    engine = StateEngine.initialize_world(world_path, 'Test World')
+
+    # Create parent entity with Position
+    parent_result = engine.create_entity('Parent Room')
+    parent_id = parent_result.data['id']
+    engine.add_component(parent_id, 'Position', {
+        'x': 0,
+        'y': 0,
+        'z': 0,
+        'region': 'building'
+    })
+
+    # Create child entity
+    child_result = engine.create_entity('Child Table')
+    child_id = child_result.data['id']
+
+    # Test: Valid position relative to parent
+    result = engine.add_component(child_id, 'Position', {
+        'x': 5,
+        'y': 5,
+        'z': 0,
+        'region': parent_id
+    })
+    assert result.success is True
+
+    # Test: Cannot position relative to non-existent entity
+    orphan_result = engine.create_entity('Orphan')
+    orphan_id = orphan_result.data['id']
+    result = engine.add_component(orphan_id, 'Position', {
+        'x': 0,
+        'y': 0,
+        'z': 0,
+        'region': 'entity_nonexistent'
+    })
+    assert result.success is False
+    assert result.error_code == 'INVALID_PARENT'
+
+    # Test: Cannot position relative to entity without Position
+    no_pos_result = engine.create_entity('No Position Entity')
+    no_pos_id = no_pos_result.data['id']
+
+    bad_child_result = engine.create_entity('Bad Child')
+    bad_child_id = bad_child_result.data['id']
+    result = engine.add_component(bad_child_id, 'Position', {
+        'x': 0,
+        'y': 0,
+        'z': 0,
+        'region': no_pos_id
+    })
+    assert result.success is False
+    assert result.error_code == 'INVALID_PARENT'
+
+    # Test: Cannot create circular reference (direct)
+    result = engine.update_component(parent_id, 'Position', {
+        'x': 0,
+        'y': 0,
+        'z': 0,
+        'region': parent_id  # Points to itself
+    })
+    assert result.success is False
+    assert result.error_code == 'CIRCULAR_REFERENCE'
+
+    # Test: Cannot create circular reference (indirect)
+    result = engine.update_component(parent_id, 'Position', {
+        'x': 0,
+        'y': 0,
+        'z': 0,
+        'region': child_id  # Child is already in parent
+    })
+    assert result.success is False
+    assert result.error_code == 'CIRCULAR_REFERENCE'
+
+
+def test_container_component(world_path):
+    """Test Container component and capacity validation."""
+    engine = StateEngine.initialize_world(world_path, 'Test World')
+
+    # Create chest with limited capacity
+    chest_result = engine.create_entity('Wooden Chest')
+    chest_id = chest_result.data['id']
+    engine.add_component(chest_id, 'Position', {
+        'x': 10,
+        'y': 10,
+        'z': 0,
+        'region': 'tavern'
+    })
+
+    # Add Container component with capacity of 2
+    result = engine.add_component(chest_id, 'Container', {'capacity': 2})
+    assert result.success is True
+
+    # Create bag of holding (unlimited capacity)
+    bag_result = engine.create_entity('Bag of Holding')
+    bag_id = bag_result.data['id']
+    engine.add_component(bag_id, 'Position', {
+        'x': 0,
+        'y': 0,
+        'z': 0,
+        'region': 'overworld'
+    })
+    result = engine.add_component(bag_id, 'Container', {'capacity': None})
+    assert result.success is True
+
+    # Test: can_add_to_region for empty chest
+    result = engine.can_add_to_region(chest_id)
+    assert result.success is True
+
+    # Add first item to chest
+    item1_result = engine.create_entity('Sword')
+    item1_id = item1_result.data['id']
+    engine.add_component(item1_id, 'Position', {
+        'x': 0,
+        'y': 0,
+        'z': 0,
+        'region': chest_id
+    })
+
+    # Test: count_entities_in_region
+    count = engine.count_entities_in_region(chest_id)
+    assert count == 1
+
+    # Add second item to chest
+    item2_result = engine.create_entity('Shield')
+    item2_id = item2_result.data['id']
+    engine.add_component(item2_id, 'Position', {
+        'x': 0,
+        'y': 0,
+        'z': 0,
+        'region': chest_id
+    })
+
+    count = engine.count_entities_in_region(chest_id)
+    assert count == 2
+
+    # Test: can_add_to_region when at capacity
+    result = engine.can_add_to_region(chest_id)
+    assert result.success is False
+    assert result.error_code == 'REGION_FULL'
+
+    # Test: bag of holding never full
+    for i in range(10):
+        item_result = engine.create_entity(f'Item {i}')
+        item_id = item_result.data['id']
+        result = engine.can_add_to_region(bag_id)
+        assert result.success is True  # Always succeeds
+        engine.add_component(item_id, 'Position', {
+            'x': 0,
+            'y': 0,
+            'z': 0,
+            'region': bag_id
+        })
+
+    count = engine.count_entities_in_region(bag_id)
+    assert count == 10
+
+    # Can still add more
+    result = engine.can_add_to_region(bag_id)
+    assert result.success is True
+
+
+def test_container_validation(world_path):
+    """Test Container component validation."""
+    engine = StateEngine.initialize_world(world_path, 'Test World')
+
+    entity_result = engine.create_entity('Test Container')
+    entity_id = entity_result.data['id']
+
+    # Test: Valid container with capacity
+    result = engine.add_component(entity_id, 'Container', {'capacity': 10})
+    assert result.success is True
+
+    # Remove for next test
+    engine.remove_component(entity_id, 'Container')
+
+    # Test: Valid container with unlimited capacity
+    result = engine.add_component(entity_id, 'Container', {'capacity': None})
+    assert result.success is True
+
+    engine.remove_component(entity_id, 'Container')
+
+    # Test: Invalid - negative capacity
+    result = engine.add_component(entity_id, 'Container', {'capacity': -1})
+    assert result.success is False
+    assert result.error_code == 'VALIDATION_ERROR'
+
+    # Test: Invalid - missing capacity field
+    result = engine.add_component(entity_id, 'Container', {})
+    assert result.success is False
+    assert result.error_code == 'VALIDATION_ERROR'
+
+    # Test: Invalid - extra fields not allowed
+    result = engine.add_component(entity_id, 'Container', {
+        'capacity': 10,
+        'extra_field': 'not allowed'
+    })
+    assert result.success is False
+    assert result.error_code == 'VALIDATION_ERROR'
