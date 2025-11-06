@@ -304,6 +304,70 @@ events = engine.get_events(limit=10)
 
 Then open the web interface to visualize and edit!
 
+### Hierarchical Positioning for Map Rendering
+
+Position components support hierarchical positioning, allowing entities to be positioned
+relative to other entities. Perfect for rendering maps with nested spaces.
+
+```python
+from src.core.state_engine import StateEngine
+
+engine = StateEngine('worlds/tavern')
+
+# Create tavern at world position
+tavern = engine.create_entity('The Golden Tankard')
+tavern_id = tavern.data['id']
+
+engine.add_component(tavern_id, 'Position', {
+    'x': 100,
+    'y': 200,
+    'z': 0,
+    'region': 'overworld'  # Absolute position in world
+})
+
+# Create table INSIDE the tavern (relative positioning)
+table = engine.create_entity('Wooden Table')
+table_id = table.data['id']
+
+engine.add_component(table_id, 'Position', {
+    'x': 5,      # 5 units from tavern's origin
+    'y': 3,      # 3 units from tavern's origin
+    'z': 0,
+    'region': tavern_id  # Parent is the tavern entity
+})
+
+# Create mug ON the table (nested positioning)
+mug = engine.create_entity('Ale Mug')
+mug_id = mug.data['id']
+
+engine.add_component(mug_id, 'Position', {
+    'x': 0.5,    # 0.5 units on the table
+    'y': 0.5,
+    'z': 1.2,    # Height on table surface
+    'region': table_id  # Parent is the table entity
+})
+
+# Calculate absolute world positions for rendering
+tavern_pos = engine.get_world_position(tavern_id)  # (100, 200, 0)
+table_pos = engine.get_world_position(table_id)    # (105, 203, 0)
+mug_pos = engine.get_world_position(mug_id)        # (105.5, 203.5, 1.2)
+
+# Get all entities in the tavern
+entities_in_tavern = engine.get_entities_in_region(tavern_id)
+# Returns: [table]
+
+# Render your map using absolute positions!
+for entity in engine.query_entities(['Position']):
+    world_pos = engine.get_world_position(entity.id)
+    if world_pos:
+        render_entity(entity.name, world_pos[0], world_pos[1], world_pos[2])
+```
+
+This pattern works for any nested spaces:
+- **World → Building → Room → Furniture → Item**
+- **Map → Region → Location → Container → Object**
+- **Inventory → Backpack → Pouch → Item**
+
 ## Documentation
 
 - **[PROJECT_PLAN.md](PROJECT_PLAN.md)** - Complete architecture and design

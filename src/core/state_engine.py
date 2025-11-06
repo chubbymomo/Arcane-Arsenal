@@ -840,6 +840,102 @@ class StateEngine:
 
     # ========== Utility Methods ==========
 
+    def get_world_position(self, entity_id: str) -> Optional[tuple]:
+        """
+        Calculate absolute world position for an entity.
+
+        Handles hierarchical positioning by recursively adding parent positions.
+        If an entity's Position.region is another entity ID, treats x/y/z as
+        relative offsets from the parent entity's world position.
+
+        Args:
+            entity_id: Entity ID to get world position for
+
+        Returns:
+            Tuple of (x, y, z) in world coordinates, or None if entity has no Position
+
+        Example:
+            # Tavern at world position
+            tavern: Position = {"x": 100, "y": 200, "z": 0, "region": "overworld"}
+
+            # Table in tavern (relative position)
+            table: Position = {"x": 5, "y": 3, "z": 0, "region": "entity_tavern_id"}
+
+            engine.get_world_position(table_id)  # Returns (105, 203, 0)
+
+        Note:
+            - If region is not an entity ID, returns position as-is
+            - Handles multiple levels of nesting (table → room → building → world)
+            - Returns None if Position component missing at any level
+            - Detects circular references (max depth 100)
+        """
+        MAX_DEPTH = 100  # Prevent infinite loops from circular references
+        depth = 0
+
+        current_id = entity_id
+        total_x, total_y, total_z = 0.0, 0.0, 0.0
+
+        while current_id and depth < MAX_DEPTH:
+            # Get position component
+            pos_component = self.get_component(current_id, 'Position')
+            if not pos_component:
+                # No position component
+                return None
+
+            pos_data = pos_component.data
+
+            # Add this level's coordinates
+            total_x += pos_data.get('x', 0)
+            total_y += pos_data.get('y', 0)
+            total_z += pos_data.get('z', 0)
+
+            # Check if region is a parent entity
+            region = pos_data.get('region', '')
+            if region and region.startswith('entity_'):
+                # Region is a parent entity ID - continue up the hierarchy
+                current_id = region
+                depth += 1
+            else:
+                # Region is a named area or empty - we're at the top level
+                break
+
+        if depth >= MAX_DEPTH:
+            # Circular reference detected
+            return None
+
+        return (total_x, total_y, total_z)
+
+    def get_entities_in_region(self, region: str, recursive: bool = False) -> List[Entity]:
+        """
+        Get all entities in a specific region.
+
+        Args:
+            region: Region name or entity ID to search for
+            recursive: If True and region is an entity ID, include entities
+                      in child regions (entities whose region is this entity's children)
+
+        Returns:
+            List of entities with Position.region matching the specified region
+
+        Example:
+            # Get all entities in the tavern
+            entities = engine.get_entities_in_region('entity_tavern_id')
+
+            # Get all entities in overworld
+            entities = engine.get_entities_in_region('overworld')
+        """
+        # Get all entities with Position component
+        positioned_entities = self.query_entities(['Position'])
+
+        # Filter by region
+        result = []
+        for entity in positioned_entities:
+            pos = self.get_component(entity.id, 'Position')
+            if pos and pos.data.get('region') == region:
+                result.append(entity)
+
+        return result
+
     def close(self) -> None:
         """Close storage connection."""
         self.storage.close()
