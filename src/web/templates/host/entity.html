@@ -4,13 +4,27 @@
 
 {% block content %}
 <div class="breadcrumb">
-    <a href="/">Entities</a> / {{ entity.name }}
+    <a href="{{ url_for('host.index') }}">Entities</a> / {{ entity.name }}
 </div>
 
 <div class="entity-header">
-    <h2>{{ entity.name }}</h2>
+    <div class="entity-title-section">
+        <div id="entity-name-display">
+            <h2>{{ entity.name }}</h2>
+            {% if entity.is_active() %}
+            <button class="btn btn-small" onclick="toggleEntityNameEdit()">Edit Name</button>
+            {% endif %}
+        </div>
+        <div id="entity-name-edit" class="edit-form" style="display: none;">
+            <form method="POST" action="{{ url_for('host.update_entity', entity_id=entity.id) }}" style="display: flex; gap: 0.5rem; align-items: center;">
+                <input type="text" name="name" value="{{ entity.name }}" required style="flex: 1; padding: 0.5rem; font-size: 1.5rem; font-weight: bold;">
+                <button type="submit" class="btn btn-primary btn-small">Save</button>
+                <button type="button" class="btn btn-secondary btn-small" onclick="toggleEntityNameEdit()">Cancel</button>
+            </form>
+        </div>
+    </div>
     {% if entity.is_active() %}
-    <form method="POST" action="/entity/{{ entity.id }}/delete" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this entity?');">
+    <form method="POST" action="{{ url_for('host.delete_entity', entity_id=entity.id) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this entity?');">
         <button type="submit" class="btn btn-danger">Delete Entity</button>
     </form>
     {% endif %}
@@ -36,7 +50,7 @@
     {% if entity.is_active() %}
     <div id="add-component-form" class="form-card" style="display: none;">
         <h4>Add Component</h4>
-        <form method="POST" action="/entity/{{ entity.id }}/component/add">
+        <form method="POST" action="{{ url_for('host.add_component', entity_id=entity.id) }}">
             <div class="form-group">
                 <label for="component_type">Component Type:</label>
                 <select id="component_type" name="component_type" required onchange="updateComponentExample(this.value)">
@@ -69,7 +83,7 @@
                     {% if entity.is_active() %}
                     <div class="component-actions">
                         <button class="btn btn-small" onclick="editComponent('{{ type }}', {{ data | tojson | safe }})">Edit</button>
-                        <form method="POST" action="/entity/{{ entity.id }}/component/{{ type }}/delete" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this component?');">
+                        <form method="POST" action="{{ url_for('host.delete_component', entity_id=entity.id, component_type=type) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this component?');">
                             <button type="submit" class="btn btn-small btn-danger">Delete</button>
                         </form>
                     </div>
@@ -79,7 +93,7 @@
 
                 {% if entity.is_active() %}
                 <div id="edit-{{ type }}" class="edit-form" style="display: none;">
-                    <form method="POST" action="/entity/{{ entity.id }}/component/{{ type }}/update">
+                    <form method="POST" action="{{ url_for('host.update_component', entity_id=entity.id, component_type=type) }}">
                         <div class="form-group">
                             <label>Update {{ type }} Data (JSON):</label>
                             <textarea name="component_data" rows="6" required>{{ data | tojson(indent=2) }}</textarea>
@@ -109,7 +123,7 @@
     {% if entity.is_active() %}
     <div id="add-relationship-form" class="form-card" style="display: none;">
         <h4>Create Relationship</h4>
-        <form method="POST" action="/relationship/create">
+        <form method="POST" action="{{ url_for('host.create_relationship') }}">
             <input type="hidden" name="from_entity" value="{{ entity.id }}">
             <div class="form-group">
                 <label for="to_entity">To Entity:</label>
@@ -153,13 +167,13 @@
                     <div class="relationship-content">
                         <code>{{ entity.name }}</code>
                         → <strong>{{ item.rel.relationship_type }}</strong> →
-                        <a href="/entity/{{ item.other.id }}">{{ item.other.name }}</a>
+                        <a href="{{ url_for('host.entity_detail', entity_id=item.other.id) }}">{{ item.other.name }}</a>
                         {% if item.rel.metadata %}
                             <pre class="metadata">{{ item.rel.metadata | tojson }}</pre>
                         {% endif %}
                     </div>
                     {% if entity.is_active() %}
-                    <form method="POST" action="/relationship/{{ item.rel.id }}/delete" style="display: inline;" onsubmit="return confirm('Delete this relationship?');">
+                    <form method="POST" action="{{ url_for('host.delete_relationship', relationship_id=item.rel.id) }}" style="display: inline;" onsubmit="return confirm('Delete this relationship?');">
                         <button type="submit" class="btn btn-small btn-danger">Delete</button>
                     </form>
                     {% endif %}
@@ -178,7 +192,7 @@
             <li>
                 <div class="relationship-item">
                     <div class="relationship-content">
-                        <a href="/entity/{{ item.other.id }}">{{ item.other.name }}</a>
+                        <a href="{{ url_for('host.entity_detail', entity_id=item.other.id) }}">{{ item.other.name }}</a>
                         → <strong>{{ item.rel.relationship_type }}</strong> →
                         <code>{{ entity.name }}</code>
                         {% if item.rel.metadata %}
@@ -225,6 +239,18 @@ function toggleForm(formId) {
     }
 }
 
+function toggleEntityNameEdit() {
+    const display = document.getElementById('entity-name-display');
+    const edit = document.getElementById('entity-name-edit');
+    if (edit.style.display === 'none') {
+        display.style.display = 'none';
+        edit.style.display = 'block';
+    } else {
+        display.style.display = 'block';
+        edit.style.display = 'none';
+    }
+}
+
 function editComponent(type, data) {
     document.getElementById('component-' + type).style.display = 'none';
     document.getElementById('edit-' + type).style.display = 'block';
@@ -241,6 +267,8 @@ function updateComponentExample(type) {
         example.innerHTML = 'Example: {"description": "A brave warrior"}';
     } else if (type === 'Position') {
         example.innerHTML = 'Example: {"x": 100, "y": 200, "z": 0, "region": "tavern"}';
+    } else if (type === 'Container') {
+        example.innerHTML = 'Example: {"capacity": 10} or {"capacity": null} for unlimited';
     } else {
         example.innerHTML = '';
     }

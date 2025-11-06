@@ -26,22 +26,23 @@ def index():
     """Character selection screen - list all characters."""
     engine = get_engine()
 
-    # Query for character entities (entities with Identity component)
-    # In Phase 2, we'll filter by CharacterStats component
-    all_entities = engine.query_entities(['Identity'])
+    # Query for character entities (entities with BOTH Identity AND Position)
+    # This filters out non-playable entities like items, locations without position, etc.
+    # In Phase 2, we'll use a CharacterStats component for more precise filtering
+    all_entities = engine.query_entities(['Identity', 'Position'])
 
     # Prepare character data
     characters = []
     for entity in all_entities:
         components = engine.get_entity_components(entity.id)
         identity = components.get('Identity', {})
-        position = components.get('Position', None)
+        position = components.get('Position', {})
 
         characters.append({
             'entity': entity,
             'description': identity.get('description', 'No description'),
-            'has_position': position is not None,
-            'region': position.get('region', 'Unknown') if position else 'Unknown'
+            'has_position': True,  # Always true due to query filter
+            'region': position.get('region', 'Unknown')
         })
 
     return render_template(
