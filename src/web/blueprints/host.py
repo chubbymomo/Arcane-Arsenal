@@ -10,6 +10,7 @@ import json as json_module
 from functools import wraps
 
 from src.core.state_engine import StateEngine
+from src.web.form_builder import FormBuilder
 
 # Create blueprint
 host_bp = Blueprint('host', __name__, url_prefix='/host', template_folder='../templates/host')
@@ -157,6 +158,9 @@ def entity_detail(entity_id: str):
     relationship_types = engine.storage.get_relationship_types()
     all_entities = engine.list_entities()
 
+    # Create FormBuilder instance
+    form_builder = FormBuilder(engine)
+
     return render_template(
         'entity.html',
         entity=entity,
@@ -166,7 +170,9 @@ def entity_detail(entity_id: str):
         events=events,
         component_types=component_types,
         relationship_types=relationship_types,
-        all_entities=all_entities
+        all_entities=all_entities,
+        engine=engine,
+        form_builder=form_builder
     )
 
 
