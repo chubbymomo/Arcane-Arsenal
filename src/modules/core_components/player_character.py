@@ -33,19 +33,18 @@ Examples:
 """
 
 from typing import Dict, Any
-from ...core.models import Entity
+from ..base import ComponentTypeDefinition
 
 
-class PlayerCharacterComponent:
+class PlayerCharacterComponent(ComponentTypeDefinition):
     """PlayerCharacter marker component definition."""
 
     type = 'PlayerCharacter'
     description = 'Marks an entity as a player-controlled character'
     schema_version = '1.0.0'
-    module = 'core'
+    module = 'core_components'
 
-    @staticmethod
-    def get_schema() -> Dict[str, Any]:
+    def get_schema(self) -> Dict[str, Any]:
         """
         Get JSON schema for PlayerCharacter component.
 
@@ -56,33 +55,3 @@ class PlayerCharacterComponent:
             "properties": {},
             "additionalProperties": False
         }
-
-    @staticmethod
-    def validate(data: Dict[str, Any]) -> None:
-        """
-        Validate PlayerCharacter data against schema.
-
-        Args:
-            data: Component data to validate (should be empty {})
-
-        Raises:
-            jsonschema.ValidationError: If data is not an empty object
-        """
-        import jsonschema
-        schema = PlayerCharacterComponent.get_schema()
-        jsonschema.validate(data, schema)
-
-    @staticmethod
-    def validate_entity(entity: Entity) -> bool:
-        """
-        Validate if entity can have PlayerCharacter component.
-
-        Any entity can be a player character - no restrictions.
-
-        Args:
-            entity: Entity to validate
-
-        Returns:
-            Always True
-        """
-        return True
