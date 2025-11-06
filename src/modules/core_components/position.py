@@ -73,3 +73,37 @@ class PositionComponent(ComponentTypeDefinition):
                 "region": {"type": "string"}
             }
         }
+
+    def validate_with_engine(self, data: Dict[str, Any], engine) -> bool:
+        """
+        Validate region field against engine state.
+
+        If region is an entity ID (starts with "entity_"), validates that
+        the entity exists. Named regions (e.g., "overworld", "tavern") are
+        accepted as-is.
+
+        Args:
+            data: Component data to validate
+            engine: StateEngine instance for entity lookup
+
+        Returns:
+            True if valid
+
+        Raises:
+            ValueError: If region is an entity ID that doesn't exist
+        """
+        region = data.get('region')
+        if not region:
+            return True  # Region is optional
+
+        # If region looks like an entity ID, validate it exists
+        if region.startswith('entity_'):
+            entity = engine.get_entity(region)
+            if entity is None:
+                raise ValueError(
+                    f"Invalid region: entity '{region}' does not exist. "
+                    f"Use a valid entity ID or a named region string."
+                )
+
+        # Named regions are accepted as-is (no registry needed)
+        return True

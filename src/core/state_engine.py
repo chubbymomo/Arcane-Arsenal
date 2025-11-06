@@ -897,6 +897,32 @@ class StateEngine:
         except Exception as e:
             return Result.fail(str(e), "REGISTRATION_ERROR")
 
+    def create_registry(self, registry_name: str, module_name: str) -> 'ModuleRegistry':
+        """
+        Create a generic registry for module-defined enumerated values.
+
+        This allows modules to define custom registries without modifying core schema.
+        Examples: magic_schools, damage_types, armor_types, condition_types
+
+        Args:
+            registry_name: Name of the registry (e.g., 'magic_schools')
+            module_name: Which module owns this registry
+
+        Returns:
+            ModuleRegistry instance for registering values
+
+        Example:
+            # In a module's initialize() method:
+            magic_registry = engine.create_registry('magic_schools', self.name)
+            magic_registry.register('evocation', 'Evocation magic', {'category': 'arcane'})
+            magic_registry.register('necromancy', 'Necromancy magic', {'category': 'dark'})
+
+            # Later, validate against registry:
+            magic_registry.validate(spell_data['school'], 'spell school')
+        """
+        from src.modules.base import ModuleRegistry
+        return ModuleRegistry(registry_name, module_name, self.storage)
+
     # ========== Transaction Support ==========
 
     @contextmanager

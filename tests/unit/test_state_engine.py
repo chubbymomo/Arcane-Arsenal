@@ -320,7 +320,9 @@ def test_spatial_validation(world_path):
         'region': 'entity_nonexistent'
     })
     assert result.success is False
-    assert result.error_code == 'INVALID_PARENT'
+    # Updated: Position validation now returns VALIDATION_ERROR instead of INVALID_PARENT
+    assert result.error_code == 'VALIDATION_ERROR'
+    assert 'does not exist' in result.error
 
     # Test: Cannot position relative to entity without Position
     no_pos_result = engine.create_entity('No Position Entity')

@@ -207,6 +207,119 @@ class RollTypeDefinition:
         self.category = category or 'general'
 
 
+class ModuleRegistry:
+    """
+    Generic registry for module-defined enumerated values.
+
+    Provides a convenient interface for modules to create and manage
+    custom registries without modifying core schema. Modules can define
+    registries for concepts like magic_schools, damage_types, armor_types, etc.
+
+    Example:
+        # In a module's initialize() method:
+        magic_registry = engine.create_registry('magic_schools', self.name)
+        magic_registry.register('evocation', 'Evocation magic', {'category': 'arcane'})
+        magic_registry.register('necromancy', 'Necromancy magic', {'category': 'dark'})
+
+        # Query registered values:
+        schools = magic_registry.get_all()
+        # Returns: [
+        #   {'key': 'evocation', 'description': '...', 'module': 'magic', 'metadata': {'category': 'arcane'}},
+        #   ...
+        # ]
+
+        # Validate against registry:
+        if not magic_registry.is_valid('illusion'):
+            raise ValueError(f"Invalid school. Must be one of: {magic_registry.get_keys()}")
+
+    Attributes:
+        registry_name: Name of this registry (e.g., 'magic_schools')
+        module_name: Which module owns this registry
+        storage: Storage instance for database access
+    """
+
+    def __init__(self, registry_name: str, module_name: str, storage):
+        """
+        Initialize a module registry.
+
+        Args:
+            registry_name: Name of the registry (e.g., 'magic_schools')
+            module_name: Which module owns this registry
+            storage: Storage instance for database operations
+        """
+        self.registry_name = registry_name
+        self.module_name = module_name
+        self.storage = storage
+
+    def register(self, key: str, description: str,
+                metadata: Dict[str, Any] = None) -> None:
+        """
+        Register a value in this registry.
+
+        Args:
+            key: Unique key within this registry (e.g., 'evocation')
+            description: Human-readable description
+            metadata: Optional extra data (e.g., {'category': 'arcane', 'damage_bonus': 2})
+        """
+        self.storage.register_in_registry(
+            registry_name=self.registry_name,
+            key=key,
+            description=description,
+            module=self.module_name,
+            metadata=metadata
+        )
+
+    def get_all(self) -> List[Dict[str, Any]]:
+        """
+        Get all registered values in this registry.
+
+        Returns:
+            List of dicts with keys: key, description, module, metadata
+        """
+        return self.storage.get_registry_values(self.registry_name)
+
+    def get_keys(self) -> List[str]:
+        """
+        Get all registered keys in this registry.
+
+        Returns:
+            List of keys (e.g., ['evocation', 'necromancy', 'conjuration'])
+        """
+        return [entry['key'] for entry in self.get_all()]
+
+    def is_valid(self, key: str) -> bool:
+        """
+        Check if a key is registered in this registry.
+
+        Args:
+            key: Key to check
+
+        Returns:
+            True if key is registered, False otherwise
+        """
+        return key in self.get_keys()
+
+    def validate(self, key: str, error_context: str = None) -> None:
+        """
+        Validate that a key exists in this registry, raise ValueError if not.
+
+        Args:
+            key: Key to validate
+            error_context: Optional context for error message (e.g., 'magic_school field')
+
+        Raises:
+            ValueError: If key is not registered
+        """
+        if not self.is_valid(key):
+            context = f" in {error_context}" if error_context else ""
+            valid_keys = ', '.join(sorted(self.get_keys()))
+            raise ValueError(
+                f"Invalid {self.registry_name} '{key}'{context}. "
+                f"Must be one of: {valid_keys}. "
+                f"Query /api/registries/{self.registry_name} to see all valid values."
+            )
+
+
 class Module(ABC):
     """
     Base class for all modules.
