@@ -3,9 +3,15 @@
 {% block title %}{{ entity.name }} - Arcane Arsenal{% endblock %}
 
 {% block content %}
-<div class="breadcrumb">
-    <a href="{{ url_for('host.index') }}">Entities</a> / {{ entity.name }}
+<div style="margin-bottom: 1rem;">
+    <a href="{{ url_for('host.index') }}" style="color: var(--accent); text-decoration: none; margin-right: 0.5rem;">Dashboard</a>
+    <span style="color: var(--text-muted);">/</span>
+    <a href="{{ url_for('host.entities') }}" style="color: var(--accent); text-decoration: none; margin: 0 0.5rem;">Entities</a>
+    <span style="color: var(--text-muted);">/</span>
+    <span style="margin-left: 0.5rem;">{{ entity.name }}</span>
 </div>
+
+<div class="card">
 
 <div class="entity-header">
     <div class="entity-title-section">

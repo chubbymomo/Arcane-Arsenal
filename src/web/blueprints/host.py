@@ -37,6 +37,59 @@ def get_engine() -> StateEngine:
 @host_bp.route('/')
 @require_world
 def index():
+    """Dashboard overview."""
+    engine = get_engine()
+
+    # Get stats
+    all_entities = engine.list_entities()
+    entity_count = len(all_entities)
+    player_count = len(engine.query_entities(['PlayerCharacter']))
+    component_types = engine.storage.get_component_types()
+    component_type_count = len(component_types)
+
+    # Get recent events
+    events = engine.get_events(limit=10)
+    event_data = []
+    for event in events:
+        entity_name = None
+        if event.entity_id:
+            entity = engine.get_entity(event.entity_id)
+            if entity:
+                entity_name = entity.name
+        event_data.append({
+            'event': event,
+            'event_type': event.event_type,
+            'entity_name': entity_name
+        })
+
+    # Get loaded modules info
+    from src.core.module_loader import ModuleLoader
+    loader = ModuleLoader()
+    loader.world_path = engine.world_path
+    loaded_modules = loader.load_modules('config')
+    module_info = []
+    for mod in loaded_modules:
+        module_info.append({
+            'name': mod.name,
+            'display_name': mod.display_name,
+            'version': mod.version,
+            'description': mod.description,
+            'is_core': mod.is_core
+        })
+
+    return render_template(
+        'dashboard.html',
+        entity_count=entity_count,
+        player_count=player_count,
+        component_type_count=component_type_count,
+        event_count=len(events),
+        recent_events=event_data[:5],  # Show only 5 most recent
+        modules=module_info
+    )
+
+@host_bp.route('/entities')
+@require_world
+def entities():
     """List all entities."""
     engine = get_engine()
     entities = engine.list_entities()
@@ -56,7 +109,7 @@ def index():
     relationship_types = engine.storage.get_relationship_types()
 
     return render_template(
-        'index.html',
+        'entities.html',
         entities=entity_data,
         component_types=component_types,
         relationship_types=relationship_types
@@ -164,7 +217,8 @@ def create_entity():
 
     if not name:
         flash('Entity name is required', 'error')
-        return redirect(url_for('host.index'))
+        # Redirect back to referring page or dashboard
+        return redirect(request.referrer or url_for('host.index'))
 
     result = engine.create_entity(name)
 
@@ -173,7 +227,7 @@ def create_entity():
         return redirect(url_for('host.entity_detail', entity_id=result.data['id']))
     else:
         flash(f'Error creating entity: {result.error}', 'error')
-        return redirect(url_for('host.index'))
+        return redirect(request.referrer or url_for('host.index'))
 
 
 @host_bp.route('/entity/<entity_id>/update', methods=['POST'])
@@ -212,7 +266,7 @@ def delete_entity(entity_id: str):
 
     if result.success:
         flash(f'Entity "{entity.name}" deleted successfully', 'success')
-        return redirect(url_for('host.index'))
+        return redirect(url_for('host.entities'))
     else:
         flash(f'Error deleting entity: {result.error}', 'error')
         return redirect(url_for('host.entity_detail', entity_id=entity_id))
@@ -300,7 +354,7 @@ def create_relationship():
 
     if not all([from_entity, to_entity, relationship_type]):
         flash('From entity, to entity, and relationship type are required', 'error')
-        return redirect(url_for('host.index'))
+        return redirect(request.referrer or url_for('host.index'))
 
     try:
         metadata_dict = json_module.loads(metadata) if metadata.strip() else {}

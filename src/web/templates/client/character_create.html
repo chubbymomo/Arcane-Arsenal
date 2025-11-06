@@ -5,8 +5,8 @@
 {% block content %}
 <div class="character-create-container">
     <div class="page-header">
-        <h2>Create New Character</h2>
-        <a href="{{ url_for('client.index') }}" class="btn btn-secondary">← Back to Characters</a>
+        <h2>✨ Create New Champion</h2>
+        <a href="{{ url_for('client.index') }}" style="color: var(--accent); text-decoration: none;">← Back</a>
     </div>
 
     <div class="form-card">
@@ -35,9 +35,8 @@
                 <h3>Starting Location</h3>
 
                 <div class="form-group">
-                    <label for="region">Region</label>
+                    <label for="region">Starting Region</label>
                     <select id="region" name="region" class="form-control">
-                        <option value="world">World (Default)</option>
                         {% for region in regions %}
                             <option value="{{ region }}">{{ region }}</option>
                         {% endfor %}

@@ -3,58 +3,64 @@
 {% block title %}Events - Arcane Arsenal{% endblock %}
 
 {% block content %}
-<h2>Event Log</h2>
-
-<div class="filters">
-    <form method="get">
-        <label>
-            Event Type:
-            <select name="type" onchange="this.form.submit()">
-                <option value="">All Types</option>
-                {% for type in event_types %}
-                    <option value="{{ type }}" {% if type == current_type %}selected{% endif %}>
-                        {{ type }}
-                    </option>
-                {% endfor %}
-            </select>
-        </label>
-
-        <label>
-            Limit:
-            <select name="limit" onchange="this.form.submit()">
-                <option value="20" {% if limit == 20 %}selected{% endif %}>20</option>
-                <option value="50" {% if limit == 50 %}selected{% endif %}>50</option>
-                <option value="100" {% if limit == 100 %}selected{% endif %}>100</option>
-            </select>
-        </label>
-    </form>
+<div style="margin-bottom: 1.5rem;">
+    <a href="{{ url_for('host.index') }}" style="color: var(--accent); text-decoration: none;">← Back to Dashboard</a>
 </div>
 
-{% if events %}
-    <div class="event-list">
-        {% for item in events %}
-        <div class="event-card">
-            <div class="event-header">
-                <span class="timestamp">{{ item.event.timestamp }}</span>
-                <span class="event-type">{{ item.event.event_type }}</span>
+<div class="card">
+    <h2>⚡ Event Log</h2>
+
+    <div style="margin: 2rem 0;">
+        <form method="get" style="display: flex; gap: 1rem; flex-wrap: wrap;">
+            <div>
+                <label>Event Type</label>
+                <select name="type" onchange="this.form.submit()">
+                    <option value="">All Types</option>
+                    {% for type in event_types %}
+                        <option value="{{ type }}" {% if type == current_type %}selected{% endif %}>
+                            {{ type }}
+                        </option>
+                    {% endfor %}
+                </select>
             </div>
-            <div class="event-body">
-                {% if item.entity_name %}
-                    <p><strong>Entity:</strong>
-                        <a href="{{ url_for('host.entity_detail', entity_id=item.event.entity_id) }}">{{ item.entity_name }}</a>
-                        <code>({{ item.event.entity_id }})</code>
-                    </p>
-                {% endif %}
-                {% if item.event.actor_id %}
-                    <p><strong>Actor:</strong> <code>{{ item.event.actor_id }}</code></p>
-                {% endif %}
-                <p><strong>Data:</strong></p>
-                <pre>{{ item.event.data | tojson(indent=2) }}</pre>
+
+            <div>
+                <label>Limit</label>
+                <select name="limit" onchange="this.form.submit()">
+                    <option value="20" {% if limit == 20 %}selected{% endif %}>20</option>
+                    <option value="50" {% if limit == 50 %}selected{% endif %}>50</option>
+                    <option value="100" {% if limit == 100 %}selected{% endif %}>100</option>
+                </select>
             </div>
-        </div>
-        {% endfor %}
+        </form>
     </div>
-{% else %}
-    <p>No events found.</p>
-{% endif %}
+
+    {% if events %}
+        <div style="margin-top: 2rem;">
+            {% for item in events %}
+            <div style="background: rgba(0, 0, 0, 0.2); border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; border-left: 4px solid var(--primary);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                    <span style="color: var(--text-muted); font-size: 0.9rem;">{{ item.event.timestamp }}</span>
+                    <span style="background: var(--accent); color: white; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.85rem; font-weight: 600;">{{ item.event.event_type }}</span>
+                </div>
+                <div>
+                    {% if item.entity_name %}
+                        <p style="margin-bottom: 0.5rem;"><strong>Entity:</strong>
+                            <a href="{{ url_for('host.entity_detail', entity_id=item.event.entity_id) }}" style="color: var(--primary); text-decoration: none;">{{ item.entity_name }}</a>
+                            <code style="margin-left: 0.5rem; font-size: 0.85rem;">({{ item.event.entity_id }})</code>
+                        </p>
+                    {% endif %}
+                    {% if item.event.actor_id %}
+                        <p style="margin-bottom: 0.5rem;"><strong>Actor:</strong> <code>{{ item.event.actor_id }}</code></p>
+                    {% endif %}
+                    <p style="margin-top: 0.75rem;"><strong>Data:</strong></p>
+                    <pre style="margin-top: 0.5rem;">{{ item.event.data | tojson(indent=2) }}</pre>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p style="color: var(--text-muted); text-align: center; padding: 2rem;">No events found.</p>
+    {% endif %}
+</div>
 {% endblock %}
