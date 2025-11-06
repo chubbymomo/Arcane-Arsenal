@@ -11,12 +11,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 import os
+import json
 import jsonschema
 
 from .storage import WorldStorage
 from .event_bus import EventBus
 from .models import Entity, Component, Relationship, Event, now
 from .result import Result
+from .module_loader import ModuleLoader
 from ..modules.core_components import CoreComponentsModule
 
 
@@ -60,31 +62,60 @@ class StateEngine:
         self.component_validators: Dict[str, Any] = {}
         self.relationship_validators: Dict[str, Any] = {}
 
-        # Load core components module
-        self._load_core_module()
+        # Load modules (core + any configured modules)
+        self._load_modules()
 
-    def _load_core_module(self) -> None:
-        """Load and register validators from core components module."""
-        core_module = CoreComponentsModule()
+    def _load_modules(self) -> None:
+        """
+        Load and register all modules.
 
-        # Register component types to database (safe for existing types due to INSERT OR REPLACE)
-        for comp_type in core_module.register_component_types():
-            self.storage.register_component_type(
-                comp_type.type,
-                comp_type.description,
-                comp_type.schema_version,
-                comp_type.module
-            )
-            self.component_validators[comp_type.type] = comp_type
+        Uses ModuleLoader to discover and load modules based on world configuration.
+        Strategy: 'config' if config.json exists, otherwise 'core_only' for safety.
 
-        # Register relationship types to database
-        for rel_type in core_module.register_relationship_types():
-            self.storage.register_relationship_type(
-                rel_type.type,
-                rel_type.description,
-                rel_type.module
-            )
-            self.relationship_validators[rel_type.type] = rel_type
+        Registers all component types, relationship types, and event types to database.
+        """
+        # Create module loader
+        loader = ModuleLoader(world_path=self.world_path)
+
+        # Load modules (tries config first, falls back to core_only)
+        modules = loader.load_modules(strategy='config')
+
+        # Register all types from all modules
+        for module in modules:
+            # Register component types to database (safe for existing types due to INSERT OR REPLACE)
+            for comp_type in module.register_component_types():
+                self.storage.register_component_type(
+                    comp_type.type,
+                    comp_type.description,
+                    comp_type.schema_version,
+                    comp_type.module
+                )
+                self.component_validators[comp_type.type] = comp_type
+
+            # Register relationship types to database
+            for rel_type in module.register_relationship_types():
+                self.storage.register_relationship_type(
+                    rel_type.type,
+                    rel_type.description,
+                    rel_type.module
+                )
+                self.relationship_validators[rel_type.type] = rel_type
+
+            # Register event types to database
+            for event_type in module.register_event_types():
+                self.storage.register_event_type(
+                    event_type.type,
+                    event_type.description,
+                    event_type.module
+                )
+
+            # Call module's initialize hook
+            try:
+                module.initialize(self)
+            except Exception as e:
+                # Don't fail world loading if module initialization fails
+                import logging
+                logging.warning(f"Module '{module.name}' initialization failed: {e}")
 
     # ========== World Initialization ==========
 
@@ -137,25 +168,14 @@ class StateEngine:
         system_entity = Entity.create('System', entity_id='system')
         storage.save_entity(system_entity)
 
-        # Load and register core components module
-        core_module = CoreComponentsModule()
-
-        # Register component types
-        for comp_type in core_module.register_component_types():
-            storage.register_component_type(
-                comp_type.type,
-                comp_type.description,
-                comp_type.schema_version,
-                comp_type.module
-            )
-
-        # Register relationship types
-        for rel_type in core_module.register_relationship_types():
-            storage.register_relationship_type(
-                rel_type.type,
-                rel_type.description,
-                rel_type.module
-            )
+        # Create default config.json (loads core_components only by default)
+        config_path = os.path.join(world_path, 'config.json')
+        default_config = {
+            'world_name': world_name,
+            'modules': ['core_components']  # Safe default - only core
+        }
+        with open(config_path, 'w') as f:
+            json.dump(default_config, f, indent=2)
 
         # Log world creation event
         event_bus = EventBus(storage)
@@ -167,13 +187,8 @@ class StateEngine:
         event_bus.publish(event)
 
         # Create and return state engine
+        # This will load modules from config.json via _load_modules()
         engine = StateEngine(world_path)
-
-        # Register validators in engine
-        for comp_type in core_module.register_component_types():
-            engine.component_validators[comp_type.type] = comp_type
-        for rel_type in core_module.register_relationship_types():
-            engine.relationship_validators[rel_type.type] = rel_type
 
         return engine
 
