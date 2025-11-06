@@ -10,6 +10,7 @@ import json as json_module
 from functools import wraps
 
 from src.core.state_engine import StateEngine
+from src.web.form_builder import FormBuilder
 
 # Create blueprint
 client_bp = Blueprint('client', __name__, url_prefix='/client', template_folder='../templates/client')
@@ -203,6 +204,9 @@ def character_sheet(entity_id: str):
     else:
         nearby_entities = []
 
+    # Create FormBuilder for component display
+    form_builder = FormBuilder(engine)
+
     return render_template(
         'character_sheet.html',
         entity=entity,
@@ -213,5 +217,6 @@ def character_sheet(entity_id: str):
         located_at=located_at,
         inventory=inventory,
         nearby_entities=nearby_entities,
-        other_relationships=other_relationships
+        other_relationships=other_relationships,
+        form_builder=form_builder
     )
