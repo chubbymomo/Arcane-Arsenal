@@ -92,6 +92,63 @@ class ComponentTypeDefinition(ABC):
         # Default: no additional validation
         return True
 
+    def get_ui_metadata(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Optional: Return UI rendering hints for component fields.
+
+        Override this to provide field-level metadata for web UI rendering.
+        This enables schema-aware form generation with proper input types,
+        labels, help text, and validation constraints.
+
+        Returns:
+            Dict mapping field names to UI metadata dictionaries
+
+        Example:
+            {
+                "strength": {
+                    "label": "Strength",
+                    "widget": "number",
+                    "order": 0,
+                    "help_text": "Physical power and muscle",
+                    "min": 1,
+                    "max": 20,
+                    "group": "Attributes"
+                },
+                "armor_type": {
+                    "label": "Armor Type",
+                    "widget": "select",
+                    "order": 10,
+                    "registry": "armor_types",
+                    "help_text": "Type of armor worn",
+                    "group": "Equipment"
+                }
+            }
+
+        Widget types:
+            - "text": Text input field
+            - "textarea": Multi-line text area
+            - "number": Number input with step controls
+            - "range": Slider control (requires min/max)
+            - "select": Dropdown from registry or enum
+            - "checkbox": Boolean toggle
+            - "multi-select": Multiple selection from registry
+
+        Metadata keys:
+            - label (str): Human-readable field label
+            - widget (str): UI control type
+            - order (int): Display order (lower = first)
+            - help_text (str): Description/tooltip text
+            - group (str): Grouping for organization (e.g., "Basic", "Advanced", "Combat")
+            - registry (str): For select widgets, which registry to query
+            - min (int/float): Minimum value for number/range
+            - max (int/float): Maximum value for number/range
+            - step (int/float): Step increment for number/range
+            - placeholder (str): Placeholder text for text inputs
+            - required (bool): Whether field is required (inferred from schema if omitted)
+        """
+        # Default: no UI metadata (will fall back to JSON textarea)
+        return {}
+
 
 class RelationshipTypeDefinition(ABC):
     """
