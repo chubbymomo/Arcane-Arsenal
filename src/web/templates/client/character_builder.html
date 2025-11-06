@@ -1,0 +1,455 @@
+{% extends "base.html" %}
+
+{% block title %}Build Your Character - Arcane Arsenal{% endblock %}
+
+{% block content %}
+<div class="builder-container">
+    <div class="builder-header">
+        <h2>⚔️ Character Builder</h2>
+        <p class="builder-subtitle">Create your fantasy hero</p>
+    </div>
+
+    <form method="POST" action="{{ url_for('client.character_builder') }}" id="character-form">
+        <!-- Step 1: Basic Information -->
+        <div class="builder-section">
+            <h3 class="section-title">📋 Basic Information</h3>
+            <div class="form-grid">
+                <div class="form-group full-width">
+                    <label for="name">Character Name *</label>
+                    <input type="text" id="name" name="name" required
+                           placeholder="e.g., Thorin Stormhammer"
+                           class="form-control">
+                    <small class="form-text">Your character's name</small>
+                </div>
+
+                <div class="form-group full-width">
+                    <label for="description">Description</label>
+                    <textarea id="description" name="description" rows="3"
+                              placeholder="e.g., A stalwart dwarf warrior from the Iron Hills"
+                              class="form-control"></textarea>
+                    <small class="form-text">Optional: A brief description of your character</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="region">Starting Region</label>
+                    <select id="region" name="region" class="form-control">
+                        {% for region in regions %}
+                            <option value="{{ region }}">{{ region }}</option>
+                        {% endfor %}
+                    </select>
+                    <small class="form-text">Where your adventure begins</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2: Race, Class & Alignment -->
+        <div class="builder-section">
+            <h3 class="section-title">🎭 Race, Class & Alignment</h3>
+            <div class="form-grid">
+                {% if races %}
+                <div class="form-group">
+                    <label for="race">Race</label>
+                    <select id="race" name="race" class="form-control" onchange="updateRaceInfo()">
+                        <option value="">Select a race...</option>
+                        {% for race in races %}
+                            <option value="{{ race.key }}" data-description="{{ race.description }}" data-size="{{ race.metadata.get('size', '') }}">
+                                {{ race.description.split(' - ')[0] }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <small class="form-text" id="race-info">Choose your character's race</small>
+                </div>
+                {% endif %}
+
+                {% if classes %}
+                <div class="form-group">
+                    <label for="class">Class</label>
+                    <select id="class" name="class" class="form-control" onchange="updateClassInfo()">
+                        <option value="">Select a class...</option>
+                        {% for cls in classes %}
+                            <option value="{{ cls.key }}" data-description="{{ cls.description }}" data-hitdie="{{ cls.metadata.get('hit_die', '') }}">
+                                {{ cls.description.split(' - ')[0] }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <small class="form-text" id="class-info">Choose your character's class</small>
+                </div>
+                {% endif %}
+
+                {% if alignments %}
+                <div class="form-group">
+                    <label for="alignment">Alignment</label>
+                    <select id="alignment" name="alignment" class="form-control">
+                        <option value="">Select alignment...</option>
+                        {% for align in alignments %}
+                            <option value="{{ align.key }}">{{ align.description }}</option>
+                        {% endfor %}
+                    </select>
+                    <small class="form-text">Your character's moral compass</small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Step 3: Attributes -->
+        <div class="builder-section attributes-section">
+            <h3 class="section-title">💪 Ability Scores</h3>
+            <p class="section-description">
+                Set your character's core attributes. Standard range is 8-15 for most characters, with 16-18 for exceptional scores.
+            </p>
+
+            <div class="attributes-grid">
+                <div class="attribute-card">
+                    <div class="attribute-header">
+                        <h4>STR</h4>
+                        <span class="attribute-name">Strength</span>
+                    </div>
+                    <input type="number" id="strength" name="strength" value="10" min="1" max="20" required
+                           class="attribute-input" onchange="updateModifier('strength')">
+                    <div class="attribute-modifier" id="strength-mod">+0</div>
+                    <small class="attribute-help">Physical power</small>
+                </div>
+
+                <div class="attribute-card">
+                    <div class="attribute-header">
+                        <h4>DEX</h4>
+                        <span class="attribute-name">Dexterity</span>
+                    </div>
+                    <input type="number" id="dexterity" name="dexterity" value="10" min="1" max="20" required
+                           class="attribute-input" onchange="updateModifier('dexterity')">
+                    <div class="attribute-modifier" id="dexterity-mod">+0</div>
+                    <small class="attribute-help">Agility & reflexes</small>
+                </div>
+
+                <div class="attribute-card">
+                    <div class="attribute-header">
+                        <h4>CON</h4>
+                        <span class="attribute-name">Constitution</span>
+                    </div>
+                    <input type="number" id="constitution" name="constitution" value="10" min="1" max="20" required
+                           class="attribute-input" onchange="updateModifier('constitution')">
+                    <div class="attribute-modifier" id="constitution-mod">+0</div>
+                    <small class="attribute-help">Endurance</small>
+                </div>
+
+                <div class="attribute-card">
+                    <div class="attribute-header">
+                        <h4>INT</h4>
+                        <span class="attribute-name">Intelligence</span>
+                    </div>
+                    <input type="number" id="intelligence" name="intelligence" value="10" min="1" max="20" required
+                           class="attribute-input" onchange="updateModifier('intelligence')">
+                    <div class="attribute-modifier" id="intelligence-mod">+0</div>
+                    <small class="attribute-help">Reasoning</small>
+                </div>
+
+                <div class="attribute-card">
+                    <div class="attribute-header">
+                        <h4>WIS</h4>
+                        <span class="attribute-name">Wisdom</span>
+                    </div>
+                    <input type="number" id="wisdom" name="wisdom" value="10" min="1" max="20" required
+                           class="attribute-input" onchange="updateModifier('wisdom')">
+                    <div class="attribute-modifier" id="wisdom-mod">+0</div>
+                    <small class="attribute-help">Awareness</small>
+                </div>
+
+                <div class="attribute-card">
+                    <div class="attribute-header">
+                        <h4>CHA</h4>
+                        <span class="attribute-name">Charisma</span>
+                    </div>
+                    <input type="number" id="charisma" name="charisma" value="10" min="1" max="20" required
+                           class="attribute-input" onchange="updateModifier('charisma')">
+                    <div class="attribute-modifier" id="charisma-mod">+0</div>
+                    <small class="attribute-help">Personality</small>
+                </div>
+            </div>
+
+            <div class="quick-actions">
+                <button type="button" class="btn btn-secondary" onclick="setStandardArray()">Standard Array (15,14,13,12,10,8)</button>
+                <button type="button" class="btn btn-secondary" onclick="setAllTens()">All 10s</button>
+                <button type="button" class="btn btn-secondary" onclick="rollAttributes()">🎲 Roll Random</button>
+            </div>
+        </div>
+
+        <!-- Submit -->
+        <div class="builder-actions">
+            <a href="{{ url_for('client.index') }}" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">✨ Create Character</button>
+        </div>
+    </form>
+</div>
+
+<style>
+.builder-container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.builder-header {
+    text-align: center;
+    margin-bottom: 3rem;
+    padding-bottom: 2rem;
+    border-bottom: 2px solid var(--card-border);
+}
+
+.builder-header h2 {
+    font-family: 'Cinzel', serif;
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(135deg, var(--primary), #ffd700);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.builder-subtitle {
+    color: var(--text-muted);
+    font-size: 1.2rem;
+}
+
+.builder-section {
+    background: var(--card-background);
+    border: 2px solid var(--card-border);
+    border-radius: 12px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.section-title {
+    font-family: 'Cinzel', serif;
+    color: var(--primary);
+    margin-bottom: 1.5rem;
+    font-size: 1.5rem;
+    letter-spacing: 0.05em;
+}
+
+.section-description {
+    color: var(--text-muted);
+    margin-bottom: 1.5rem;
+    font-size: 1rem;
+    line-height: 1.6;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+}
+
+.form-group.full-width {
+    grid-column: 1 / -1;
+}
+
+.attributes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.attribute-card {
+    background: linear-gradient(145deg, rgba(212, 175, 55, 0.05), rgba(155, 89, 182, 0.05));
+    border: 2px solid var(--card-border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    text-align: center;
+    transition: all 0.3s;
+}
+
+.attribute-card:hover {
+    border-color: var(--primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(212, 175, 55, 0.2);
+}
+
+.attribute-header {
+    margin-bottom: 1rem;
+}
+
+.attribute-header h4 {
+    font-family: 'Cinzel', serif;
+    font-size: 1.8rem;
+    color: var(--primary);
+    margin: 0;
+    letter-spacing: 0.1em;
+}
+
+.attribute-name {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top: 0.25rem;
+}
+
+.attribute-input {
+    width: 100%;
+    font-size: 2rem;
+    font-weight: bold;
+    text-align: center;
+    background: rgba(0, 0, 0, 0.3);
+    border: 2px solid var(--card-border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.attribute-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1);
+}
+
+.attribute-modifier {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--accent);
+    margin-bottom: 0.5rem;
+    font-family: 'Courier New', monospace;
+}
+
+.attribute-help {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.quick-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.builder-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 2rem;
+}
+
+.builder-actions .btn {
+    flex: 1;
+    max-width: 300px;
+}
+
+@media (max-width: 768px) {
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .attributes-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .builder-actions {
+        flex-direction: column;
+    }
+
+    .builder-actions .btn {
+        max-width: none;
+    }
+}
+</style>
+
+<script>
+// Calculate ability modifier
+function calculateModifier(score) {
+    return Math.floor((score - 10) / 2);
+}
+
+// Update modifier display
+function updateModifier(attribute) {
+    const input = document.getElementById(attribute);
+    const modDiv = document.getElementById(attribute + '-mod');
+    const score = parseInt(input.value) || 10;
+    const modifier = calculateModifier(score);
+
+    modDiv.textContent = modifier >= 0 ? `+${modifier}` : `${modifier}`;
+    modDiv.style.color = modifier >= 0 ? 'var(--success)' : 'var(--error)';
+}
+
+// Set standard array
+function setStandardArray() {
+    const values = [15, 14, 13, 12, 10, 8];
+    const attributes = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'];
+
+    attributes.forEach((attr, i) => {
+        document.getElementById(attr).value = values[i];
+        updateModifier(attr);
+    });
+}
+
+// Set all to 10
+function setAllTens() {
+    const attributes = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'];
+
+    attributes.forEach(attr => {
+        document.getElementById(attr).value = 10;
+        updateModifier(attr);
+    });
+}
+
+// Roll random attributes
+function rollAttributes() {
+    const attributes = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'];
+
+    attributes.forEach(attr => {
+        // Roll 4d6, drop lowest (standard D&D method)
+        const rolls = [
+            Math.floor(Math.random() * 6) + 1,
+            Math.floor(Math.random() * 6) + 1,
+            Math.floor(Math.random() * 6) + 1,
+            Math.floor(Math.random() * 6) + 1
+        ];
+        rolls.sort((a, b) => a - b);
+        const total = rolls[1] + rolls[2] + rolls[3];  // Drop lowest
+
+        document.getElementById(attr).value = total;
+        updateModifier(attr);
+    });
+}
+
+// Update race info
+function updateRaceInfo() {
+    const select = document.getElementById('race');
+    const option = select.options[select.selectedIndex];
+    const info = document.getElementById('race-info');
+
+    if (option.value) {
+        const desc = option.getAttribute('data-description');
+        const size = option.getAttribute('data-size');
+        info.textContent = `${desc} (Size: ${size})`;
+    } else {
+        info.textContent = 'Choose your character\'s race';
+    }
+}
+
+// Update class info
+function updateClassInfo() {
+    const select = document.getElementById('class');
+    const option = select.options[select.selectedIndex];
+    const info = document.getElementById('class-info');
+
+    if (option.value) {
+        const desc = option.getAttribute('data-description');
+        const hitdie = option.getAttribute('data-hitdie');
+        info.textContent = `${desc} (Hit Die: ${hitdie})`;
+    } else {
+        info.textContent = 'Choose your character\'s class';
+    }
+}
+
+// Initialize modifiers on page load
+window.addEventListener('DOMContentLoaded', () => {
+    const attributes = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'];
+    attributes.forEach(attr => updateModifier(attr));
+});
+</script>
+{% endblock %}
