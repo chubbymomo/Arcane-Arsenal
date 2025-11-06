@@ -10,7 +10,7 @@
 
     <div id="create-entity-form" class="form-card" style="display: none;">
         <h3>Create New Entity</h3>
-        <form method="POST" action="/entity/create">
+        <form method="POST" action="{{ url_for('host.create_entity') }}">
             <div class="form-group">
                 <label for="name">Entity Name:</label>
                 <input type="text" id="name" name="name" required placeholder="Enter entity name">
@@ -37,7 +37,7 @@
                 {% for item in entities %}
                 <tr>
                     <td>
-                        <a href="/entity/{{ item.entity.id }}">
+                        <a href="{{ url_for('host.entity_detail', entity_id=item.entity.id) }}">
                             {{ item.entity.name }}
                         </a>
                     </td>

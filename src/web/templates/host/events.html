@@ -41,7 +41,7 @@
             <div class="event-body">
                 {% if item.entity_name %}
                     <p><strong>Entity:</strong>
-                        <a href="/entity/{{ item.event.entity_id }}">{{ item.entity_name }}</a>
+                        <a href="{{ url_for('host.entity_detail', entity_id=item.event.entity_id) }}">{{ item.entity_name }}</a>
                         <code>({{ item.event.entity_id }})</code>
                     </p>
                 {% endif %}
