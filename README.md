@@ -43,7 +43,7 @@ python -m src.cli.commands entity create worlds/my_world "Hero"
 
 # Add a component
 python -m src.cli.commands component add worlds/my_world <entity_id> Identity \
-  '{"description": "A brave adventurer", "tags": ["player"]}'
+  '{"description": "A brave adventurer"}'
 ```
 
 ### Start the Web Interface
@@ -66,7 +66,7 @@ See **[WEB_EDITING_GUIDE.md](WEB_EDITING_GUIDE.md)** for detailed instructions.
 ```
 Entity (ID + Name)
   └─> Components (typed data containers)
-      └─> Identity: description, tags
+      └─> Identity: description
       └─> Position: x, y, z, region
   └─> Relationships (explicit connections)
       └─> located_at: entity → location
@@ -92,8 +92,7 @@ entity_id = result.data['id']
 
 # Add components
 engine.add_component(entity_id, 'Identity', {
-    'description': 'A brave warrior',
-    'tags': ['player', 'human', 'warrior']
+    'description': 'A brave warrior'
 })
 
 engine.add_component(entity_id, 'Position', {
@@ -204,10 +203,11 @@ See [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md) for complete details.
 Basic identification for any entity.
 ```json
 {
-  "description": "A brave warrior",
-  "tags": ["player", "human", "warrior"]
+  "description": "A brave warrior"
 }
 ```
+
+Note: Entity type is determined by component composition (e.g., entities with CharacterStats are characters), not by tags. This prevents AI hallucination through inconsistent categorization.
 
 ### Position
 Spatial positioning in the world.
@@ -260,8 +260,7 @@ tavern = engine.create_entity('The Golden Tankard')
 tavern_id = tavern.data['id']
 
 engine.add_component(tavern_id, 'Identity', {
-    'description': 'A cozy tavern filled with adventurers',
-    'tags': ['location', 'tavern', 'safe']
+    'description': 'A cozy tavern filled with adventurers'
 })
 
 engine.add_component(tavern_id, 'Position', {
@@ -275,8 +274,7 @@ hero = engine.create_entity('Theron the Brave')
 hero_id = hero.data['id']
 
 engine.add_component(hero_id, 'Identity', {
-    'description': 'A brave warrior seeking adventure',
-    'tags': ['player', 'human', 'warrior']
+    'description': 'A brave warrior seeking adventure'
 })
 
 engine.add_component(hero_id, 'Position', {
@@ -293,8 +291,7 @@ sword = engine.create_entity('Rusty Sword')
 sword_id = sword.data['id']
 
 engine.add_component(sword_id, 'Identity', {
-    'description': 'An old but serviceable weapon',
-    'tags': ['item', 'weapon', 'sword']
+    'description': 'An old but serviceable weapon'
 })
 
 # Put sword in tavern

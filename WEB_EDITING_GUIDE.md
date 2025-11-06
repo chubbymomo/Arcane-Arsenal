@@ -35,8 +35,7 @@ On any entity detail page:
 **Example - Identity Component:**
 ```json
 {
-  "description": "A brave warrior",
-  "tags": ["player", "human", "warrior"]
+  "description": "A brave warrior"
 }
 ```
 
@@ -120,7 +119,7 @@ Messages can be dismissed by clicking the × button.
 1. **JSON Validation** - Component data must be valid JSON. Use an online JSON validator if you're unsure.
 
 2. **Component Schemas** - Each component type has its own schema:
-   - **Identity**: Requires `description` (string), optional `tags` (array)
+   - **Identity**: Requires `description` (string)
    - **Position**: All fields optional: `x`, `y`, `z` (numbers), `region` (string)
 
 3. **Relationship Types** - Currently available:
@@ -184,14 +183,23 @@ Common errors and solutions:
    Hero → contains → Key
    ```
 
-### Organizing with Tags
+### Organizing by Components
 
-Use the Identity component's `tags` field to organize entities:
-- Characters: `["player"]`, `["npc"]`, `["enemy"]`
-- Locations: `["safe"]`, `["dangerous"]`, `["city"]`
-- Items: `["weapon"]`, `["consumable"]`, `["quest"]`
+Entity type is determined by which components it has, not by tags. This prevents AI hallucination through inconsistent categorization.
 
-Then filter/search based on tags in your application.
+Query entities by component presence:
+```python
+# Find all characters (entities with CharacterStats - Phase 2)
+characters = engine.query_entities(['CharacterStats'])
+
+# Find all positioned entities
+positioned = engine.query_entities(['Position'])
+
+# Find all entities with both Identity and Position
+described_and_positioned = engine.query_entities(['Identity', 'Position'])
+```
+
+In Phase 2, specific component types will be added (CharacterStats, LocationProperties, etc.) to further refine entity types through composition.
 
 ## Next Steps
 

@@ -87,7 +87,7 @@ def test_component_operations(world_path):
     result = engine.add_component(
         entity_id,
         'Identity',
-        {'description': 'A test character', 'tags': ['test']}
+        {'description': 'A test character'}
     )
     assert result.success is True
 
@@ -100,7 +100,7 @@ def test_component_operations(world_path):
     result = engine.update_component(
         entity_id,
         'Identity',
-        {'description': 'Updated character', 'tags': ['test', 'updated']}
+        {'description': 'Updated character'}
     )
     assert result.success is True
 

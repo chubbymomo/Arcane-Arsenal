@@ -30,8 +30,7 @@ def test_complete_rpg_workflow(engine):
         char_id,
         'Identity',
         {
-            'description': 'A brave warrior seeking adventure',
-            'tags': ['player', 'human', 'warrior']
+            'description': 'A brave warrior seeking adventure'
         }
     )
     assert result.success
@@ -53,8 +52,7 @@ def test_complete_rpg_workflow(engine):
         tavern_id,
         'Identity',
         {
-            'description': 'A cozy tavern filled with adventurers',
-            'tags': ['location', 'tavern', 'safe']
+            'description': 'A cozy tavern filled with adventurers'
         }
     )
     assert result.success
@@ -84,8 +82,7 @@ def test_complete_rpg_workflow(engine):
         sword_id,
         'Identity',
         {
-            'description': 'An old but serviceable weapon',
-            'tags': ['item', 'weapon', 'sword']
+            'description': 'An old but serviceable weapon'
         }
     )
     assert result.success
