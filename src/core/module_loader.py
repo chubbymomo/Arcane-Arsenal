@@ -2,19 +2,24 @@
 Module loader for Arcane Arsenal.
 
 Discovers and loads modules from the src/modules directory or world configuration.
-Supports both automatic discovery and explicit configuration.
+Supports both automatic discovery and explicit configuration with dependency resolution.
 """
 
 import importlib
 import inspect
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Set
 import json
 import logging
 
 from ..modules.base import Module
 
 logger = logging.getLogger(__name__)
+
+
+class ModuleDependencyError(Exception):
+    """Raised when module dependencies cannot be satisfied."""
+    pass
 
 
 class ModuleLoader:
@@ -87,13 +92,7 @@ class ModuleLoader:
                 config = json.load(f)
 
             module_names = config.get('modules', ['core_components'])
-            modules = []
-
-            for name in module_names:
-                module = self._import_module(name)
-                if module:
-                    modules.append(module)
-                    logger.info(f"Loaded module: {name} v{module.version}")
+            modules = self._load_modules_with_dependencies(module_names)
 
             return modules if modules else self._load_core_only()
 
@@ -165,6 +164,147 @@ class ModuleLoader:
         except Exception as e:
             logger.error(f"Error loading module '{module_name}': {e}")
             return None
+
+    def _load_modules_with_dependencies(self, module_names: List[str]) -> List[Module]:
+        """
+        Load modules with dependency resolution.
+
+        Performs topological sort to ensure dependencies are loaded first.
+        Validates that all dependencies are available.
+
+        Args:
+            module_names: List of module names to load
+
+        Returns:
+            List of Module instances in dependency order
+
+        Raises:
+            ModuleDependencyError: If dependencies cannot be satisfied
+        """
+        # Import all requested modules
+        modules_by_name = {}
+        for name in module_names:
+            module = self._import_module(name)
+            if module:
+                modules_by_name[name] = module
+
+        # Build dependency graph and validate
+        all_modules = {}
+        visited = set()
+
+        def collect_dependencies(module: Module):
+            """Recursively collect module and its dependencies."""
+            if module.name in visited:
+                return
+            visited.add(module.name)
+
+            # Collect dependencies
+            for dep_name in module.dependencies():
+                if dep_name not in modules_by_name:
+                    # Try to import dependency
+                    dep_module = self._import_module(dep_name)
+                    if not dep_module:
+                        raise ModuleDependencyError(
+                            f"Module '{module.name}' requires '{dep_name}' but it could not be loaded"
+                        )
+                    modules_by_name[dep_name] = dep_module
+
+                # Recursively collect dependency's dependencies
+                collect_dependencies(modules_by_name[dep_name])
+
+            all_modules[module.name] = module
+
+        # Collect all modules and dependencies
+        for module in modules_by_name.values():
+            collect_dependencies(module)
+
+        # Topological sort
+        sorted_modules = self._topological_sort(all_modules)
+
+        for module in sorted_modules:
+            logger.info(f"Loaded module: {module.name} v{module.version}")
+
+        return sorted_modules
+
+    def _topological_sort(self, modules: Dict[str, Module]) -> List[Module]:
+        """
+        Sort modules by dependencies using topological sort.
+
+        Args:
+            modules: Dict mapping module name to Module instance
+
+        Returns:
+            List of modules in dependency order (dependencies first)
+
+        Raises:
+            ModuleDependencyError: If circular dependencies detected
+        """
+        sorted_modules = []
+        visited = set()
+        temp_mark = set()
+
+        def visit(module: Module):
+            if module.name in temp_mark:
+                raise ModuleDependencyError(
+                    f"Circular dependency detected involving module '{module.name}'"
+                )
+
+            if module.name not in visited:
+                temp_mark.add(module.name)
+
+                # Visit dependencies first
+                for dep_name in module.dependencies():
+                    if dep_name in modules:
+                        visit(modules[dep_name])
+
+                temp_mark.remove(module.name)
+                visited.add(module.name)
+                sorted_modules.append(module)
+
+        for module in modules.values():
+            if module.name not in visited:
+                visit(module)
+
+        return sorted_modules
+
+    def discover_available_modules(self) -> List[Dict[str, Any]]:
+        """
+        Discover all available modules without loading them.
+
+        Returns:
+            List of dicts with module metadata:
+            {
+                'name': 'core_components',
+                'display_name': 'Core Components',
+                'version': '1.0.0',
+                'description': '...',
+                'is_core': True,
+                'dependencies': []
+            }
+        """
+        modules_dir = Path(__file__).parent.parent / 'modules'
+
+        if not modules_dir.exists():
+            return []
+
+        available = []
+
+        for item in sorted(modules_dir.iterdir()):
+            if item.name.startswith('_') or not item.is_dir():
+                continue
+
+            module = self._import_module(item.name)
+            if module:
+                available.append({
+                    'name': module.name,
+                    'display_name': module.display_name,
+                    'version': module.version,
+                    'description': module.description,
+                    'is_core': module.is_core,
+                    'dependencies': module.dependencies()
+                })
+
+        return available
 
     def get_module_info(self) -> List[Dict[str, Any]]:
         """

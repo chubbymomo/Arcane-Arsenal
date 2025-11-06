@@ -71,6 +71,18 @@ class CoreComponentsModule(Module):
     def version(self) -> str:
         return "1.0.0"
 
+    @property
+    def display_name(self) -> str:
+        return "Fundamental Arcane Components"
+
+    @property
+    def description(self) -> str:
+        return "Essential components for positioning, identity, and containment. Required for all realms."
+
+    @property
+    def is_core(self) -> bool:
+        return True
+
     def register_component_types(self) -> List[ComponentTypeDefinition]:
         """Register Identity, Position, Container, and PlayerCharacter components."""
         return [
