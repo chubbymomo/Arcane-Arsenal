@@ -21,6 +21,33 @@ class LuckComponent(ComponentTypeDefinition):
     schema_version = "1.0.0"
     module = "rng"
 
+    def validate_with_engine(self, data: Dict[str, Any], engine) -> bool:
+        """Validate advantage_on/disadvantage_on arrays against registered roll types."""
+        # Get registered roll types
+        valid_types = {rt['type'] for rt in engine.storage.get_roll_types()}
+
+        # Validate advantage_on
+        advantage_on = data.get('advantage_on', [])
+        for roll_type in advantage_on:
+            if roll_type not in valid_types:
+                raise ValueError(
+                    f"Invalid roll type in advantage_on: '{roll_type}'. "
+                    f"Must be one of: {', '.join(sorted(valid_types))}. "
+                    f"Query /api/roll_types to see all valid types."
+                )
+
+        # Validate disadvantage_on
+        disadvantage_on = data.get('disadvantage_on', [])
+        for roll_type in disadvantage_on:
+            if roll_type not in valid_types:
+                raise ValueError(
+                    f"Invalid roll type in disadvantage_on: '{roll_type}'. "
+                    f"Must be one of: {', '.join(sorted(valid_types))}. "
+                    f"Query /api/roll_types to see all valid types."
+                )
+
+        return True
+
     def get_schema(self) -> Dict[str, Any]:
         return {
             "type": "object",
@@ -82,6 +109,24 @@ class RollModifierComponent(ComponentTypeDefinition):
     description = "Modifies specific types of dice rolls"
     schema_version = "1.0.0"
     module = "rng"
+
+    def validate_with_engine(self, data: Dict[str, Any], engine) -> bool:
+        """Validate modifier_type against registered roll types."""
+        modifier_type = data.get('modifier_type')
+        if not modifier_type:
+            raise ValueError("modifier_type is required")
+
+        # Get registered roll types
+        valid_types = {rt['type'] for rt in engine.storage.get_roll_types()}
+
+        if modifier_type not in valid_types:
+            raise ValueError(
+                f"Invalid modifier_type '{modifier_type}'. "
+                f"Must be one of: {', '.join(sorted(valid_types))}. "
+                f"Query /api/roll_types to see all valid types."
+            )
+
+        return True
 
     def get_schema(self) -> Dict[str, Any]:
         return {

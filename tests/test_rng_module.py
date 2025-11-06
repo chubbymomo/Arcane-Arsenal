@@ -506,5 +506,54 @@ class TestRNGModule:
             assert rt['module'] == 'rng'
 
 
+    def test_component_validation(self, temp_world):
+        """Test that component validation rejects invalid roll types."""
+        engine = StateEngine.initialize_world(
+            world_path=temp_world,
+            world_name="Test World",
+            modules=['rng']
+        )
+
+        # Create test entity
+        result = engine.create_entity("Test Character")
+        assert result.success
+        entity_id = result.data['id']
+
+        # Try to add RollModifier with INVALID roll type
+        result = engine.add_component(entity_id, "RollModifier", {
+            "modifier_type": "invalid_type",  # Not registered!
+            "bonus": 5,
+            "source": "Test"
+        })
+
+        # Should fail validation
+        assert not result.success
+        assert "Invalid modifier_type" in result.error
+
+        # Try to add Luck with INVALID roll type in advantage_on
+        result = engine.add_component(entity_id, "Luck", {
+            "global_bonus": 0,
+            "advantage_on": ["invalid_type"],  # Not registered!
+            "disadvantage_on": [],
+            "reroll_ones": False,
+            "critical_range": 20
+        })
+
+        # Should fail validation
+        assert not result.success
+        assert "Invalid roll type in advantage_on" in result.error
+
+        # Now with VALID roll types - should succeed
+        result = engine.add_component(entity_id, "Luck", {
+            "global_bonus": 0,
+            "advantage_on": ["attack", "saving_throw"],  # Valid!
+            "disadvantage_on": [],
+            "reroll_ones": False,
+            "critical_range": 20
+        })
+
+        assert result.success
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])

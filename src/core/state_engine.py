@@ -447,6 +447,15 @@ class StateEngine:
                         "VALIDATION_ERROR"
                     )
 
+                # Additional validation against engine state
+                try:
+                    validator.validate_with_engine(data, self)
+                except ValueError as e:
+                    return Result.fail(
+                        f"Component data validation failed: {str(e)}",
+                        "VALIDATION_ERROR"
+                    )
+
             # Spatial validation for Position components
             if component_type == 'Position':
                 validation_result = self._validate_position_data(entity_id, data)
@@ -545,6 +554,15 @@ class StateEngine:
                 except jsonschema.ValidationError as e:
                     return Result.fail(
                         f"Component data validation failed: {e.message}",
+                        "VALIDATION_ERROR"
+                    )
+
+                # Additional validation against engine state
+                try:
+                    validator.validate_with_engine(data, self)
+                except ValueError as e:
+                    return Result.fail(
+                        f"Component data validation failed: {str(e)}",
                         "VALIDATION_ERROR"
                     )
 

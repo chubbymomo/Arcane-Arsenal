@@ -65,6 +65,33 @@ class ComponentTypeDefinition(ABC):
         jsonschema.validate(data, self.get_schema())
         return True
 
+    def validate_with_engine(self, data: Dict[str, Any], engine: 'StateEngine') -> bool:
+        """
+        Optional: Additional validation against engine state.
+
+        Override this to validate component data against registered types,
+        existing entities, or other engine state.
+
+        Args:
+            data: Component data to validate
+            engine: StateEngine instance for querying registered types
+
+        Returns:
+            True if valid
+
+        Raises:
+            ValueError: If validation fails with descriptive message
+
+        Example:
+            def validate_with_engine(self, data, engine):
+                valid_types = {rt['type'] for rt in engine.storage.get_roll_types()}
+                if data['roll_type'] not in valid_types:
+                    raise ValueError(f"Invalid roll_type. Must be one of: {valid_types}")
+                return True
+        """
+        # Default: no additional validation
+        return True
+
 
 class RelationshipTypeDefinition(ABC):
     """
