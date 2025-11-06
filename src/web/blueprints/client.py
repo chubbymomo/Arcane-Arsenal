@@ -75,7 +75,7 @@ def character_create():
         # Get form data
         name = request.form.get('name')
         description = request.form.get('description')
-        region = request.form.get('region', 'world')
+        region = request.form.get('region', 'The Realm')
 
         if not name or not description:
             flash('Character name and description are required', 'error')
@@ -127,7 +127,7 @@ def character_create():
     # GET request - show form
     # Get available regions for dropdown
     positioned_entities = engine.query_entities(['Position'])
-    regions = set(['world', 'overworld'])  # Default regions
+    regions = set(['The Realm'])  # Default starting region
 
     for entity in positioned_entities:
         pos = engine.get_component(entity.id, 'Position')

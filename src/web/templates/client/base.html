@@ -3,22 +3,345 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Arcane Arsenal - Player{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='client_style.css') }}">
+    <title>{% block title %}Arcane Arsenal - Adventurer{% endblock %}</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:wght@400;600&display=swap');
+
+        :root {
+            --primary: #d4af37;
+            --primary-dark: #b8942b;
+            --secondary: #8b4513;
+            --background: #0a0a0f;
+            --card-background: #1a1520;
+            --card-border: #2d1b3d;
+            --text: #f0e6d6;
+            --text-muted: #a99b8a;
+            --accent: #9b59b6;
+            --success: #27ae60;
+            --warning: #e67e22;
+            --error: #c0392b;
+            --info: #3498db;
+            --shadow: rgba(0, 0, 0, 0.5);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Crimson Text', serif;
+            background: linear-gradient(135deg, var(--background) 0%, #1a0f2e 100%);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image:
+                radial-gradient(circle at 20% 50%, rgba(212, 175, 55, 0.05) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(155, 89, 182, 0.05) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        header {
+            background: linear-gradient(145deg, var(--card-background), #211528);
+            border-bottom: 2px solid var(--card-border);
+            padding: 1.5rem 2rem;
+            box-shadow: 0 4px 20px var(--shadow);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        header h1 {
+            font-family: 'Cinzel', serif;
+            font-size: 2rem;
+            background: linear-gradient(135deg, var(--primary), #ffd700);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+            letter-spacing: 0.05em;
+        }
+
+        .realm-info {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+
+        .realm-info strong {
+            color: var(--primary);
+            font-family: 'Cinzel', serif;
+        }
+
+        .realm-info a {
+            color: var(--accent);
+            text-decoration: none;
+            margin-left: 1rem;
+            transition: color 0.3s;
+        }
+
+        .realm-info a:hover {
+            color: var(--primary);
+        }
+
+        nav {
+            display: flex;
+            gap: 1.5rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        nav a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-family: 'Cinzel', serif;
+            font-size: 0.95rem;
+            letter-spacing: 0.05em;
+            transition: all 0.3s;
+            padding: 0.5rem 0;
+            border-bottom: 2px solid transparent;
+        }
+
+        nav a:hover {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        nav a.nav-switch {
+            color: var(--accent);
+            margin-left: auto;
+        }
+
+        .nav-separator {
+            color: var(--card-border);
+        }
+
+        main {
+            flex: 1;
+            padding: 2rem;
+            max-width: 1400px;
+            width: 100%;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        footer {
+            background: linear-gradient(145deg, var(--card-background), #211528);
+            border-top: 2px solid var(--card-border);
+            padding: 1.5rem 2rem;
+            text-align: center;
+            color: var(--text-muted);
+            font-family: 'Cinzel', serif;
+            font-size: 0.85rem;
+            letter-spacing: 0.1em;
+        }
+
+        .flash-messages {
+            margin-bottom: 2rem;
+        }
+
+        .flash {
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+            font-size: 1.05rem;
+            border-left: 4px solid;
+            position: relative;
+            animation: slideIn 0.3s;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .flash-success {
+            background: rgba(39, 174, 96, 0.15);
+            border-color: var(--success);
+            color: #7bed9f;
+        }
+
+        .flash-warning {
+            background: rgba(230, 126, 34, 0.15);
+            border-color: var(--warning);
+            color: #f8b739;
+        }
+
+        .flash-error {
+            background: rgba(192, 57, 43, 0.15);
+            border-color: var(--error);
+            color: #ff6b81;
+        }
+
+        .flash-info {
+            background: rgba(52, 152, 219, 0.15);
+            border-color: var(--info);
+            color: #74b9ff;
+        }
+
+        .flash-close {
+            position: absolute;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: currentColor;
+            font-size: 1.5rem;
+            cursor: pointer;
+            opacity: 0.6;
+            transition: opacity 0.3s;
+            width: 30px;
+            height: 30px;
+            line-height: 1;
+        }
+
+        .flash-close:hover {
+            opacity: 1;
+        }
+
+        .card {
+            background: linear-gradient(145deg, var(--card-background), #211528);
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 8px 32px var(--shadow);
+            border: 2px solid var(--card-border);
+            margin-bottom: 1.5rem;
+        }
+
+        .card h2, .card h3 {
+            font-family: 'Cinzel', serif;
+            color: var(--primary);
+            margin-bottom: 1rem;
+            letter-spacing: 0.05em;
+        }
+
+        .btn {
+            font-family: 'Cinzel', serif;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: #1a1520;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            text-decoration: none;
+            display: inline-block;
+            box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);
+        }
+
+        .btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #ffd700, var(--primary));
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(212, 175, 55, 0.5);
+        }
+
+        .btn:disabled {
+            background: #444;
+            cursor: not-allowed;
+            opacity: 0.5;
+            box-shadow: none;
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #444, #333);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, var(--error), #a82820);
+            color: white;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: rgba(0, 0, 0, 0.3);
+            border: 2px solid var(--card-border);
+            border-radius: 6px;
+            color: var(--text);
+            font-size: 1rem;
+            font-family: 'Crimson Text', serif;
+            transition: all 0.3s;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1);
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        label {
+            display: block;
+            font-family: 'Cinzel', serif;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+            font-size: 0.95rem;
+            letter-spacing: 0.05em;
+        }
+
+        @media (max-width: 768px) {
+            header, main, footer {
+                padding: 1rem;
+            }
+
+            header h1 {
+                font-size: 1.5rem;
+            }
+
+            nav {
+                flex-direction: column;
+                gap: 0.75rem;
+                align-items: flex-start;
+            }
+
+            nav a.nav-switch {
+                margin-left: 0;
+            }
+        }
+
+        {% block extra_styles %}{% endblock %}
+    </style>
 </head>
-<body class="client-view">
-    <header class="client-header">
-        <h1>🎭 Arcane Arsenal</h1>
-        <div style="font-size: 0.85rem; color: #aaa; margin-top: 0.25rem;">
-            World: <strong>{{ session.get('world_name', 'Unknown') }}</strong>
-            <a href="{{ url_for('switch_world') }}" style="color: #4a90e2; text-decoration: none; margin-left: 0.5rem;">Switch World</a>
+<body>
+    <header>
+        <h1>⚔️ Arcane Arsenal</h1>
+        <div class="realm-info">
+            Realm: <strong>{{ session.get('world_name', 'Unknown') }}</strong>
+            <a href="{{ url_for('switch_world') }}">⤴ Return to Realm Portal</a>
         </div>
         <nav>
-            <a href="{{ url_for('client.index') }}">My Characters</a>
-            <a href="{{ url_for('client.character_create') }}">Create Character</a>
+            <a href="{{ url_for('client.index') }}">🎭 My Champions</a>
+            <a href="{{ url_for('client.character_create') }}">✨ Create Champion</a>
             <span class="nav-separator">|</span>
-            <a href="{{ url_for('host.index') }}" class="nav-switch">Switch to Host View</a>
+            <a href="{{ url_for('host.index') }}" class="nav-switch">🎲 Dungeon Master View</a>
         </nav>
     </header>
 
@@ -39,7 +362,9 @@
     </main>
 
     <footer>
-        <p>Arcane Arsenal - Your Adventure Awaits</p>
+        <p>⚔️ Arcane Arsenal - Your Adventure Awaits ⚔️</p>
     </footer>
+
+    {% block extra_scripts %}{% endblock %}
 </body>
 </html>
