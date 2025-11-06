@@ -10,6 +10,10 @@
 <body class="client-view">
     <header class="client-header">
         <h1>🎭 Arcane Arsenal</h1>
+        <div style="font-size: 0.85rem; color: #aaa; margin-top: 0.25rem;">
+            World: <strong>{{ session.get('world_name', 'Unknown') }}</strong>
+            <a href="{{ url_for('switch_world') }}" style="color: #4a90e2; text-decoration: none; margin-left: 0.5rem;">Switch World</a>
+        </div>
         <nav>
             <a href="{{ url_for('client.index') }}">My Characters</a>
             <a href="{{ url_for('client.character_create') }}">Create Character</a>

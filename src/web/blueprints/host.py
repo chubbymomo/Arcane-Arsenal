@@ -5,8 +5,9 @@ Provides full CRUD operations for entities, components, and relationships.
 Intended for game masters to manage world state.
 """
 
-from flask import Blueprint, render_template, jsonify, request, redirect, url_for, flash, current_app
+from flask import Blueprint, render_template, jsonify, request, redirect, url_for, flash, current_app, session
 import json as json_module
+from functools import wraps
 
 from src.core.state_engine import StateEngine
 
@@ -14,14 +15,27 @@ from src.core.state_engine import StateEngine
 host_bp = Blueprint('host', __name__, url_prefix='/host', template_folder='../templates/host')
 
 
+def require_world(f):
+    """Decorator to ensure a world is selected before accessing routes."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'world_path' not in session:
+            flash('Please select a world first', 'warning')
+            return redirect(url_for('index'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
 def get_engine() -> StateEngine:
-    """Get StateEngine instance for current world."""
-    return StateEngine(current_app.config['WORLD_PATH'])
+    """Get StateEngine instance for current world from session."""
+    world_path = session.get('world_path')
+    return StateEngine(world_path)
 
 
 # ========== View Endpoints ==========
 
 @host_bp.route('/')
+@require_world
 def index():
     """List all entities."""
     engine = get_engine()
@@ -50,6 +64,7 @@ def index():
 
 
 @host_bp.route('/entity/<entity_id>')
+@require_world
 def entity_detail(entity_id: str):
     """Show entity details with all components and relationships."""
     engine = get_engine()
@@ -103,6 +118,7 @@ def entity_detail(entity_id: str):
 
 
 @host_bp.route('/events')
+@require_world
 def events():
     """Show recent events."""
     engine = get_engine()
@@ -140,6 +156,7 @@ def events():
 # ========== POST Endpoints for State Modification ==========
 
 @host_bp.route('/entity/create', methods=['POST'])
+@require_world
 def create_entity():
     """Create a new entity."""
     engine = get_engine()
@@ -160,6 +177,7 @@ def create_entity():
 
 
 @host_bp.route('/entity/<entity_id>/update', methods=['POST'])
+@require_world
 def update_entity(entity_id: str):
     """Update an entity's name."""
     engine = get_engine()
@@ -180,6 +198,7 @@ def update_entity(entity_id: str):
 
 
 @host_bp.route('/entity/<entity_id>/delete', methods=['POST'])
+@require_world
 def delete_entity(entity_id: str):
     """Delete an entity."""
     engine = get_engine()
@@ -200,6 +219,7 @@ def delete_entity(entity_id: str):
 
 
 @host_bp.route('/entity/<entity_id>/component/add', methods=['POST'])
+@require_world
 def add_component(entity_id: str):
     """Add a component to an entity."""
     engine = get_engine()
@@ -227,6 +247,7 @@ def add_component(entity_id: str):
 
 
 @host_bp.route('/entity/<entity_id>/component/<component_type>/update', methods=['POST'])
+@require_world
 def update_component(entity_id: str, component_type: str):
     """Update a component."""
     engine = get_engine()
@@ -253,6 +274,7 @@ def update_component(entity_id: str, component_type: str):
 
 
 @host_bp.route('/entity/<entity_id>/component/<component_type>/delete', methods=['POST'])
+@require_world
 def delete_component(entity_id: str, component_type: str):
     """Delete a component."""
     engine = get_engine()
@@ -267,6 +289,7 @@ def delete_component(entity_id: str, component_type: str):
 
 
 @host_bp.route('/relationship/create', methods=['POST'])
+@require_world
 def create_relationship():
     """Create a relationship between entities."""
     engine = get_engine()
@@ -296,6 +319,7 @@ def create_relationship():
 
 
 @host_bp.route('/relationship/<relationship_id>/delete', methods=['POST'])
+@require_world
 def delete_relationship(relationship_id: str):
     """Delete a relationship."""
     engine = get_engine()
