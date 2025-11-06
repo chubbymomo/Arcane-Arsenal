@@ -656,16 +656,7 @@
             }
         }
 
-        // Auto-submit form when radio button is clicked
-        const worldForm = document.getElementById('world-form');
-        if (worldForm) {
-            const radios = worldForm.querySelectorAll('input[type="radio"][name="world_name"]');
-            radios.forEach(radio => {
-                radio.addEventListener('change', () => {
-                    setTimeout(() => worldForm.submit(), 200);
-                });
-            });
-        }
+        // No auto-submit - user must click "Enter Realm" button
 
         // Load available modules
         let modulesData = {};
