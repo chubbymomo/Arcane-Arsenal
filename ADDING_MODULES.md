@@ -165,6 +165,37 @@ Basic steps:
 4. Add to your world's config.json
 5. Restart server
 
+### Import Standards
+
+When creating modules, follow these import conventions for consistency:
+
+**Use relative imports for intra-package imports** (within `src.modules`):
+```python
+# In src/modules/my_module/__init__.py
+from ..base import Module, ComponentTypeDefinition  # ✅ Correct
+from src.modules.base import Module                 # ❌ Avoid
+```
+
+**Use absolute imports for cross-package imports** (from `src.core`):
+```python
+# In src/modules/my_module/__init__.py
+from src.core.state_engine import StateEngine      # ✅ Correct
+from src.core.event_bus import Event              # ✅ Correct
+```
+
+**Use relative imports for intra-module imports** (within your module):
+```python
+# In src/modules/my_module/__init__.py
+from .components import MyComponent                # ✅ Correct
+from .events import my_event                      # ✅ Correct
+```
+
+**Why this matters:**
+- Consistent imports make modules easier to maintain
+- Relative imports for same-package code are more resilient to refactoring
+- Absolute imports for cross-package code make dependencies explicit
+- Follows Python best practices for package structure
+
 ## Module Safety
 
 - **Core modules are safe** - They only register types, no code execution

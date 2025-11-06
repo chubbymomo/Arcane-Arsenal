@@ -42,7 +42,7 @@ from ...core.models import Entity
 from ..base import ComponentTypeDefinition
 
 
-class ContainerComponentType(ComponentTypeDefinition):
+class ContainerComponent(ComponentTypeDefinition):
     """Container component definition."""
 
     type = 'Container'

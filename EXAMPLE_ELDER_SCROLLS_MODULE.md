@@ -231,64 +231,51 @@ class ShoutComponent(ComponentTypeDefinition):
 
 ## How to Load the Module
 
-Currently, modules are hardcoded in StateEngine. To load this module, you would:
+Arcane Arsenal uses **configuration-based module loading**. Modules are specified in each world's `config.json` file, allowing different worlds to use different module combinations without modifying core code.
 
-### Option 1: Manual Registration (Current Approach)
+### Current Approach: Configuration-Based Loading
 
-```python
-# In state_engine.py
-from ..modules.elder_scrolls import ElderScrollsModule
+**Step 1:** Create your module in `src/modules/elder_scrolls/`
 
-def _load_modules(self):
-    modules = [
-        CoreComponentsModule(),
-        ElderScrollsModule()  # ← Add your module
-    ]
-
-    for module in modules:
-        for comp_type in module.register_component_types():
-            # Register...
-```
-
-### Option 2: Module Discovery (Recommended Enhancement)
-
-```python
-# In state_engine.py
-def _discover_modules(self) -> List[Module]:
-    """Auto-discover modules in src/modules/"""
-    modules = [CoreComponentsModule()]  # Core always loaded
-
-    modules_dir = Path(__file__).parent.parent / 'modules'
-    for item in modules_dir.iterdir():
-        if item.is_dir() and not item.name.startswith('_'):
-            try:
-                # Try to import the module
-                mod = importlib.import_module(f'..modules.{item.name}', __package__)
-                # Look for Module subclass
-                for attr_name in dir(mod):
-                    attr = getattr(mod, attr_name)
-                    if isinstance(attr, type) and issubclass(attr, Module) and attr != Module:
-                        modules.append(attr())
-            except ImportError:
-                pass  # Skip invalid modules
-
-    return modules
-```
-
-### Option 3: Configuration-Based (Most Flexible)
-
-Create `world_config.json` in each world:
+**Step 2:** Create or update `config.json` in your world directory:
 
 ```json
 {
   "world_name": "Skyrim Campaign",
   "modules": [
     "core_components",
-    "elder_scrolls",
-    "my_custom_homebrew"
+    "rng",
+    "elder_scrolls"
   ]
 }
 ```
+
+**Step 3:** The module loads automatically when you open the world!
+
+```python
+# StateEngine automatically discovers and loads modules based on config.json
+engine = StateEngine(world_path='worlds/skyrim')
+
+# Modules are loaded in dependency order:
+# 1. core_components (required by elder_scrolls)
+# 2. rng (core module)
+# 3. elder_scrolls (your custom module)
+```
+
+### Module Auto-Registration
+
+The module system automatically:
+- ✅ Resolves dependencies (elder_scrolls requires core_components)
+- ✅ Validates all dependencies are available
+- ✅ Loads modules in correct order (topological sort)
+- ✅ Registers all component types, relationship types, and event types
+- ✅ Initializes module-specific systems
+
+### Adding Your Module
+
+Place your `ElderScrollsModule` class in `src/modules/elder_scrolls/__init__.py` and it will be auto-discovered. No core code modification needed!
+
+See [ADDING_MODULES.md](ADDING_MODULES.md) for detailed instructions on module development and configuration.
 
 ## Creating a Character with Elder Scrolls Components
 

@@ -3,7 +3,7 @@ Event definitions for RNG module.
 """
 
 from typing import Dict, Any
-from src.modules.base import EventTypeDefinition
+from ..base import EventTypeDefinition
 
 
 # Event type definitions for RNG module
