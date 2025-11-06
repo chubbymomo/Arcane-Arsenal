@@ -143,6 +143,139 @@ def character_create():
     )
 
 
+@client_bp.route('/character/build', methods=['GET', 'POST'])
+@require_world
+def character_builder():
+    """Full character builder with all fantasy components."""
+    engine = get_engine()
+    form_builder = FormBuilder(engine)
+
+    if request.method == 'POST':
+        # Get all form data
+        name = request.form.get('name')
+        description = request.form.get('description', '')
+        region = request.form.get('region', 'The Realm')
+
+        # Fantasy-specific fields
+        race = request.form.get('race')
+        char_class = request.form.get('class')
+        alignment = request.form.get('alignment')
+
+        # Attributes
+        strength = request.form.get('strength', type=int)
+        dexterity = request.form.get('dexterity', type=int)
+        constitution = request.form.get('constitution', type=int)
+        intelligence = request.form.get('intelligence', type=int)
+        wisdom = request.form.get('wisdom', type=int)
+        charisma = request.form.get('charisma', type=int)
+
+        if not name:
+            flash('Character name is required', 'error')
+            return redirect(url_for('client.character_builder'))
+
+        # Validate attributes
+        attrs = [strength, dexterity, constitution, intelligence, wisdom, charisma]
+        if any(attr is None or attr < 1 or attr > 20 for attr in attrs):
+            flash('All attributes must be between 1 and 20', 'error')
+            return redirect(url_for('client.character_builder'))
+
+        # Create character entity
+        result = engine.create_entity(name)
+        if not result.success:
+            flash(f'Error creating character: {result.error}', 'error')
+            return redirect(url_for('client.character_builder'))
+
+        entity_id = result.data['id']
+
+        try:
+            # Add Identity component
+            engine.add_component(entity_id, 'Identity', {
+                'description': description or f"A {race} {char_class}"
+            })
+
+            # Add Position component
+            engine.add_component(entity_id, 'Position', {
+                'x': 0, 'y': 0, 'z': 0,
+                'region': region
+            })
+
+            # Add PlayerCharacter component
+            engine.add_component(entity_id, 'PlayerCharacter', {})
+
+            # Add Attributes component
+            engine.add_component(entity_id, 'Attributes', {
+                'strength': strength,
+                'dexterity': dexterity,
+                'constitution': constitution,
+                'intelligence': intelligence,
+                'wisdom': wisdom,
+                'charisma': charisma
+            })
+
+            # Add CharacterDetails if provided
+            if race or char_class or alignment:
+                char_details = {}
+                if race:
+                    char_details['race'] = race
+                if char_class:
+                    char_details['class'] = char_class
+                if alignment:
+                    char_details['alignment'] = alignment
+
+                # Note: CharacterDetails component not implemented yet,
+                # so this will fail gracefully
+                # engine.add_component(entity_id, 'CharacterDetails', char_details)
+
+            flash(f'Character "{name}" created successfully!', 'success')
+            return redirect(url_for('client.character_sheet', entity_id=entity_id))
+
+        except Exception as e:
+            # Clean up on error
+            engine.delete_entity(entity_id)
+            flash(f'Error creating character: {str(e)}', 'error')
+            return redirect(url_for('client.character_builder'))
+
+    # GET request - show form
+    # Get registries for dropdowns
+    try:
+        races_registry = engine.create_registry('races', 'generic_fantasy')
+        races = races_registry.get_all()
+    except:
+        races = []
+
+    try:
+        classes_registry = engine.create_registry('classes', 'generic_fantasy')
+        classes = classes_registry.get_all()
+    except:
+        classes = []
+
+    try:
+        alignments_registry = engine.create_registry('alignments', 'generic_fantasy')
+        alignments = alignments_registry.get_all()
+    except:
+        alignments = []
+
+    # Get available regions
+    positioned_entities = engine.query_entities(['Position'])
+    regions = set(['The Realm'])
+
+    for entity in positioned_entities:
+        pos = engine.get_component(entity.id, 'Position')
+        if pos and pos.data.get('region'):
+            region_name = pos.data['region']
+            if not region_name.startswith('entity_'):
+                regions.add(region_name)
+
+    return render_template(
+        'character_builder.html',
+        races=races,
+        classes=classes,
+        alignments=alignments,
+        regions=sorted(list(regions)),
+        form_builder=form_builder
+    )
+
+
 @client_bp.route('/character/<entity_id>')
 @require_world
 def character_sheet(entity_id: str):
