@@ -5,6 +5,7 @@ Provides basic component and relationship types that are available in every worl
 - Identity: Basic identification (description)
 - Position: Spatial location (x, y, z, region)
 - Container: Enables entities to hold other entities (capacity)
+- PlayerCharacter: Marks entity as player-controlled character
 - located_at: Entity is physically at a location
 - contains: Entity contains another entity
 """
@@ -14,6 +15,7 @@ from ..base import Module, ComponentTypeDefinition, RelationshipTypeDefinition, 
 from .identity import IdentityComponent
 from .position import PositionComponent
 from .container import ContainerComponentType
+from .player_character import PlayerCharacterComponent
 
 
 class LocatedAtRelationship(RelationshipTypeDefinition):
@@ -70,11 +72,12 @@ class CoreComponentsModule(Module):
         return "1.0.0"
 
     def register_component_types(self) -> List[ComponentTypeDefinition]:
-        """Register Identity, Position, and Container components."""
+        """Register Identity, Position, Container, and PlayerCharacter components."""
         return [
             IdentityComponent(),
             PositionComponent(),
-            ContainerComponentType()
+            ContainerComponentType(),
+            PlayerCharacterComponent()
         ]
 
     def register_relationship_types(self) -> List[RelationshipTypeDefinition]:
@@ -91,6 +94,7 @@ __all__ = [
     'IdentityComponent',
     'PositionComponent',
     'ContainerComponentType',
+    'PlayerCharacterComponent',
     'LocatedAtRelationship',
     'ContainsRelationship'
 ]

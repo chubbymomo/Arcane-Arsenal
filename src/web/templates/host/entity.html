@@ -269,6 +269,8 @@ function updateComponentExample(type) {
         example.innerHTML = 'Example: {"x": 100, "y": 200, "z": 0, "region": "tavern"}';
     } else if (type === 'Container') {
         example.innerHTML = 'Example: {"capacity": 10} or {"capacity": null} for unlimited';
+    } else if (type === 'PlayerCharacter') {
+        example.innerHTML = 'Example: {} (marker component - no data needed)';
     } else {
         example.innerHTML = '';
     }
