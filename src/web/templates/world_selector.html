@@ -243,12 +243,18 @@
             transform: scaleY(1);
         }
 
-        .realm-item label {
+        .realm-item-content {
             display: flex;
             align-items: center;
             padding: 1.5rem;
+            gap: 1rem;
+        }
+
+        .realm-item label {
+            display: flex;
+            align-items: center;
             cursor: pointer;
-            width: 100%;
+            flex: 1;
         }
 
         .realm-item input[type="radio"] {
@@ -261,6 +267,28 @@
 
         .realm-info {
             flex: 1;
+        }
+
+        .btn-delete {
+            background: linear-gradient(135deg, var(--error), #a02820);
+            color: var(--text);
+            border: none;
+            padding: 0.6rem 1.2rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            box-shadow: 0 2px 10px rgba(192, 57, 43, 0.3);
+            font-family: 'Cinzel', serif;
+        }
+
+        .btn-delete:hover {
+            background: linear-gradient(135deg, #e74c3c, var(--error));
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(192, 57, 43, 0.5);
         }
 
         .realm-name {
@@ -566,13 +594,21 @@
                         <ul class="realms-list">
                             {% for world in worlds %}
                                 <li class="realm-item">
-                                    <label>
-                                        <input type="radio" name="world_name" value="{{ world.name }}" required>
-                                        <div class="realm-info">
-                                            <div class="realm-name">{{ world.display_name }}</div>
-                                            <div class="realm-path">{{ world.path }}</div>
-                                        </div>
-                                    </label>
+                                    <div class="realm-item-content">
+                                        <label>
+                                            <input type="radio" name="world_name" value="{{ world.name }}" required>
+                                            <div class="realm-info">
+                                                <div class="realm-name">{{ world.display_name }}</div>
+                                                <div class="realm-path">{{ world.path }}</div>
+                                            </div>
+                                        </label>
+                                        <button type="button"
+                                                class="btn-delete"
+                                                onclick="deleteWorld('{{ world.name }}', '{{ world.display_name }}')"
+                                                title="Delete this realm permanently">
+                                            🗑️ Delete
+                                        </button>
+                                    </div>
                                 </li>
                             {% endfor %}
                         </ul>
@@ -807,6 +843,35 @@
         document.getElementById('world_name')?.addEventListener('input', () => {
             document.getElementById('world_name').dataset.manuallyEdited = 'true';
         });
+
+        // Delete world with confirmation
+        function deleteWorld(worldName, displayName) {
+            const confirmed = confirm(
+                `⚠️ WARNING: Permanent Deletion\n\n` +
+                `Are you absolutely sure you want to delete the realm "${displayName}"?\n\n` +
+                `This will permanently delete:\n` +
+                `• All entities and components\n` +
+                `• All events and history\n` +
+                `• The entire world database\n\n` +
+                `This action CANNOT be undone!`
+            );
+
+            if (confirmed) {
+                // Create a hidden form to submit the delete request
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/delete_world';
+
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'world_name';
+                input.value = worldName;
+
+                form.appendChild(input);
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
     </script>
 </body>
 </html>

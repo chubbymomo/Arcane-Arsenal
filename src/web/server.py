@@ -223,6 +223,50 @@ def create_app(worlds_dir: str = 'worlds') -> Flask:
             flash(f'Failed to create realm: {str(e)}', 'error')
             return redirect(url_for('index'))
 
+    @app.route('/delete_world', methods=['POST'])
+    def delete_world():
+        """Delete a world (permanently removes the world directory)."""
+        try:
+            world_name = request.form.get('world_name', '').strip()
+
+            if not world_name:
+                flash('Please specify a world to delete', 'error')
+                return redirect(url_for('index'))
+
+            world_path = os.path.join(worlds_dir, world_name)
+
+            # Check if world exists
+            if not os.path.exists(world_path):
+                flash(f'World "{world_name}" not found', 'error')
+                return redirect(url_for('index'))
+
+            # Get world display name from config if possible
+            config_path = os.path.join(world_path, 'config.json')
+            display_name = world_name
+            if os.path.exists(config_path):
+                try:
+                    import json
+                    with open(config_path, 'r') as f:
+                        config = json.load(f)
+                        display_name = config.get('world_name', world_name)
+                except:
+                    pass
+
+            # If currently selected world is being deleted, clear session
+            if session.get('world_path') == world_path:
+                session.clear()
+
+            # Delete the world directory
+            import shutil
+            shutil.rmtree(world_path)
+
+            flash(f'Realm "{display_name}" has been permanently deleted', 'success')
+            return redirect(url_for('index'))
+
+        except Exception as e:
+            flash(f'Error deleting realm: {str(e)}', 'error')
+            return redirect(url_for('index'))
+
     # ========== API Endpoints ==========
 
     def get_current_world_path():
