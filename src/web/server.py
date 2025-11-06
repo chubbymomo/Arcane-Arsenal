@@ -340,6 +340,31 @@ def create_app(worlds_dir: str = 'worlds') -> Flask:
             'events': engine.storage.get_event_types()
         })
 
+    @app.route('/api/component_form/<component_type>')
+    def api_component_form(component_type: str):
+        """JSON API: Get form HTML for a component type."""
+        world_path = get_current_world_path()
+        if not world_path:
+            return jsonify({'error': 'No world selected', 'success': False}), 400
+
+        try:
+            from src.web.form_builder import FormBuilder
+            engine = StateEngine(world_path)
+            form_builder = FormBuilder(engine)
+
+            # Generate form HTML for empty component (for adding new)
+            form_html = form_builder.build_form(component_type, {})
+
+            return jsonify({
+                'success': True,
+                'form_html': str(form_html)
+            })
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': f'Error generating form: {str(e)}'
+            }), 500
+
     return app
 
 

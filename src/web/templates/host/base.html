@@ -431,6 +431,96 @@
             }
         }
 
+        /* FormBuilder-generated form styles */
+        .form-group-section {
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            border: 1px solid var(--card-border);
+        }
+
+        .form-group-title {
+            font-family: 'Cinzel', serif;
+            color: var(--primary);
+            margin-bottom: 1.25rem;
+            font-size: 1.2rem;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            border-bottom: 2px solid var(--card-border);
+            padding-bottom: 0.5rem;
+        }
+
+        .form-text {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+            font-style: italic;
+        }
+
+        .component-display {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 1.5rem;
+        }
+
+        .component-display-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .component-display-group h4 {
+            font-family: 'Cinzel', serif;
+            color: var(--primary);
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            border-bottom: 2px solid var(--card-border);
+            padding-bottom: 0.5rem;
+        }
+
+        .component-data {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 0.75rem 1.5rem;
+            margin: 0;
+        }
+
+        .component-data dt {
+            font-weight: 600;
+            color: var(--text);
+            font-family: 'Cinzel', serif;
+            letter-spacing: 0.05em;
+        }
+
+        .component-data dd {
+            margin: 0;
+            color: var(--text);
+        }
+
+        .component-data-json {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 1rem;
+            border-radius: 4px;
+            border: 1px solid var(--card-border);
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .multi-select-group {
+            display: grid;
+            gap: 0.5rem;
+        }
+
+        .range-value {
+            display: inline-block;
+            margin-left: 1rem;
+            font-weight: 600;
+            color: var(--primary);
+            font-family: 'Courier New', monospace;
+            font-size: 1.1rem;
+        }
+
         {% block extra_styles %}{% endblock %}
     </style>
 </head>
