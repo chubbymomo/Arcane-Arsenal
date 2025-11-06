@@ -112,17 +112,15 @@
             </div>
             {% endif %}
 
-            <div class="info-card">
-                <h3>⚙️ Components</h3>
-                <p class="card-description">Technical view of character data</p>
-                <ul class="component-list">
-                    {% for comp_type, comp_data in components.items() %}
-                        <li class="component-entry">
-                            <strong>{{ comp_type }}</strong>
-                        </li>
-                    {% endfor %}
-                </ul>
-            </div>
+            <!-- Character Components -->
+            {% for comp_type, comp_data in components.items() %}
+                {% if comp_type not in ['Identity', 'Position', 'PlayerCharacter'] %}
+                <div class="info-card component-display-card">
+                    <h3>{{ comp_type }}</h3>
+                    {{ form_builder.build_display(comp_type, comp_data) | safe }}
+                </div>
+                {% endif %}
+            {% endfor %}
 
             <div class="info-card action-card">
                 <h3>🎮 Actions</h3>
@@ -288,6 +286,35 @@
 .btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+.component-display-card h3 {
+    font-family: 'Cinzel', serif;
+    color: var(--primary);
+    margin-bottom: 1rem;
+    font-size: 1.3rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.component-display-card .component-display {
+    background: transparent;
+    padding: 0;
+}
+
+.component-display-card .component-data {
+    font-size: 1rem;
+}
+
+.component-display-card .component-data dt {
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.component-display-card .component-data dd {
+    font-size: 1.1rem;
+    font-weight: 600;
 }
 </style>
 {% endblock %}
