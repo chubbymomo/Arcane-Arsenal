@@ -83,6 +83,26 @@ class CoreComponentsModule(Module):
     def is_core(self) -> bool:
         return True
 
+    def initialize(self, engine) -> None:
+        """
+        Initialize core_components module.
+
+        Creates the character_sheet_categories registry that components can use
+        to declare their display category on character sheets.
+        """
+        # Create character sheet categories registry
+        categories = engine.create_registry('character_sheet_categories', self.name)
+        categories.register('core', 'Core attributes and stats', {'order': 0})
+        categories.register('combat', 'Combat abilities and stats', {'order': 1})
+        categories.register('skills', 'Skills and proficiencies', {'order': 2})
+        categories.register('resources', 'Expendable resources (spell slots, ki, etc.)', {'order': 3})
+        categories.register('equipment', 'Equipped items and gear', {'order': 4})
+        categories.register('inventory', 'Carried items and containers', {'order': 5})
+        categories.register('spells', 'Spellcasting and magic', {'order': 6})
+        categories.register('features', 'Class features and racial traits', {'order': 7})
+        categories.register('info', 'Descriptive information', {'order': 8})
+        categories.register('misc', 'Miscellaneous components', {'order': 9})
+
     def register_component_types(self) -> List[ComponentTypeDefinition]:
         """Register Identity, Position, Container, and PlayerCharacter components."""
         return [

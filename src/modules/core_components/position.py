@@ -107,3 +107,41 @@ class PositionComponent(ComponentTypeDefinition):
 
         # Named regions are accepted as-is (no registry needed)
         return True
+
+    def get_ui_metadata(self) -> Dict[str, Dict[str, Any]]:
+        """Return UI metadata for position fields."""
+        return {
+            "x": {
+                "label": "X Coordinate",
+                "widget": "number",
+                "order": 0,
+                "help_text": "Horizontal position"
+            },
+            "y": {
+                "label": "Y Coordinate",
+                "widget": "number",
+                "order": 1,
+                "help_text": "Vertical position"
+            },
+            "z": {
+                "label": "Z Coordinate",
+                "widget": "number",
+                "order": 2,
+                "help_text": "Elevation (defaults to 0)"
+            },
+            "region": {
+                "label": "Region",
+                "widget": "text",
+                "order": 3,
+                "help_text": "Named region or parent entity ID"
+            }
+        }
+
+    def get_character_sheet_config(self) -> Dict[str, Any]:
+        """Position appears in the INFO category with low priority."""
+        return {
+            "visible": True,
+            "category": "info",
+            "priority": 20,
+            "display_mode": "compact"
+        }
