@@ -365,6 +365,113 @@ def create_app(worlds_dir: str = 'worlds') -> Flask:
                 'error': f'Error generating form: {str(e)}'
             }), 500
 
+    @app.route('/api/roll', methods=['POST'])
+    def api_roll():
+        """
+        JSON API: Execute a dice roll for an entity.
+
+        Request JSON:
+            {
+                "entity_id": "entity-123",
+                "notation": "1d20+5",
+                "roll_type": "ability_check",
+                "label": "Strength Check",
+                "advantage": false,  # optional
+                "disadvantage": false  # optional
+            }
+
+        Returns:
+            {
+                "success": true,
+                "result": {
+                    "total": 18,
+                    "breakdown": "1d20: [13] = 13 | modifier: +5 | **Total: 18**",
+                    "notation": "1d20+5",
+                    "natural_20": false,
+                    "natural_1": false,
+                    ...
+                }
+            }
+        """
+        world_path = get_current_world_path()
+        if not world_path:
+            return jsonify({'error': 'No world selected', 'success': False}), 400
+
+        try:
+            data = request.get_json()
+
+            # Validate required fields
+            entity_id = data.get('entity_id')
+            notation = data.get('notation')
+            roll_type = data.get('roll_type')
+            label = data.get('label', '')
+
+            if not entity_id or not notation or not roll_type:
+                return jsonify({
+                    'success': False,
+                    'error': 'Missing required fields: entity_id, notation, roll_type'
+                }), 400
+
+            # Get optional advantage/disadvantage
+            advantage = data.get('advantage', False)
+            disadvantage = data.get('disadvantage', False)
+
+            # Initialize engine and roller
+            engine = StateEngine(world_path)
+            from src.modules.rng.roller import DiceRoller
+            roller = DiceRoller()
+
+            # Execute roll
+            roll_result = roller.roll(
+                notation=notation,
+                advantage=advantage,
+                disadvantage=disadvantage,
+                metadata={
+                    'entity_id': entity_id,
+                    'roll_type': roll_type,
+                    'label': label
+                }
+            )
+
+            # Log roll.completed event
+            engine.publish_event(
+                event_type='roll.completed',
+                entity_id=entity_id,
+                data={
+                    'entity_id': entity_id,
+                    'notation': notation,
+                    'roll_type': roll_type,
+                    'purpose': label,
+                    'total': roll_result.total,
+                    'breakdown': roll_result.get_breakdown(),
+                    'advantage': roll_result.advantage,
+                    'disadvantage': roll_result.disadvantage,
+                    'natural_20': roll_result.natural_20,
+                    'natural_1': roll_result.natural_1,
+                    'dice_results': [
+                        {
+                            'expression': str(dr.expression),
+                            'rolls': dr.rolls,
+                            'total': dr.total
+                        }
+                        for dr in roll_result.dice_results
+                    ],
+                    'modifiers_applied': []  # TODO: Add modifier system
+                }
+            )
+
+            # Return result
+            return jsonify({
+                'success': True,
+                'result': roll_result.to_dict()
+            })
+
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
     return app
 
 
