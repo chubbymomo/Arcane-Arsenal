@@ -101,7 +101,7 @@
 
                 {% if entity.is_active() %}
                 <div id="edit-{{ type }}" class="edit-form" style="display: none;">
-                    <form method="POST" action="{{ url_for('host.update_component', entity_id=entity.id, component_type=type) }}">
+                    <form method="POST" action="{{ url_for('host.update_component', entity_id=entity.id, component_type=type) }}" class="edit-component-form" data-component-type="{{ type }}">
                         {{ form_builder.build_form(type, data) | safe }}
                         <div class="form-actions">
                             <button type="submit" class="btn btn-primary">Save</button>
@@ -294,5 +294,82 @@ async function updateComponentForm(type) {
         actions.style.display = 'none';
     }
 }
+
+// Collect form fields into JSON before submission
+document.getElementById('add-component-form-element').addEventListener('submit', function(e) {
+    const fieldsContainer = document.getElementById('component-form-fields');
+    const componentType = document.getElementById('component_type').value;
+
+    if (!componentType) {
+        return; // Let default validation handle this
+    }
+
+    // Collect all input fields within the component-form-fields div
+    const inputs = fieldsContainer.querySelectorAll('input, select, textarea');
+    const data = {};
+
+    inputs.forEach(input => {
+        const name = input.name;
+        if (!name) return; // Skip inputs without name attribute
+
+        let value;
+        if (input.type === 'checkbox') {
+            value = input.checked;
+        } else if (input.type === 'number') {
+            value = input.value === '' ? null : parseFloat(input.value);
+        } else {
+            value = input.value;
+        }
+
+        data[name] = value;
+    });
+
+    // Create a hidden input with the JSON data
+    let hiddenInput = this.querySelector('input[name="component_data"]');
+    if (!hiddenInput) {
+        hiddenInput = document.createElement('input');
+        hiddenInput.type = 'hidden';
+        hiddenInput.name = 'component_data';
+        this.appendChild(hiddenInput);
+    }
+
+    hiddenInput.value = JSON.stringify(data);
+});
+
+// Handle edit component form submissions
+document.addEventListener('submit', function(e) {
+    if (e.target.classList.contains('edit-component-form')) {
+        // Collect all input fields in the form (excluding the hidden component_data if it exists)
+        const inputs = e.target.querySelectorAll('input:not([name="component_data"]), select, textarea');
+        const data = {};
+
+        inputs.forEach(input => {
+            const name = input.name;
+            if (!name) return; // Skip inputs without name attribute
+
+            let value;
+            if (input.type === 'checkbox') {
+                value = input.checked;
+            } else if (input.type === 'number') {
+                value = input.value === '' ? null : parseFloat(input.value);
+            } else {
+                value = input.value;
+            }
+
+            data[name] = value;
+        });
+
+        // Create or update hidden input with JSON data
+        let hiddenInput = e.target.querySelector('input[name="component_data"]');
+        if (!hiddenInput) {
+            hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.name = 'component_data';
+            e.target.appendChild(hiddenInput);
+        }
+
+        hiddenInput.value = JSON.stringify(data);
+    }
+});
 </script>
 {% endblock %}
