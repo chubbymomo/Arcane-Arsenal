@@ -134,26 +134,35 @@ def create_app(worlds_dir: str = 'worlds') -> Flask:
         return jsonify({'modules': modules})
 
     @app.route('/api/roll_types')
-    @require_world
     def api_roll_types():
         """JSON API: Get all registered roll types."""
-        engine = get_engine()
+        world_path = session.get('world_path')
+        if not world_path:
+            return jsonify({'error': 'No world selected'}), 400
+
+        engine = StateEngine(world_path)
         roll_types = engine.storage.get_roll_types()
         return jsonify({'roll_types': roll_types})
 
     @app.route('/api/registries')
-    @require_world
     def api_registries():
         """JSON API: Get all module registry names."""
-        engine = get_engine()
+        world_path = session.get('world_path')
+        if not world_path:
+            return jsonify({'error': 'No world selected'}), 400
+
+        engine = StateEngine(world_path)
         registry_names = engine.storage.get_registry_names()
         return jsonify({'registries': registry_names})
 
     @app.route('/api/registries/<registry_name>')
-    @require_world
     def api_registry_values(registry_name):
         """JSON API: Get all values from a specific registry."""
-        engine = get_engine()
+        world_path = session.get('world_path')
+        if not world_path:
+            return jsonify({'error': 'No world selected'}), 400
+
+        engine = StateEngine(world_path)
         values = engine.storage.get_registry_values(registry_name)
         return jsonify({
             'registry_name': registry_name,
