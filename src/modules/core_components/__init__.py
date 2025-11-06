@@ -14,7 +14,7 @@ from typing import List
 from ..base import Module, ComponentTypeDefinition, RelationshipTypeDefinition, EventTypeDefinition
 from .identity import IdentityComponent
 from .position import PositionComponent
-from .container import ContainerComponentType
+from .container import ContainerComponent
 from .player_character import PlayerCharacterComponent
 
 
@@ -88,7 +88,7 @@ class CoreComponentsModule(Module):
         return [
             IdentityComponent(),
             PositionComponent(),
-            ContainerComponentType(),
+            ContainerComponent(),
             PlayerCharacterComponent()
         ]
 
@@ -105,7 +105,7 @@ __all__ = [
     'CoreComponentsModule',
     'IdentityComponent',
     'PositionComponent',
-    'ContainerComponentType',
+    'ContainerComponent',
     'PlayerCharacterComponent',
     'LocatedAtRelationship',
     'ContainsRelationship'
