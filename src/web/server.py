@@ -835,6 +835,14 @@ def create_app(worlds_dir: str = 'worlds'):
             # Get engine (already loads and initializes all modules)
             engine = StateEngine(world_path)
 
+            # Subscribe to roll completion BEFORE publishing request (fix race condition)
+            roll_complete_received = []
+
+            def on_roll_complete(event):
+                roll_complete_received.append(event)
+
+            engine.event_bus.subscribe('roll.completed', on_roll_complete)
+
             # Publish roll request event
             engine.event_bus.publish(
                 Event.create(
@@ -849,14 +857,15 @@ def create_app(worlds_dir: str = 'worlds'):
                 )
             )
 
-            # Subscribe to roll completion
-            def on_roll_complete(event):
+            # Event should be processed synchronously since we're in same thread
+            if roll_complete_received:
+                result_data = roll_complete_received[0].data
                 # Emit to the specific entity room and world room
-                socketio.emit('roll_result', event.data, room=f"entity_{entity_id}")
-                socketio.emit('roll_result', event.data, room=f"world_{session.get('world_name')}")
-                engine.event_bus.clear_listeners('roll.completed')
-
-            engine.event_bus.subscribe('roll.completed', on_roll_complete)
+                socketio.emit('roll_result', result_data, room=f"entity_{entity_id}")
+                socketio.emit('roll_result', result_data, room=f"world_{session.get('world_name')}")
+            else:
+                logger.error(f"Roll completed event not received for entity {entity_id}")
+                emit('roll_error', {'error': 'Roll processing failed'})
 
         except Exception as e:
             logger.error(f"Dice roll error: {e}", exc_info=True)
