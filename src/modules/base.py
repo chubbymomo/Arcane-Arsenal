@@ -6,7 +6,7 @@ relationship types, and event types with the core engine.
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 
 class ComponentTypeDefinition(ABC):
