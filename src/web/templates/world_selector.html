@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Arcane Arsenal - Realm Selection</title>
+
+    <!-- Alpine.js for reactive UI -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:wght@400;600&display=swap');
 
@@ -563,7 +567,7 @@
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="container" x-data="worldSelector()">
         <div class="header">
             <h1>⚔️ ARCANE ARSENAL</h1>
             <p class="subtitle">Realm Portal</p>
@@ -581,12 +585,12 @@
             {% endwith %}
 
             <div class="tabs">
-                <button class="tab active" onclick="switchTab('select')">Enter Realm</button>
-                <button class="tab" onclick="switchTab('create')">Forge New Realm</button>
+                <button class="tab" :class="{ 'active': activeTab === 'select' }" @click="switchTab('select')">Enter Realm</button>
+                <button class="tab" :class="{ 'active': activeTab === 'create' }" @click="switchTab('create')">Forge New Realm</button>
             </div>
 
             <!-- Select Existing Realm Tab -->
-            <div id="select-tab" class="tab-content active">
+            <div x-show="activeTab === 'select'" x-transition class="tab-content">
                 <h2>Select Your Realm</h2>
 
                 {% if worlds %}
@@ -604,7 +608,7 @@
                                         </label>
                                         <button type="button"
                                                 class="btn-delete"
-                                                onclick="deleteWorld('{{ world.name }}', '{{ world.display_name }}')"
+                                                @click="deleteWorld('{{ world.name }}', '{{ world.display_name }}')"
                                                 title="Delete this realm permanently">
                                             🗑️ Delete
                                         </button>
@@ -628,13 +632,15 @@
             </div>
 
             <!-- Create New Realm Tab -->
-            <div id="create-tab" class="tab-content">
+            <div x-show="activeTab === 'create'" x-transition class="tab-content">
                 <h2>Forge a New Realm</h2>
 
                 <form method="POST" action="/create_world" id="create-form">
                     <div class="form-group">
                         <label for="realm_name">Realm Name</label>
                         <input type="text" id="realm_name" name="realm_name" required
+                               x-model="realmName"
+                               @input="if (!folderManuallyEdited) autoGenerateFolder()"
                                placeholder="The Forgotten Kingdom">
                         <div class="help-text">The display name for your realm</div>
                     </div>
@@ -642,17 +648,49 @@
                     <div class="form-group">
                         <label for="world_name">Realm Folder</label>
                         <input type="text" id="world_name" name="world_name" required
+                               x-model="folderName"
+                               @input="folderManuallyEdited = true"
                                placeholder="forgotten_kingdom">
                         <div class="help-text">Folder name (alphanumeric, underscores, and hyphens only)</div>
                     </div>
 
                     <div class="modules-section">
                         <h3>⚡ Select Arcane Modules</h3>
-                        <div id="modules-loading" class="loading">
+                        <div x-show="modulesLoading" class="loading">
                             Discovering available arcane powers...
                         </div>
-                        <div id="modules-list" class="module-list" style="display: none;">
-                            <!-- Modules will be loaded here via JavaScript -->
+                        <div x-show="!modulesLoading && modules.length === 0" class="loading" style="color: var(--text-muted);">
+                            No modules found
+                        </div>
+                        <div x-show="!modulesLoading && modules.length > 0" class="module-list">
+                            <template x-for="module in modules" :key="module.name">
+                                <div class="module-item" :class="{ 'module-core': module.is_core }">
+                                    <div class="module-header">
+                                        <input type="checkbox"
+                                               class="module-checkbox"
+                                               name="modules"
+                                               :value="module.name"
+                                               :id="'module-' + module.name"
+                                               x-model="selectedModules"
+                                               @change="handleModuleChange(module, $event.target.checked)"
+                                               :disabled="module.is_core || module.name === 'core_components'">
+                                        <div class="module-details">
+                                            <div class="module-title">
+                                                <span x-text="module.display_name"></span>
+                                                <span x-show="module.is_core" class="module-core-badge">CORE</span>
+                                            </div>
+                                            <div class="module-description" x-text="module.description"></div>
+                                            <div class="module-meta">
+                                                <span>v<span x-text="module.version"></span></span>
+                                                <span>ID: <span x-text="module.name"></span></span>
+                                            </div>
+                                            <div x-show="module.dependencies && module.dependencies.length > 0" class="module-dependencies">
+                                                ⚠️ Requires: <span x-text="getDepNames(module.dependencies).join(', ')"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
                         </div>
                     </div>
 
@@ -672,205 +710,133 @@
     </div>
 
     <script>
-        // Tab switching
-        function switchTab(tabName) {
-            // Update tab buttons
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            event.target.classList.add('active');
+        // Alpine.js World Selector Component
+        function worldSelector() {
+            return {
+                activeTab: 'select',
+                modulesLoading: false,
+                modules: [],
+                modulesData: {},
+                selectedModules: [],
+                realmName: '',
+                folderName: '',
+                folderManuallyEdited: false,
 
-            // Update tab content
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
-            document.getElementById(tabName + '-tab').classList.add('active');
+                init() {
+                    // Pre-select core modules
+                    this.modules.forEach(mod => {
+                        if (mod.is_core || mod.name === 'core_components') {
+                            this.selectedModules.push(mod.name);
+                        }
+                    });
+                },
 
-            // Load modules when switching to create tab
-            if (tabName === 'create' && !window.modulesLoaded) {
-                loadModules();
-            }
-        }
+                switchTab(tabName) {
+                    this.activeTab = tabName;
+                    if (tabName === 'create' && this.modules.length === 0) {
+                        this.loadModules();
+                    }
+                },
 
-        // No auto-submit - user must click "Enter Realm" button
+                async loadModules() {
+                    if (this.modules.length > 0) return;
 
-        // Load available modules
-        let modulesData = {};
-        window.modulesLoaded = false;
+                    this.modulesLoading = true;
+                    try {
+                        const response = await fetch('/api/available_modules');
+                        const data = await response.json();
 
-        async function loadModules() {
-            if (window.modulesLoaded) return;
+                        this.modules = data.modules;
 
-            try {
-                const response = await fetch('/api/available_modules');
-                const data = await response.json();
-                modulesData = {};
-
-                // Build module lookup
-                data.modules.forEach(mod => {
-                    modulesData[mod.name] = mod;
-                });
-
-                renderModules(data.modules);
-                window.modulesLoaded = true;
-            } catch (error) {
-                document.getElementById('modules-loading').innerHTML =
-                    '<div style="color: var(--error);">Failed to load modules: ' + error.message + '</div>';
-            }
-        }
-
-        function renderModules(modules) {
-            const container = document.getElementById('modules-list');
-            const loading = document.getElementById('modules-loading');
-
-            if (modules.length === 0) {
-                loading.innerHTML = '<div style="color: var(--text-muted);">No modules found</div>';
-                return;
-            }
-
-            container.innerHTML = '';
-            modules.forEach(mod => {
-                const item = createModuleItem(mod);
-                container.appendChild(item);
-            });
-
-            loading.style.display = 'none';
-            container.style.display = 'grid';
-
-            // Setup dependency handling
-            setupDependencyHandling();
-        }
-
-        function createModuleItem(mod) {
-            const div = document.createElement('div');
-            div.className = 'module-item' + (mod.is_core ? ' module-core' : '');
-
-            const checked = mod.is_core || mod.name === 'core_components';
-            const disabled = mod.is_core || mod.name === 'core_components';
-
-            let html = `
-                <div class="module-header">
-                    <input type="checkbox"
-                           class="module-checkbox"
-                           name="modules"
-                           value="${mod.name}"
-                           id="module-${mod.name}"
-                           data-dependencies='${JSON.stringify(mod.dependencies)}'
-                           ${checked ? 'checked' : ''}
-                           ${disabled ? 'disabled' : ''}>
-                    <div class="module-details">
-                        <div class="module-title">
-                            ${mod.display_name}
-                            ${mod.is_core ? '<span class="module-core-badge">CORE</span>' : ''}
-                        </div>
-                        <div class="module-description">${mod.description}</div>
-                        <div class="module-meta">
-                            <span>v${mod.version}</span>
-                            <span>ID: ${mod.name}</span>
-                        </div>
-            `;
-
-            if (mod.dependencies && mod.dependencies.length > 0) {
-                html += `
-                        <div class="module-dependencies">
-                            ⚠️ Requires: ${mod.dependencies.map(dep =>
-                                modulesData[dep] ? modulesData[dep].display_name : dep
-                            ).join(', ')}
-                        </div>
-                `;
-            }
-
-            html += `
-                    </div>
-                </div>
-            `;
-
-            div.innerHTML = html;
-            return div;
-        }
-
-        function setupDependencyHandling() {
-            const checkboxes = document.querySelectorAll('.module-checkbox:not([disabled])');
-
-            checkboxes.forEach(checkbox => {
-                checkbox.addEventListener('change', (e) => {
-                    const moduleName = e.target.value;
-                    const isChecked = e.target.checked;
-
-                    if (isChecked) {
-                        // Auto-check dependencies
-                        const deps = JSON.parse(e.target.dataset.dependencies || '[]');
-                        deps.forEach(dep => {
-                            const depCheckbox = document.getElementById('module-' + dep);
-                            if (depCheckbox && !depCheckbox.checked) {
-                                depCheckbox.checked = true;
+                        // Build lookup
+                        this.modulesData = {};
+                        data.modules.forEach(mod => {
+                            this.modulesData[mod.name] = mod;
+                            // Auto-select core modules
+                            if (mod.is_core || mod.name === 'core_components') {
+                                if (!this.selectedModules.includes(mod.name)) {
+                                    this.selectedModules.push(mod.name);
+                                }
                             }
                         });
+                    } catch (error) {
+                        console.error('Failed to load modules:', error);
+                    } finally {
+                        this.modulesLoading = false;
+                    }
+                },
+
+                handleModuleChange(module, isChecked) {
+                    if (isChecked) {
+                        // Auto-check dependencies
+                        if (module.dependencies) {
+                            module.dependencies.forEach(dep => {
+                                if (!this.selectedModules.includes(dep)) {
+                                    this.selectedModules.push(dep);
+                                }
+                            });
+                        }
                     } else {
                         // Check if any enabled module depends on this one
                         const dependents = [];
-                        checkboxes.forEach(cb => {
-                            if (cb.checked && cb.value !== moduleName) {
-                                const deps = JSON.parse(cb.dataset.dependencies || '[]');
-                                if (deps.includes(moduleName)) {
-                                    dependents.push(modulesData[cb.value]?.display_name || cb.value);
+                        this.selectedModules.forEach(selectedName => {
+                            if (selectedName !== module.name) {
+                                const selectedMod = this.modulesData[selectedName];
+                                if (selectedMod && selectedMod.dependencies && selectedMod.dependencies.includes(module.name)) {
+                                    dependents.push(selectedMod.display_name || selectedName);
                                 }
                             }
                         });
 
                         if (dependents.length > 0) {
-                            e.preventDefault();
                             alert('Cannot disable this module.\n\nThe following modules depend on it:\n• ' + dependents.join('\n• '));
-                            e.target.checked = true;
+                            // Re-add it
+                            if (!this.selectedModules.includes(module.name)) {
+                                this.selectedModules.push(module.name);
+                            }
                         }
                     }
-                });
-            });
-        }
+                },
 
-        // Auto-generate folder name from realm name
-        document.getElementById('realm_name')?.addEventListener('input', (e) => {
-            const folderInput = document.getElementById('world_name');
-            if (!folderInput.dataset.manuallyEdited) {
-                const folderName = e.target.value
-                    .toLowerCase()
-                    .replace(/[^a-z0-9]+/g, '_')
-                    .replace(/^_+|_+$/g, '');
-                folderInput.value = folderName;
-            }
-        });
+                getDepNames(dependencies) {
+                    if (!dependencies) return [];
+                    return dependencies.map(dep => this.modulesData[dep]?.display_name || dep);
+                },
 
-        document.getElementById('world_name')?.addEventListener('input', () => {
-            document.getElementById('world_name').dataset.manuallyEdited = 'true';
-        });
+                autoGenerateFolder() {
+                    this.folderName = this.realmName
+                        .toLowerCase()
+                        .replace(/[^a-z0-9]+/g, '_')
+                        .replace(/^_+|_+$/g, '');
+                },
 
-        // Delete world with confirmation
-        function deleteWorld(worldName, displayName) {
-            const confirmed = confirm(
-                `⚠️ WARNING: Permanent Deletion\n\n` +
-                `Are you absolutely sure you want to delete the realm "${displayName}"?\n\n` +
-                `This will permanently delete:\n` +
-                `• All entities and components\n` +
-                `• All events and history\n` +
-                `• The entire world database\n\n` +
-                `This action CANNOT be undone!`
-            );
+                deleteWorld(worldName, displayName) {
+                    const confirmed = confirm(
+                        `⚠️ WARNING: Permanent Deletion\n\n` +
+                        `Are you absolutely sure you want to delete the realm "${displayName}"?\n\n` +
+                        `This will permanently delete:\n` +
+                        `• All entities and components\n` +
+                        `• All events and history\n` +
+                        `• The entire world database\n\n` +
+                        `This action CANNOT be undone!`
+                    );
 
-            if (confirmed) {
-                // Create a hidden form to submit the delete request
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = '/delete_world';
+                    if (confirmed) {
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        form.action = '/delete_world';
 
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = 'world_name';
-                input.value = worldName;
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = 'world_name';
+                        input.value = worldName;
 
-                form.appendChild(input);
-                document.body.appendChild(form);
-                form.submit();
-            }
+                        form.appendChild(input);
+                        document.body.appendChild(form);
+                        form.submit();
+                    }
+                }
+            };
         }
     </script>
 </body>
