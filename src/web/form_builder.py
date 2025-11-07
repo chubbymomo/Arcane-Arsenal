@@ -8,8 +8,11 @@ Generates HTML forms from component schemas and UI metadata, supporting:
 - Help text and labels
 """
 
+import logging
 from typing import Dict, Any, Optional, List
 from markupsafe import Markup, escape
+
+logger = logging.getLogger(__name__)
 
 
 class FormBuilder:
@@ -80,6 +83,8 @@ class FormBuilder:
         """
         Build read-only display for a component.
 
+        Checks for custom renderer first, falls back to generic field display.
+
         Args:
             component_type: Component type name
             data: Component data to display
@@ -91,6 +96,12 @@ class FormBuilder:
         if not comp_def:
             return self._fallback_json_display(data)
 
+        # Check for custom renderer first
+        custom_html = comp_def.get_character_sheet_renderer(data, self.engine)
+        if custom_html:
+            return Markup(custom_html)
+
+        # Fall back to generic field-by-field display
         ui_metadata = comp_def.get_ui_metadata()
         if not ui_metadata:
             return self._fallback_json_display(data)
@@ -288,9 +299,16 @@ class FormBuilder:
 
         # Get registry values
         try:
-            registry = self.engine.create_registry(registry_name, 'generic_fantasy')
+            # Query which module owns this registry
+            owner_module = self.engine.storage.get_registry_owner(registry_name)
+            if not owner_module:
+                logger.warning(f"Registry '{registry_name}' has no owner module")
+                return f'<p class="text-danger">Error: registry "{escape(registry_name)}" not found</p>'
+
+            registry = self.engine.create_registry(registry_name, owner_module)
             options = registry.get_all()
-        except:
+        except Exception as e:
+            logger.error(f"Failed to load registry '{registry_name}': {e}")
             return f'<p class="text-danger">Error: registry "{escape(registry_name)}" not found</p>'
 
         html = [f'<select id="{escape(name)}" name="{escape(name)}" class="form-control">']
@@ -310,9 +328,16 @@ class FormBuilder:
             return f'<p class="text-danger">Error: multi-select widget requires registry name</p>'
 
         try:
-            registry = self.engine.create_registry(registry_name, 'generic_fantasy')
+            # Query which module owns this registry
+            owner_module = self.engine.storage.get_registry_owner(registry_name)
+            if not owner_module:
+                logger.warning(f"Registry '{registry_name}' has no owner module")
+                return f'<p class="text-danger">Error: registry "{escape(registry_name)}" not found</p>'
+
+            registry = self.engine.create_registry(registry_name, owner_module)
             options = registry.get_all()
-        except:
+        except Exception as e:
+            logger.error(f"Failed to load registry '{registry_name}' for multiselect: {e}")
             return f'<p class="text-danger">Error: registry "{escape(registry_name)}" not found</p>'
 
         value_list = value if isinstance(value, list) else []

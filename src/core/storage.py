@@ -232,6 +232,32 @@ class WorldStorage:
         """)
         return [row['registry_name'] for row in cursor.fetchall()]
 
+    def get_registry_owner(self, registry_name: str) -> str:
+        """
+        Get the module that owns a registry.
+
+        Returns the module that registered the first entry in the registry.
+        This is used when querying registries without knowing the owner module.
+
+        Args:
+            registry_name: Name of the registry
+
+        Returns:
+            Module name that owns this registry, or None if registry doesn't exist
+
+        Example:
+            owner = storage.get_registry_owner('equipment_slots')
+            # Returns: 'items'
+        """
+        cursor = self.conn.execute("""
+            SELECT module
+            FROM module_registries
+            WHERE registry_name = ?
+            LIMIT 1
+        """, (registry_name,))
+        row = cursor.fetchone()
+        return row['module'] if row else None
+
     def get_component_types(self) -> List[Dict[str, Any]]:
         """Get all registered component types."""
         cursor = self.conn.execute("""

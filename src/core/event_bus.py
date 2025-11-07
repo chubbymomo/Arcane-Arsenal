@@ -5,9 +5,12 @@ Provides pub/sub pattern for state change events. All events are logged
 to storage and broadcasted to registered listeners.
 """
 
+import logging
 from typing import Callable, Dict, List
 from .models import Event
 from .storage import WorldStorage
+
+logger = logging.getLogger(__name__)
 
 
 class EventBus:
@@ -96,8 +99,10 @@ class EventBus:
                     callback(event)
                 except Exception as e:
                     # Don't let one listener's error stop others
-                    # In production, this should use proper logging
-                    print(f"Error in event listener: {e}")
+                    logger.error(
+                        f"Error in event listener for {event.event_type}: {e}",
+                        exc_info=True
+                    )
     
     def clear_listeners(self, event_type: str = None) -> None:
         """

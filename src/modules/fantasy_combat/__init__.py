@@ -83,6 +83,42 @@ class HealthComponent(ComponentTypeDefinition):
             "display_mode": "full"
         }
 
+    def get_character_sheet_renderer(self, data: Dict[str, Any], engine=None) -> str:
+        """Custom renderer with progress bar for HP."""
+        from markupsafe import escape
+
+        current = data.get('current_hp', 0)
+        maximum = data.get('max_hp', 1)
+        temp = data.get('temp_hp', 0)
+
+        # Calculate percentage for progress bar
+        percent = int((current / maximum) * 100) if maximum > 0 else 0
+
+        # Color based on HP percentage
+        if percent > 50:
+            color_class = "bg-success"
+        elif percent > 25:
+            color_class = "bg-warning"
+        else:
+            color_class = "bg-danger"
+
+        html = f'''
+        <div class="health-component">
+            <div class="health-label">
+                <strong>Hit Points:</strong> {escape(str(current))}/{escape(str(maximum))}
+                {f' (+{escape(str(temp))} temp)' if temp > 0 else ''}
+            </div>
+            <div class="progress" style="height: 20px;">
+                <div class="progress-bar {color_class}" role="progressbar"
+                     style="width: {percent}%"
+                     aria-valuenow="{current}" aria-valuemin="0" aria-valuemax="{maximum}">
+                    {percent}%
+                </div>
+            </div>
+        </div>
+        '''
+        return html
+
 
 class ArmorComponent(ComponentTypeDefinition):
     """

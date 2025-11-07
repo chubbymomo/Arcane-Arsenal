@@ -19,7 +19,7 @@ class ItemComponent(ComponentTypeDefinition):
     Items are entities that can be owned, carried, and potentially equipped.
     """
 
-    type = "item"
+    type = "Item"
     description = "Basic item properties"
     schema_version = "1.0.0"
     module = "items"
@@ -122,7 +122,7 @@ class EquippableComponent(ComponentTypeDefinition):
     for equipping it (e.g., minimum strength).
     """
 
-    type = "equippable"
+    type = "Equippable"
     description = "Marks item as equippable gear"
     schema_version = "1.0.0"
     module = "items"
@@ -214,7 +214,7 @@ class ConsumableComponent(ComponentTypeDefinition):
     Tracks charges/uses and describes the effect.
     """
 
-    type = "consumable"
+    type = "Consumable"
     description = "Consumable item with limited uses"
     schema_version = "1.0.0"
     module = "items"

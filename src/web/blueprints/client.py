@@ -5,12 +5,15 @@ Provides character selection, creation, and viewing for players.
 Eventually will include action interface and gameplay features.
 """
 
+import logging
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, session
 import json as json_module
 from functools import wraps
 
 from src.core.state_engine import StateEngine
 from src.web.form_builder import FormBuilder
+
+logger = logging.getLogger(__name__)
 
 # Create blueprint
 client_bp = Blueprint('client', __name__, url_prefix='/client', template_folder='../templates/client')
@@ -134,7 +137,10 @@ def character_create():
         pos = engine.get_component(entity.id, 'Position')
         if pos and pos.data.get('region'):
             region = pos.data['region']
-            if not region.startswith('entity_'):
+            # Only add named regions (not entity IDs)
+            # Check if region is an entity by attempting to get it
+            if not engine.get_entity(region):
+                # Region is a named area, not an entity ID
                 regions.add(region)
 
     return render_template(
@@ -238,21 +244,36 @@ def character_builder():
     # GET request - show form
     # Get registries for dropdowns
     try:
-        races_registry = engine.create_registry('races', 'generic_fantasy')
-        races = races_registry.get_all()
-    except:
+        owner = engine.storage.get_registry_owner('races')
+        if owner:
+            races_registry = engine.create_registry('races', owner)
+            races = races_registry.get_all()
+        else:
+            races = []
+    except Exception as e:
+        logger.warning(f"Failed to load races registry: {e}")
         races = []
 
     try:
-        classes_registry = engine.create_registry('classes', 'generic_fantasy')
-        classes = classes_registry.get_all()
-    except:
+        owner = engine.storage.get_registry_owner('classes')
+        if owner:
+            classes_registry = engine.create_registry('classes', owner)
+            classes = classes_registry.get_all()
+        else:
+            classes = []
+    except Exception as e:
+        logger.warning(f"Failed to load classes registry: {e}")
         classes = []
 
     try:
-        alignments_registry = engine.create_registry('alignments', 'generic_fantasy')
-        alignments = alignments_registry.get_all()
-    except:
+        owner = engine.storage.get_registry_owner('alignments')
+        if owner:
+            alignments_registry = engine.create_registry('alignments', owner)
+            alignments = alignments_registry.get_all()
+        else:
+            alignments = []
+    except Exception as e:
+        logger.warning(f"Failed to load alignments registry: {e}")
         alignments = []
 
     # Get available regions
@@ -263,7 +284,10 @@ def character_builder():
         pos = engine.get_component(entity.id, 'Position')
         if pos and pos.data.get('region'):
             region_name = pos.data['region']
-            if not region_name.startswith('entity_'):
+            # Only add named regions (not entity IDs)
+            # Check if region is an entity by attempting to get it
+            if not engine.get_entity(region_name):
+                # Region is a named area, not an entity ID
                 regions.add(region_name)
 
     return render_template(
@@ -295,7 +319,9 @@ def character_sheet(entity_id: str):
     position = components.get('Position', {})
 
     # Get world position if available
-    world_pos = engine.get_world_position(entity_id)
+    from src.modules.core_components.systems import PositionSystem
+    position_system = PositionSystem(engine)
+    world_pos = position_system.get_world_position(entity_id)
 
     # Get relationships
     relationships = engine.get_relationships(entity_id)
@@ -329,7 +355,7 @@ def character_sheet(entity_id: str):
     if position:
         region = position.get('region')
         if region:
-            nearby_entities = engine.get_entities_in_region(region)
+            nearby_entities = position_system.get_entities_in_region(region)
             # Filter out the character itself
             nearby_entities = [e for e in nearby_entities if e.id != entity_id]
         else:

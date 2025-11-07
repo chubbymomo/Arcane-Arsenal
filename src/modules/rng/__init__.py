@@ -29,6 +29,7 @@ Usage:
     engine.event_bus.subscribe('roll.completed', on_roll)
 """
 
+import logging
 from typing import List, Dict, Any, Optional
 from ..base import (
     Module,
@@ -44,6 +45,8 @@ from .events import roll_requested_event, roll_completed_event
 from .roller import DiceRoller, RollResult
 from .dice_parser import DiceParser, DiceNotationError
 from .roll_types import core_roll_types
+
+logger = logging.getLogger(__name__)
 
 
 class RNGModule(Module):
@@ -150,7 +153,10 @@ class RNGModule(Module):
         # Validate roll_type is registered
         registered_types = {rt['type'] for rt in self.engine.storage.get_roll_types()}
         if roll_type not in registered_types:
-            print(f"Invalid roll_type '{roll_type}'. Must be one of: {', '.join(sorted(registered_types))}")
+            logger.warning(
+                f"Invalid roll_type '{roll_type}' for entity {entity_id}. "
+                f"Must be one of: {', '.join(sorted(registered_types))}"
+            )
             return
 
         try:
@@ -255,8 +261,7 @@ class RNGModule(Module):
 
         except (DiceNotationError, ValueError) as e:
             # Invalid notation or roll parameters
-            # Could emit an error event here
-            print(f"Roll error: {e}")
+            logger.error(f"Roll error for entity {entity_id}, notation '{notation}': {e}")
 
     def roll_direct(
         self,
