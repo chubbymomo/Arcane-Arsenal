@@ -64,12 +64,12 @@ class PositionSystem:
             return None
 
         # Get base coordinates (default to 0 if not specified)
-        x = position.get('x', 0)
-        y = position.get('y', 0)
-        z = position.get('z', 0)
+        x = position.data.get('x', 0)
+        y = position.data.get('y', 0)
+        z = position.data.get('z', 0)
 
         # Check if positioned relative to another entity
-        region = position.get('region')
+        region = position.data.get('region')
         if region and self._is_entity_reference(region):
             # Recursively get parent's world position
             parent_pos = self.get_world_position(region)
@@ -108,7 +108,7 @@ class PositionSystem:
         entities_in_region = []
         for entity_id in positioned_entities:
             position = self.engine.get_component(entity_id, 'Position')
-            if position and position.get('region') == region_id:
+            if position and position.data.get('region') == region_id:
                 entities_in_region.append(entity_id)
 
         return entities_in_region
@@ -158,7 +158,7 @@ class PositionSystem:
             return Result.ok({'can_add': True, 'reason': 'Entity is not a container'})
 
         # Check capacity
-        capacity = container.get('capacity')
+        capacity = container.data.get('capacity')
         if capacity is None:
             # Unlimited capacity
             return Result.ok({'can_add': True, 'reason': 'Unlimited capacity'})
@@ -225,7 +225,7 @@ class PositionSystem:
             if not capacity_result.success:
                 # Get current position to see if entity is already in this region
                 current_position = self.engine.get_component(entity_id, 'Position')
-                if current_position and current_position.get('region') == region:
+                if current_position and current_position.data.get('region') == region:
                     # Entity is already in this region - allow update
                     return Result.ok({'valid': True, 'note': 'Entity already in region'})
                 else:
@@ -290,7 +290,7 @@ class PositionSystem:
             # Move up to parent region
             position = self.engine.get_component(current_region, 'Position')
             if position:
-                current_region = position.get('region')
+                current_region = position.data.get('region')
             else:
                 break
 
