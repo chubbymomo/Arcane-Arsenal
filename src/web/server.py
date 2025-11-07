@@ -832,10 +832,8 @@ def create_app(worlds_dir: str = 'worlds'):
                 emit('roll_error', {'error': 'No world selected'})
                 return
 
-            # Get engine
+            # Get engine (already loads and initializes all modules)
             engine = StateEngine(world_path)
-            loader = ModuleLoader(world_path)
-            loader.load_modules(strategy='config')
 
             # Publish roll request event
             engine.event_bus.publish(
@@ -887,10 +885,8 @@ def create_app(worlds_dir: str = 'worlds'):
                 emit('hp_error', {'error': 'No world selected'})
                 return
 
-            # Get engine
+            # Get engine (already loads and initializes all modules)
             engine = StateEngine(world_path)
-            loader = ModuleLoader(world_path)
-            loader.load_modules(strategy='config')
 
             # Update health component
             result = engine.update_component(entity_id, 'health', {
