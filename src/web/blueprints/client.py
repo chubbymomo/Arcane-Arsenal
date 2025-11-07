@@ -137,7 +137,10 @@ def character_create():
         pos = engine.get_component(entity.id, 'Position')
         if pos and pos.data.get('region'):
             region = pos.data['region']
-            if not region.startswith('entity_'):
+            # Only add named regions (not entity IDs)
+            # Check if region is an entity by attempting to get it
+            if not engine.get_entity(region):
+                # Region is a named area, not an entity ID
                 regions.add(region)
 
     return render_template(
@@ -241,22 +244,34 @@ def character_builder():
     # GET request - show form
     # Get registries for dropdowns
     try:
-        races_registry = engine.create_registry('races', 'generic_fantasy')
-        races = races_registry.get_all()
+        owner = engine.storage.get_registry_owner('races')
+        if owner:
+            races_registry = engine.create_registry('races', owner)
+            races = races_registry.get_all()
+        else:
+            races = []
     except Exception as e:
         logger.warning(f"Failed to load races registry: {e}")
         races = []
 
     try:
-        classes_registry = engine.create_registry('classes', 'generic_fantasy')
-        classes = classes_registry.get_all()
+        owner = engine.storage.get_registry_owner('classes')
+        if owner:
+            classes_registry = engine.create_registry('classes', owner)
+            classes = classes_registry.get_all()
+        else:
+            classes = []
     except Exception as e:
         logger.warning(f"Failed to load classes registry: {e}")
         classes = []
 
     try:
-        alignments_registry = engine.create_registry('alignments', 'generic_fantasy')
-        alignments = alignments_registry.get_all()
+        owner = engine.storage.get_registry_owner('alignments')
+        if owner:
+            alignments_registry = engine.create_registry('alignments', owner)
+            alignments = alignments_registry.get_all()
+        else:
+            alignments = []
     except Exception as e:
         logger.warning(f"Failed to load alignments registry: {e}")
         alignments = []
@@ -269,7 +284,10 @@ def character_builder():
         pos = engine.get_component(entity.id, 'Position')
         if pos and pos.data.get('region'):
             region_name = pos.data['region']
-            if not region_name.startswith('entity_'):
+            # Only add named regions (not entity IDs)
+            # Check if region is an entity by attempting to get it
+            if not engine.get_entity(region_name):
+                # Region is a named area, not an entity ID
                 regions.add(region_name)
 
     return render_template(
