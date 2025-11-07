@@ -834,8 +834,8 @@ def create_app(worlds_dir: str = 'worlds'):
 
             # Get engine
             engine = StateEngine(world_path)
-            loader = ModuleLoader(engine)
-            loader.load_all_modules()
+            loader = ModuleLoader(world_path)
+            loader.load_modules(strategy='config')
 
             # Publish roll request event
             engine.event_bus.publish(
@@ -889,8 +889,8 @@ def create_app(worlds_dir: str = 'worlds'):
 
             # Get engine
             engine = StateEngine(world_path)
-            loader = ModuleLoader(engine)
-            loader.load_all_modules()
+            loader = ModuleLoader(world_path)
+            loader.load_modules(strategy='config')
 
             # Update health component
             result = engine.update_component(entity_id, 'health', {
