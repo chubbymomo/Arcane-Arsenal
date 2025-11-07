@@ -529,10 +529,7 @@ class FormBuilder:
                     <div class="attribute-score">{score}</div>
                     <div class="attribute-modifier">{mod_str}</div>
                     <button class="btn-roll-dice"
-                            data-entity-id="{escape(entity_id)}"
-                            data-notation="1d20{mod_str}"
-                            data-roll-type="ability_check"
-                            data-label="{label} Check">
+                            @click="roll('1d20{mod_str}', entityId, 'ability_check', '{label} Check')">
                         🎲 Roll
                     </button>
                 </div>
@@ -549,6 +546,9 @@ class FormBuilder:
         attack_bonus = data.get('attack_bonus', 0)
         bonus_str = f"+{attack_bonus}" if attack_bonus >= 0 else str(attack_bonus)
 
+        # Escape name for Alpine attribute
+        name_escaped = escape(name).replace("'", "\\'")
+
         html = [f'''
             <div class="weapon-card">
                 <div class="weapon-name">{escape(name)}</div>
@@ -557,10 +557,7 @@ class FormBuilder:
                         <span class="stat-label">Attack:</span>
                         <span class="stat-value">1d20{bonus_str}</span>
                         <button class="btn-roll-dice"
-                                data-entity-id="{escape(entity_id)}"
-                                data-notation="1d20{bonus_str}"
-                                data-roll-type="attack"
-                                data-label="{escape(name)} Attack">
+                                @click="roll('1d20{bonus_str}', entityId, 'attack', '{name_escaped} Attack')">
                             🎲
                         </button>
                     </div>
@@ -568,10 +565,7 @@ class FormBuilder:
                         <span class="stat-label">Damage:</span>
                         <span class="stat-value">{escape(damage_dice)} {escape(damage_type)}</span>
                         <button class="btn-roll-dice"
-                                data-entity-id="{escape(entity_id)}"
-                                data-notation="{escape(damage_dice)}"
-                                data-roll-type="damage"
-                                data-label="{escape(name)} Damage">
+                                @click="roll('{escape(damage_dice)}', entityId, 'damage', '{name_escaped} Damage')">
                             🎲
                         </button>
                     </div>
@@ -602,28 +596,29 @@ class FormBuilder:
         return Markup(''.join(html))
 
     def _render_health_sheet(self, data: Dict[str, Any], entity_id: str) -> Markup:
-        """Render Health component with HP bar."""
+        """Render Health component with HP bar using Alpine.js healthTracker."""
         current_hp = data.get('current_hp', 0)
         max_hp = data.get('max_hp', 1)
         temp_hp = data.get('temp_hp', 0)
 
-        percentage = min(100, (current_hp / max_hp * 100)) if max_hp > 0 else 0
-
-        # Color based on HP percentage
-        if percentage > 50:
-            bar_color = '#4caf50'
-        elif percentage > 25:
-            bar_color = '#ff9800'
-        else:
-            bar_color = '#f44336'
-
         html = [f'''
-            <div class="health-display">
+            <div class="health-display" x-data="healthTracker({current_hp}, {max_hp})" x-init="tempHp = {temp_hp}; entityId = '{escape(entity_id)}'">
                 <div class="hp-bar-container">
-                    <div class="hp-bar" style="width: {percentage}%; background-color: {bar_color};"></div>
-                    <div class="hp-text">{current_hp} / {max_hp} HP</div>
+                    <div class="hp-bar"
+                         :style="'width: ' + percentage + '%; background-color: ' + (color === 'success' ? '#4caf50' : color === 'warning' ? '#ff9800' : '#f44336')"></div>
+                    <div class="hp-text">
+                        <span x-text="current"></span> / <span x-text="max"></span> HP
+                    </div>
                 </div>
-                {f'<div class="temp-hp">Temp HP: {temp_hp}</div>' if temp_hp > 0 else ''}
+                <div x-show="tempHp > 0" class="temp-hp">
+                    Temp HP: <span x-text="tempHp"></span>
+                </div>
+
+                <!-- HP Controls (optional for DM/editing) -->
+                <div class="hp-controls" style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
+                    <button class="btn-hp" @click="damage(5)" style="flex: 1; padding: 0.25rem; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer;">-5 HP</button>
+                    <button class="btn-hp" @click="heal(5)" style="flex: 1; padding: 0.25rem; background: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer;">+5 HP</button>
+                </div>
             </div>
         ''']
 
@@ -683,12 +678,11 @@ class FormBuilder:
 
             # Check if value looks like dice notation
             if self._is_dice_notation(str(value)):
+                # Escape label for Alpine attribute
+                label_escaped = str(label).replace("'", "\\'")
                 display_value += f'''
                     <button class="btn-roll-dice inline"
-                            data-entity-id="{escape(entity_id)}"
-                            data-notation="{escape(str(value))}"
-                            data-roll-type="custom"
-                            data-label="{label}">
+                            @click="roll('{escape(str(value))}', entityId, 'custom', '{label_escaped}')">
                         🎲
                     </button>
                 '''
