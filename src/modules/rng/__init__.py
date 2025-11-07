@@ -247,6 +247,9 @@ class RNGModule(Module):
                     'disadvantage': result.disadvantage,
                     'natural_20': result.natural_20,
                     'natural_1': result.natural_1,
+                    # UI-friendly field names for frontend compatibility
+                    'critical_success': result.natural_20,
+                    'critical_failure': result.natural_1,
                     'modifiers_applied': modifiers_applied,
                     'dice_results': [
                         {

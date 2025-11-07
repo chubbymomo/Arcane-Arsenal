@@ -195,7 +195,7 @@ class ComponentTypeDefinition(ABC):
             "display_mode": "full"
         }
 
-    def get_character_sheet_renderer(self, data: Dict[str, Any], engine: 'StateEngine' = None) -> Optional[str]:
+    def get_character_sheet_renderer(self, data: Dict[str, Any], engine: 'StateEngine' = None, entity_id: str = None) -> Optional[str]:
         """
         Optional: Provide custom HTML rendering for character sheet display.
 
@@ -206,37 +206,35 @@ class ComponentTypeDefinition(ABC):
         Args:
             data: Component data to render
             engine: Optional StateEngine instance for querying related entities
+            entity_id: Optional entity ID for interactive features (dice rolling, etc.)
 
         Returns:
             HTML string for rendering, or None to use default rendering
 
-        Example (Health component with progress bar):
-            def get_character_sheet_renderer(self, data, engine=None):
-                current = data.get('current', 0)
-                maximum = data.get('max', 1)
-                percent = int((current / maximum) * 100) if maximum > 0 else 0
-
-                return f'''
-                <div class="health-display">
-                    <div class="health-label">HP: {current}/{maximum}</div>
-                    <div class="progress">
-                        <div class="progress-bar bg-danger" style="width: {percent}%"></div>
-                    </div>
-                </div>
-                '''
-
-        Example (Attributes component with modifiers):
-            def get_character_sheet_renderer(self, data, engine=None):
+        Example (Attributes component with dice rolling):
+            def get_character_sheet_renderer(self, data, engine=None, entity_id=None):
                 html = ['<div class="attributes-grid">']
                 for attr in ['strength', 'dexterity', 'constitution']:
                     score = data.get(attr, 10)
                     mod = (score - 10) // 2
                     mod_str = f"+{mod}" if mod >= 0 else str(mod)
+
+                    # Dice button if entity_id provided
+                    dice_btn = ''
+                    if entity_id:
+                        dice_btn = f'''
+                            <button class="btn-roll-dice"
+                                    @click="roll('1d20{mod_str}', entityId, 'ability_check', '{attr.upper()} Check')">
+                                🎲 Roll
+                            </button>
+                        '''
+
                     html.append(f'''
                         <div class="attribute">
                             <div class="attr-name">{attr.upper()}</div>
                             <div class="attr-score">{score}</div>
                             <div class="attr-mod">{mod_str}</div>
+                            {dice_btn}
                         </div>
                     ''')
                 html.append('</div>')
@@ -246,7 +244,8 @@ class ComponentTypeDefinition(ABC):
             - Return None to use default FormBuilder rendering
             - HTML should be properly escaped for user-provided data
             - Can use engine to query related entities (e.g., equipped items)
-            - Component should work with or without engine parameter
+            - Use entity_id for interactive features like dice rolling
+            - Component should work with or without engine/entity_id parameters
         """
         # Default: use generic FormBuilder rendering
         return None

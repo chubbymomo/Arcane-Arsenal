@@ -83,40 +83,59 @@ class HealthComponent(ComponentTypeDefinition):
             "display_mode": "full"
         }
 
-    def get_character_sheet_renderer(self, data: Dict[str, Any], engine=None) -> str:
-        """Custom renderer with progress bar for HP."""
+    def get_character_sheet_renderer(self, data: Dict[str, Any], engine=None, entity_id=None) -> str:
+        """Custom renderer with progress bar and Alpine.js health tracker."""
         from markupsafe import escape
 
         current = data.get('current_hp', 0)
         maximum = data.get('max_hp', 1)
         temp = data.get('temp_hp', 0)
 
-        # Calculate percentage for progress bar
-        percent = int((current / maximum) * 100) if maximum > 0 else 0
-
-        # Color based on HP percentage
-        if percent > 50:
-            color_class = "bg-success"
-        elif percent > 25:
-            color_class = "bg-warning"
-        else:
-            color_class = "bg-danger"
-
-        html = f'''
-        <div class="health-component">
-            <div class="health-label">
-                <strong>Hit Points:</strong> {escape(str(current))}/{escape(str(maximum))}
-                {f' (+{escape(str(temp))} temp)' if temp > 0 else ''}
-            </div>
-            <div class="progress" style="height: 20px;">
-                <div class="progress-bar {color_class}" role="progressbar"
-                     style="width: {percent}%"
-                     aria-valuenow="{current}" aria-valuemin="0" aria-valuemax="{maximum}">
-                    {percent}%
+        # Use Alpine.js health tracker if entity_id provided
+        if entity_id:
+            html = f'''
+            <div class="health-display" x-data="healthTracker({current}, {maximum})" x-init="tempHp = {temp}; entityId = '{escape(entity_id)}'">
+                <div class="hp-bar-container">
+                    <div class="hp-bar"
+                         :style="'width: ' + percentage + '%; background-color: ' + (color === 'success' ? '#4caf50' : color === 'warning' ? '#ff9800' : '#f44336')"></div>
+                    <div class="hp-text">
+                        <span x-text="current"></span> / <span x-text="max"></span> HP
+                    </div>
+                </div>
+                <div x-show="tempHp > 0" class="temp-hp">
+                    Temp HP: <span x-text="tempHp"></span>
+                </div>
+                <div class="hp-controls" style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
+                    <button class="btn-hp" @click="damage(5)" style="flex: 1; padding: 0.25rem; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer;">-5 HP</button>
+                    <button class="btn-hp" @click="heal(5)" style="flex: 1; padding: 0.25rem; background: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer;">+5 HP</button>
                 </div>
             </div>
-        </div>
-        '''
+            '''
+        else:
+            # Static display without entity_id
+            percent = int((current / maximum) * 100) if maximum > 0 else 0
+            if percent > 50:
+                color_class = "bg-success"
+            elif percent > 25:
+                color_class = "bg-warning"
+            else:
+                color_class = "bg-danger"
+
+            html = f'''
+            <div class="health-component">
+                <div class="health-label">
+                    <strong>Hit Points:</strong> {escape(str(current))}/{escape(str(maximum))}
+                    {f' (+{escape(str(temp))} temp)' if temp > 0 else ''}
+                </div>
+                <div class="progress" style="height: 20px;">
+                    <div class="progress-bar {color_class}" role="progressbar"
+                         style="width: {percent}%"
+                         aria-valuenow="{current}" aria-valuemin="0" aria-valuemax="{maximum}">
+                        {percent}%
+                    </div>
+                </div>
+            </div>
+            '''
         return html
 
 

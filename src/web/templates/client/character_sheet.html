@@ -25,7 +25,7 @@
                     {% if category == 'CORE' %}
                     <div class="component-card {% if comp_type == 'Attributes' %}non-collapsible{% endif %}">
                         <h3 class="component-title">{{ comp_type }}</h3>
-                        {{ form_builder.build_character_sheet_display(comp_type, comp_data, entity.id) | safe }}
+                        {{ form_builder.build_display(comp_type, comp_data, entity.id) | safe }}
                     </div>
                     {% endif %}
                 {% endif %}
@@ -37,7 +37,7 @@
                     {% if category == 'SKILLS' %}
                     <div class="component-card">
                         <h3 class="component-title">{{ comp_type }}</h3>
-                        {{ form_builder.build_character_sheet_display(comp_type, comp_data, entity.id) | safe }}
+                        {{ form_builder.build_display(comp_type, comp_data, entity.id) | safe }}
                     </div>
                     {% endif %}
                 {% endif %}
@@ -54,7 +54,7 @@
                     {% if category == 'COMBAT' %}
                     <div class="component-card">
                         <h3 class="component-title">{{ comp_type }}</h3>
-                        {{ form_builder.build_character_sheet_display(comp_type, comp_data, entity.id) | safe }}
+                        {{ form_builder.build_display(comp_type, comp_data, entity.id) | safe }}
                     </div>
                     {% endif %}
                 {% endif %}
@@ -66,7 +66,7 @@
                     {% if category == 'RESOURCES' %}
                     <div class="component-card">
                         <h3 class="component-title">{{ comp_type }}</h3>
-                        {{ form_builder.build_character_sheet_display(comp_type, comp_data, entity.id) | safe }}
+                        {{ form_builder.build_display(comp_type, comp_data, entity.id) | safe }}
                     </div>
                     {% endif %}
                 {% endif %}
@@ -170,7 +170,7 @@
                     {% if category in ['INVENTORY', 'INFO', 'MISC'] %}
                     <div class="component-card">
                         <h3 class="component-title">{{ comp_type }}</h3>
-                        {{ form_builder.build_character_sheet_display(comp_type, comp_data, entity.id) | safe }}
+                        {{ form_builder.build_display(comp_type, comp_data, entity.id) | safe }}
                     </div>
                     {% endif %}
                 {% endif %}
