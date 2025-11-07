@@ -486,6 +486,13 @@
                         if (this.history.length > 10) {
                             this.history = this.history.slice(0, 10);
                         }
+
+                        // Auto-hide toast after 5 seconds (D&D Beyond style)
+                        setTimeout(() => {
+                            if (this.result === data) {
+                                this.result = null;
+                            }
+                        }, 5000);
                     });
                 }
             }));

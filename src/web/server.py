@@ -860,8 +860,7 @@ def create_app(worlds_dir: str = 'worlds'):
             # Event should be processed synchronously since we're in same thread
             if roll_complete_received:
                 result_data = roll_complete_received[0].data
-                # Emit to the specific entity room and world room
-                socketio.emit('roll_result', result_data, room=f"entity_{entity_id}")
+                # Broadcast to all players in the world (everyone should see dice rolls)
                 socketio.emit('roll_result', result_data, room=f"world_{session.get('world_name')}")
             else:
                 logger.error(f"Roll completed event not received for entity {entity_id}")
