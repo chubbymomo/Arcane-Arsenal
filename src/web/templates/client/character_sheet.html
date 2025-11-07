@@ -76,7 +76,6 @@
             <div class="component-card" x-data="{ historyOpen: false }">
                 <h3 class="component-title" @click="historyOpen = !historyOpen" style="cursor: pointer;">
                     🎲 Roll History
-                    <span class="toggle-icon" x-text="historyOpen ? '▼' : '▶'" style="float: right; font-size: 0.8em;"></span>
                 </h3>
                 <div x-show="historyOpen" x-transition class="roll-history">
                     <template x-if="history.length === 0">
