@@ -7,13 +7,13 @@
     <a href="{{ url_for('host.index') }}" style="color: var(--accent); text-decoration: none;">← Back to Dashboard</a>
 </div>
 
-<div class="card">
+<div class="card" x-data="{ showCreateForm: false }">
     <h2>📜 All Entities</h2>
 
     <div class="action-section" style="margin-top: 2rem;">
-        <button class="btn" onclick="toggleForm('create-entity-form')">+ Create Entity</button>
+        <button class="btn" @click="showCreateForm = !showCreateForm">+ Create Entity</button>
 
-        <div id="create-entity-form" class="card" style="display: none; margin-top: 1rem;">
+        <div x-show="showCreateForm" x-transition class="card" style="margin-top: 1rem;">
             <h3>Create New Entity</h3>
             <form method="POST" action="{{ url_for('host.create_entity') }}">
                 <div style="margin-bottom: 1rem;">
@@ -22,7 +22,7 @@
                 </div>
                 <div style="display: flex; gap: 1rem;">
                     <button type="submit" class="btn">Create</button>
-                    <button type="button" class="btn btn-secondary" onclick="toggleForm('create-entity-form')">Cancel</button>
+                    <button type="button" class="btn btn-secondary" @click="showCreateForm = false">Cancel</button>
                 </div>
             </form>
         </div>
@@ -61,15 +61,4 @@
         {% endif %}
     </div>
 </div>
-
-<script>
-function toggleForm(formId) {
-    const form = document.getElementById(formId);
-    if (form.style.display === 'none') {
-        form.style.display = 'block';
-    } else {
-        form.style.display = 'none';
-    }
-}
-</script>
 {% endblock %}

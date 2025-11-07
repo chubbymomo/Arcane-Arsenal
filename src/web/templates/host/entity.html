@@ -11,21 +11,21 @@
     <span style="margin-left: 0.5rem;">{{ entity.name }}</span>
 </div>
 
-<div class="card">
+<div class="card" x-data="entityEditor()">
 
 <div class="entity-header">
     <div class="entity-title-section">
-        <div id="entity-name-display">
+        <div x-show="!editingName">
             <h2>{{ entity.name }}</h2>
             {% if entity.is_active() %}
-            <button class="btn btn-small" onclick="toggleEntityNameEdit()">Edit Name</button>
+            <button class="btn btn-small" @click="editingName = true">Edit Name</button>
             {% endif %}
         </div>
-        <div id="entity-name-edit" class="edit-form" style="display: none;">
+        <div x-show="editingName" x-transition class="edit-form">
             <form method="POST" action="{{ url_for('host.update_entity', entity_id=entity.id) }}" style="display: flex; gap: 0.5rem; align-items: center;">
                 <input type="text" name="name" value="{{ entity.name }}" required style="flex: 1; padding: 0.5rem; font-size: 1.5rem; font-weight: bold;">
                 <button type="submit" class="btn btn-primary btn-small">Save</button>
-                <button type="button" class="btn btn-secondary btn-small" onclick="toggleEntityNameEdit()">Cancel</button>
+                <button type="button" class="btn btn-secondary btn-small" @click="editingName = false">Cancel</button>
             </form>
         </div>
     </div>
@@ -49,17 +49,17 @@
     <div class="section-header">
         <h3>Components</h3>
         {% if entity.is_active() %}
-        <button class="btn btn-primary" onclick="toggleForm('add-component-form')">+ Add Component</button>
+        <button class="btn btn-primary" @click="showAddComponentForm = !showAddComponentForm">+ Add Component</button>
         {% endif %}
     </div>
 
     {% if entity.is_active() %}
-    <div id="add-component-form" class="form-card" style="display: none;">
+    <div x-show="showAddComponentForm" x-transition class="form-card">
         <h4>Add Component</h4>
         <form method="POST" action="{{ url_for('host.add_component', entity_id=entity.id) }}" id="add-component-form-element">
             <div class="form-group">
                 <label for="component_type">Component Type:</label>
-                <select id="component_type" name="component_type" required onchange="updateComponentForm(this.value)">
+                <select id="component_type" name="component_type" required @change="updateComponentForm($event.target.value)">
                     <option value="">Select a type...</option>
                     {% for type in component_types %}
                         <option value="{{ type.type }}" data-description="{{ type.description }}">
@@ -88,24 +88,24 @@
                     <h4>{{ type }}</h4>
                     {% if entity.is_active() %}
                     <div class="component-actions">
-                        <button class="btn btn-small" onclick="editComponent('{{ type }}')">Edit</button>
+                        <button class="btn btn-small" @click="editingComponent = '{{ type }}'">Edit</button>
                         <form method="POST" action="{{ url_for('host.delete_component', entity_id=entity.id, component_type=type) }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this component?');">
                             <button type="submit" class="btn btn-small btn-danger">Delete</button>
                         </form>
                     </div>
                     {% endif %}
                 </div>
-                <div id="component-{{ type }}-display" class="component-display">
+                <div x-show="editingComponent !== '{{ type }}'" class="component-display">
                     {{ form_builder.build_display(type, data) | safe }}
                 </div>
 
                 {% if entity.is_active() %}
-                <div id="edit-{{ type }}" class="edit-form" style="display: none;">
+                <div x-show="editingComponent === '{{ type }}'" x-transition class="edit-form">
                     <form method="POST" action="{{ url_for('host.update_component', entity_id=entity.id, component_type=type) }}" class="edit-component-form" data-component-type="{{ type }}">
                         {{ form_builder.build_form(type, data) | safe }}
                         <div class="form-actions">
                             <button type="submit" class="btn btn-primary">Save</button>
-                            <button type="button" class="btn btn-secondary" onclick="cancelEdit('{{ type }}')">Cancel</button>
+                            <button type="button" class="btn btn-secondary" @click="editingComponent = null">Cancel</button>
                         </div>
                     </form>
                 </div>
@@ -121,12 +121,12 @@
     <div class="section-header">
         <h3>Relationships</h3>
         {% if entity.is_active() %}
-        <button class="btn btn-primary" onclick="toggleForm('add-relationship-form')">+ Add Relationship</button>
+        <button class="btn btn-primary" @click="showAddRelationshipForm = !showAddRelationshipForm">+ Add Relationship</button>
         {% endif %}
     </div>
 
     {% if entity.is_active() %}
-    <div id="add-relationship-form" class="form-card" style="display: none;">
+    <div x-show="showAddRelationshipForm" x-transition class="form-card">
         <h4>Create Relationship</h4>
         <form method="POST" action="{{ url_for('host.create_relationship') }}">
             <input type="hidden" name="from_entity" value="{{ entity.id }}">
@@ -235,64 +235,42 @@
 {% endif %}
 
 <script>
-function toggleForm(formId) {
-    const form = document.getElementById(formId);
-    if (form.style.display === 'none') {
-        form.style.display = 'block';
-    } else {
-        form.style.display = 'none';
-    }
-}
+// Alpine.js Entity Editor Component
+function entityEditor() {
+    return {
+        editingName: false,
+        showAddComponentForm: false,
+        showAddRelationshipForm: false,
+        editingComponent: null,
 
-function toggleEntityNameEdit() {
-    const display = document.getElementById('entity-name-display');
-    const edit = document.getElementById('entity-name-edit');
-    if (edit.style.display === 'none') {
-        display.style.display = 'none';
-        edit.style.display = 'block';
-    } else {
-        display.style.display = 'block';
-        edit.style.display = 'none';
-    }
-}
+        async updateComponentForm(type) {
+            const fieldsContainer = document.getElementById('component-form-fields');
+            const actions = document.getElementById('add-component-actions');
 
-function editComponent(type) {
-    document.getElementById('component-' + type + '-display').style.display = 'none';
-    document.getElementById('edit-' + type).style.display = 'block';
-}
+            if (!type) {
+                fieldsContainer.innerHTML = '<p class="help-text" style="text-align: center; padding: 2rem; color: var(--text-muted);">Select a component type to see the form fields</p>';
+                actions.style.display = 'none';
+                return;
+            }
 
-function cancelEdit(type) {
-    document.getElementById('component-' + type + '-display').style.display = 'block';
-    document.getElementById('edit-' + type).style.display = 'none';
-}
+            try {
+                const response = await fetch(`/api/component_form/${type}`);
+                const data = await response.json();
 
-async function updateComponentForm(type) {
-    const fieldsContainer = document.getElementById('component-form-fields');
-    const actions = document.getElementById('add-component-actions');
-
-    if (!type) {
-        fieldsContainer.innerHTML = '<p class="help-text" style="text-align: center; padding: 2rem; color: var(--text-muted);">Select a component type to see the form fields</p>';
-        actions.style.display = 'none';
-        return;
-    }
-
-    try {
-        // Fetch the form HTML for this component type
-        const response = await fetch(`/api/component_form/${type}`);
-        const data = await response.json();
-
-        if (data.success) {
-            fieldsContainer.innerHTML = data.form_html;
-            actions.style.display = 'flex';
-        } else {
-            fieldsContainer.innerHTML = `<p class="error">${data.error}</p>`;
-            actions.style.display = 'none';
+                if (data.success) {
+                    fieldsContainer.innerHTML = data.form_html;
+                    actions.style.display = 'flex';
+                } else {
+                    fieldsContainer.innerHTML = `<p class="error">${data.error}</p>`;
+                    actions.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error loading component form:', error);
+                fieldsContainer.innerHTML = '<p class="error">Error loading form. Please try again.</p>';
+                actions.style.display = 'none';
+            }
         }
-    } catch (error) {
-        console.error('Error loading component form:', error);
-        fieldsContainer.innerHTML = '<p class="error">Error loading form. Please try again.</p>';
-        actions.style.display = 'none';
-    }
+    };
 }
 
 // Collect form fields into JSON before submission

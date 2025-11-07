@@ -3,7 +3,7 @@
 {% block title %}Dashboard - Arcane Arsenal{% endblock %}
 
 {% block content %}
-<div class="card">
+<div class="card" x-data="{ showQuickCreate: false }">
     <h2>🏠 Dungeon Master Dashboard</h2>
     <p style="color: var(--text-muted); margin-bottom: 2rem;">Welcome to your realm management center</p>
 
@@ -40,7 +40,7 @@
     <div class="card" style="margin-top: 2rem;">
         <h3>⚡ Quick Actions</h3>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1rem;">
-            <button class="btn" onclick="document.getElementById('quick-create').style.display='block'">
+            <button class="btn" @click="showQuickCreate = true">
                 ✨ Create Entity
             </button>
             <a href="{{ url_for('host.entities') }}" class="btn btn-secondary">
@@ -56,7 +56,7 @@
     </div>
 
     <!-- Quick Create Form -->
-    <div id="quick-create" style="display: none; margin-top: 2rem;" class="card">
+    <div x-show="showQuickCreate" x-transition style="margin-top: 2rem;" class="card">
         <h3>Create New Entity</h3>
         <form method="POST" action="{{ url_for('host.create_entity') }}">
             <div style="margin-bottom: 1rem;">
@@ -65,7 +65,7 @@
             </div>
             <div style="display: flex; gap: 1rem;">
                 <button type="submit" class="btn">Create</button>
-                <button type="button" class="btn btn-secondary" onclick="document.getElementById('quick-create').style.display='none'">Cancel</button>
+                <button type="button" class="btn btn-secondary" @click="showQuickCreate = false">Cancel</button>
             </div>
         </form>
     </div>

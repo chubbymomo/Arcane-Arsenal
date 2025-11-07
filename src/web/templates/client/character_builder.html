@@ -9,7 +9,7 @@
         <p class="builder-subtitle">Create your fantasy hero</p>
     </div>
 
-    <form method="POST" action="{{ url_for('client.character_builder') }}" id="character-form">
+    <form method="POST" action="{{ url_for('client.character_builder') }}" id="character-form" x-data="characterBuilder()">
         <!-- Step 1: Basic Information -->
         <div class="builder-section">
             <h3 class="section-title">📋 Basic Information</h3>
@@ -49,7 +49,7 @@
                 {% if races %}
                 <div class="form-group">
                     <label for="race">Race</label>
-                    <select id="race" name="race" class="form-control" onchange="updateRaceInfo()">
+                    <select id="race" name="race" class="form-control" @change="updateRaceInfo($event)">
                         <option value="">Select a race...</option>
                         {% for race in races %}
                             <option value="{{ race.key }}" data-description="{{ race.description }}" data-size="{{ race.metadata.get('size', '') }}">
@@ -57,14 +57,14 @@
                             </option>
                         {% endfor %}
                     </select>
-                    <small class="form-text" id="race-info">Choose your character's race</small>
+                    <small class="form-text" x-text="raceInfo">Choose your character's race</small>
                 </div>
                 {% endif %}
 
                 {% if classes %}
                 <div class="form-group">
                     <label for="class">Class</label>
-                    <select id="class" name="class" class="form-control" onchange="updateClassInfo()">
+                    <select id="class" name="class" class="form-control" @change="updateClassInfo($event)">
                         <option value="">Select a class...</option>
                         {% for cls in classes %}
                             <option value="{{ cls.key }}" data-description="{{ cls.description }}" data-hitdie="{{ cls.metadata.get('hit_die', '') }}">
@@ -72,7 +72,7 @@
                             </option>
                         {% endfor %}
                     </select>
-                    <small class="form-text" id="class-info">Choose your character's class</small>
+                    <small class="form-text" x-text="classInfo">Choose your character's class</small>
                 </div>
                 {% endif %}
 
@@ -104,9 +104,9 @@
                         <h4>STR</h4>
                         <span class="attribute-name">Strength</span>
                     </div>
-                    <input type="number" id="strength" name="strength" value="10" min="1" max="20" required
-                           class="attribute-input" onchange="updateModifier('strength')">
-                    <div class="attribute-modifier" id="strength-mod">+0</div>
+                    <input type="number" id="strength" name="strength" x-model.number="strength" min="1" max="20" required
+                           class="attribute-input">
+                    <div class="attribute-modifier" x-text="formatModifier(calculateModifier(strength))"></div>
                     <small class="attribute-help">Physical power</small>
                 </div>
 
@@ -115,9 +115,9 @@
                         <h4>DEX</h4>
                         <span class="attribute-name">Dexterity</span>
                     </div>
-                    <input type="number" id="dexterity" name="dexterity" value="10" min="1" max="20" required
-                           class="attribute-input" onchange="updateModifier('dexterity')">
-                    <div class="attribute-modifier" id="dexterity-mod">+0</div>
+                    <input type="number" id="dexterity" name="dexterity" x-model.number="dexterity" min="1" max="20" required
+                           class="attribute-input">
+                    <div class="attribute-modifier" x-text="formatModifier(calculateModifier(dexterity))"></div>
                     <small class="attribute-help">Agility & reflexes</small>
                 </div>
 
@@ -126,9 +126,9 @@
                         <h4>CON</h4>
                         <span class="attribute-name">Constitution</span>
                     </div>
-                    <input type="number" id="constitution" name="constitution" value="10" min="1" max="20" required
-                           class="attribute-input" onchange="updateModifier('constitution')">
-                    <div class="attribute-modifier" id="constitution-mod">+0</div>
+                    <input type="number" id="constitution" name="constitution" x-model.number="constitution" min="1" max="20" required
+                           class="attribute-input">
+                    <div class="attribute-modifier" x-text="formatModifier(calculateModifier(constitution))"></div>
                     <small class="attribute-help">Endurance</small>
                 </div>
 
@@ -137,9 +137,9 @@
                         <h4>INT</h4>
                         <span class="attribute-name">Intelligence</span>
                     </div>
-                    <input type="number" id="intelligence" name="intelligence" value="10" min="1" max="20" required
-                           class="attribute-input" onchange="updateModifier('intelligence')">
-                    <div class="attribute-modifier" id="intelligence-mod">+0</div>
+                    <input type="number" id="intelligence" name="intelligence" x-model.number="intelligence" min="1" max="20" required
+                           class="attribute-input">
+                    <div class="attribute-modifier" x-text="formatModifier(calculateModifier(intelligence))"></div>
                     <small class="attribute-help">Reasoning</small>
                 </div>
 
@@ -148,9 +148,9 @@
                         <h4>WIS</h4>
                         <span class="attribute-name">Wisdom</span>
                     </div>
-                    <input type="number" id="wisdom" name="wisdom" value="10" min="1" max="20" required
-                           class="attribute-input" onchange="updateModifier('wisdom')">
-                    <div class="attribute-modifier" id="wisdom-mod">+0</div>
+                    <input type="number" id="wisdom" name="wisdom" x-model.number="wisdom" min="1" max="20" required
+                           class="attribute-input">
+                    <div class="attribute-modifier" x-text="formatModifier(calculateModifier(wisdom))"></div>
                     <small class="attribute-help">Awareness</small>
                 </div>
 
@@ -159,17 +159,17 @@
                         <h4>CHA</h4>
                         <span class="attribute-name">Charisma</span>
                     </div>
-                    <input type="number" id="charisma" name="charisma" value="10" min="1" max="20" required
-                           class="attribute-input" onchange="updateModifier('charisma')">
-                    <div class="attribute-modifier" id="charisma-mod">+0</div>
+                    <input type="number" id="charisma" name="charisma" x-model.number="charisma" min="1" max="20" required
+                           class="attribute-input">
+                    <div class="attribute-modifier" x-text="formatModifier(calculateModifier(charisma))"></div>
                     <small class="attribute-help">Personality</small>
                 </div>
             </div>
 
             <div class="quick-actions">
-                <button type="button" class="btn btn-secondary" onclick="setStandardArray()">Standard Array (15,14,13,12,10,8)</button>
-                <button type="button" class="btn btn-secondary" onclick="setAllTens()">All 10s</button>
-                <button type="button" class="btn btn-secondary" onclick="rollAttributes()">🎲 Roll Random</button>
+                <button type="button" class="btn btn-secondary" @click="setStandardArray()">Standard Array (15,14,13,12,10,8)</button>
+                <button type="button" class="btn btn-secondary" @click="setAllTens()">All 10s</button>
+                <button type="button" class="btn btn-secondary" @click="rollAttributes()">🎲 Roll Random</button>
             </div>
         </div>
 
@@ -359,97 +359,92 @@
 </style>
 
 <script>
-// Calculate ability modifier
-function calculateModifier(score) {
-    return Math.floor((score - 10) / 2);
+// Alpine.js Character Builder Component
+function characterBuilder() {
+    return {
+        // Ability scores
+        strength: 10,
+        dexterity: 10,
+        constitution: 10,
+        intelligence: 10,
+        wisdom: 10,
+        charisma: 10,
+
+        // Info text
+        raceInfo: "Choose your character's race",
+        classInfo: "Choose your character's class",
+
+        // Calculate ability modifier
+        calculateModifier(score) {
+            return Math.floor((score - 10) / 2);
+        },
+
+        // Format modifier with + or -
+        formatModifier(modifier) {
+            return modifier >= 0 ? `+${modifier}` : `${modifier}`;
+        },
+
+        // Set standard array
+        setStandardArray() {
+            const values = [15, 14, 13, 12, 10, 8];
+            [this.strength, this.dexterity, this.constitution, this.intelligence, this.wisdom, this.charisma] = values;
+        },
+
+        // Set all to 10
+        setAllTens() {
+            this.strength = this.dexterity = this.constitution =
+                this.intelligence = this.wisdom = this.charisma = 10;
+        },
+
+        // Roll random attributes (4d6 drop lowest)
+        rollAttributes() {
+            const rollStat = () => {
+                const rolls = [
+                    Math.floor(Math.random() * 6) + 1,
+                    Math.floor(Math.random() * 6) + 1,
+                    Math.floor(Math.random() * 6) + 1,
+                    Math.floor(Math.random() * 6) + 1
+                ];
+                rolls.sort((a, b) => a - b);
+                return rolls[1] + rolls[2] + rolls[3];  // Drop lowest
+            };
+
+            this.strength = rollStat();
+            this.dexterity = rollStat();
+            this.constitution = rollStat();
+            this.intelligence = rollStat();
+            this.wisdom = rollStat();
+            this.charisma = rollStat();
+        },
+
+        // Update race info
+        updateRaceInfo(event) {
+            const select = event.target;
+            const option = select.options[select.selectedIndex];
+
+            if (option.value) {
+                const desc = option.getAttribute('data-description');
+                const size = option.getAttribute('data-size');
+                this.raceInfo = `${desc} (Size: ${size})`;
+            } else {
+                this.raceInfo = "Choose your character's race";
+            }
+        },
+
+        // Update class info
+        updateClassInfo(event) {
+            const select = event.target;
+            const option = select.options[select.selectedIndex];
+
+            if (option.value) {
+                const desc = option.getAttribute('data-description');
+                const hitdie = option.getAttribute('data-hitdie');
+                this.classInfo = `${desc} (Hit Die: ${hitdie})`;
+            } else {
+                this.classInfo = "Choose your character's class";
+            }
+        }
+    };
 }
-
-// Update modifier display
-function updateModifier(attribute) {
-    const input = document.getElementById(attribute);
-    const modDiv = document.getElementById(attribute + '-mod');
-    const score = parseInt(input.value) || 10;
-    const modifier = calculateModifier(score);
-
-    modDiv.textContent = modifier >= 0 ? `+${modifier}` : `${modifier}`;
-    modDiv.style.color = modifier >= 0 ? 'var(--success)' : 'var(--error)';
-}
-
-// Set standard array
-function setStandardArray() {
-    const values = [15, 14, 13, 12, 10, 8];
-    const attributes = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'];
-
-    attributes.forEach((attr, i) => {
-        document.getElementById(attr).value = values[i];
-        updateModifier(attr);
-    });
-}
-
-// Set all to 10
-function setAllTens() {
-    const attributes = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'];
-
-    attributes.forEach(attr => {
-        document.getElementById(attr).value = 10;
-        updateModifier(attr);
-    });
-}
-
-// Roll random attributes
-function rollAttributes() {
-    const attributes = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'];
-
-    attributes.forEach(attr => {
-        // Roll 4d6, drop lowest (standard D&D method)
-        const rolls = [
-            Math.floor(Math.random() * 6) + 1,
-            Math.floor(Math.random() * 6) + 1,
-            Math.floor(Math.random() * 6) + 1,
-            Math.floor(Math.random() * 6) + 1
-        ];
-        rolls.sort((a, b) => a - b);
-        const total = rolls[1] + rolls[2] + rolls[3];  // Drop lowest
-
-        document.getElementById(attr).value = total;
-        updateModifier(attr);
-    });
-}
-
-// Update race info
-function updateRaceInfo() {
-    const select = document.getElementById('race');
-    const option = select.options[select.selectedIndex];
-    const info = document.getElementById('race-info');
-
-    if (option.value) {
-        const desc = option.getAttribute('data-description');
-        const size = option.getAttribute('data-size');
-        info.textContent = `${desc} (Size: ${size})`;
-    } else {
-        info.textContent = 'Choose your character\'s race';
-    }
-}
-
-// Update class info
-function updateClassInfo() {
-    const select = document.getElementById('class');
-    const option = select.options[select.selectedIndex];
-    const info = document.getElementById('class-info');
-
-    if (option.value) {
-        const desc = option.getAttribute('data-description');
-        const hitdie = option.getAttribute('data-hitdie');
-        info.textContent = `${desc} (Hit Die: ${hitdie})`;
-    } else {
-        info.textContent = 'Choose your character\'s class';
-    }
-}
-
-// Initialize modifiers on page load
-window.addEventListener('DOMContentLoaded', () => {
-    const attributes = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'];
-    attributes.forEach(attr => updateModifier(attr));
-});
 </script>
 {% endblock %}
