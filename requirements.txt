@@ -1,6 +1,9 @@
 # Core dependencies
 flask>=3.0.0
 jsonschema>=4.20.0
+flask-socketio>=5.3.5
+python-socketio>=5.10.0
+eventlet>=0.33.3
 
 # Testing
 pytest>=7.4.0

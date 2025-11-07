@@ -560,6 +560,88 @@
         <p>🎲 Arcane Arsenal - ECS-Powered Realm Management 🎲</p>
     </footer>
 
+    <!-- HTMX - Hypermedia interactions -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+
+    <!-- Alpine.js - Reactive client state -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+
+    <!-- Socket.IO - Real-time WebSocket -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+
+    <!-- Core frontend initialization (DM view) -->
+    <script>
+        // Initialize Socket.IO connection
+        const socket = io({
+            autoConnect: true,
+            reconnection: true,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            reconnectionAttempts: Infinity
+        });
+
+        // Connection status
+        socket.on('connect', () => {
+            console.log('✅ DM connected to Arcane Arsenal server');
+        });
+
+        socket.on('disconnect', () => {
+            console.log('❌ Disconnected from server');
+        });
+
+        // Global Alpine.js components for DM view
+        document.addEventListener('alpine:init', () => {
+            // Real-time event monitor
+            Alpine.data('eventMonitor', () => ({
+                events: [],
+                maxEvents: 50,
+
+                init() {
+                    // Listen for all game events
+                    socket.on('game_event', (event) => {
+                        this.events.unshift(event);
+                        if (this.events.length > this.maxEvents) {
+                            this.events = this.events.slice(0, this.maxEvents);
+                        }
+                    });
+                }
+            }));
+
+            // Entity health monitor (for DM tracking)
+            Alpine.data('dmHealthMonitor', () => ({
+                entities: {},
+
+                init() {
+                    socket.on('hp_updated', (data) => {
+                        this.entities[data.entity_id] = data;
+                    });
+                }
+            }));
+
+            // Collapsible section component
+            Alpine.data('collapsible', (startOpen = false) => ({
+                open: startOpen,
+                toggle() {
+                    this.open = !this.open;
+                }
+            }));
+        });
+
+        // HTMX configuration
+        htmx.config.timeout = 10000;
+        htmx.config.defaultSwapStyle = 'innerHTML';
+
+        // HTMX event handlers
+        document.body.addEventListener('htmx:afterRequest', (event) => {
+            if (event.detail.failed) {
+                console.error('HTMX request failed:', event.detail);
+            }
+        });
+    </script>
+
+    <!-- Module-specific resources -->
+    {% block module_scripts %}{% endblock %}
+
     {% block extra_scripts %}{% endblock %}
 </body>
 </html>
