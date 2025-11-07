@@ -833,7 +833,7 @@ def create_app(worlds_dir: str = 'worlds'):
                 return
 
             # Get engine
-            engine = StateEngine.load_world(world_path)
+            engine = StateEngine(world_path)
             loader = ModuleLoader(engine)
             loader.load_all_modules()
 
@@ -888,7 +888,7 @@ def create_app(worlds_dir: str = 'worlds'):
                 return
 
             # Get engine
-            engine = StateEngine.load_world(world_path)
+            engine = StateEngine(world_path)
             loader = ModuleLoader(engine)
             loader.load_all_modules()
 
