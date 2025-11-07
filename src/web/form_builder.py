@@ -79,7 +79,7 @@ class FormBuilder:
 
         return Markup(''.join(html_parts))
 
-    def build_display(self, component_type: str, data: Dict[str, Any]) -> Markup:
+    def build_display(self, component_type: str, data: Dict[str, Any], entity_id: Optional[str] = None) -> Markup:
         """
         Build read-only display for a component.
 
@@ -88,6 +88,7 @@ class FormBuilder:
         Args:
             component_type: Component type name
             data: Component data to display
+            entity_id: Optional entity ID for dice rolling and interactive features
 
         Returns:
             Markup-safe HTML string
@@ -97,7 +98,7 @@ class FormBuilder:
             return self._fallback_json_display(data)
 
         # Check for custom renderer first
-        custom_html = comp_def.get_character_sheet_renderer(data, self.engine)
+        custom_html = comp_def.get_character_sheet_renderer(data, self.engine, entity_id)
         if custom_html:
             return Markup(custom_html)
 
@@ -120,7 +121,11 @@ class FormBuilder:
 
             html_parts.append('<dl class="component-data">')
             for field_data in fields:
-                html_parts.append(self._render_display_field(field_data))
+                # Use dice-aware renderer if entity_id provided, otherwise basic display
+                if entity_id:
+                    html_parts.append(self._render_display_field_with_dice(field_data, entity_id))
+                else:
+                    html_parts.append(self._render_display_field(field_data))
             html_parts.append('</dl>')
 
             if group_name:
@@ -479,182 +484,6 @@ class FormBuilder:
                 return 'RESOURCES'
 
         return 'MISC'
-
-    def build_character_sheet_display(self, component_type: str, data: Dict[str, Any], entity_id: str) -> Markup:
-        """
-        Build character sheet display with dice rolling support.
-
-        Uses component-specific renderers for known types (Attributes, Weapons, etc.),
-        falls back to generic display for unknown types.
-
-        Args:
-            component_type: Component type name
-            data: Component data
-            entity_id: Entity ID for dice rolling
-
-        Returns:
-            Markup-safe HTML string
-        """
-        # Check for component-specific renderer
-        if component_type == 'Attributes':
-            return self._render_attributes_sheet(data, entity_id)
-        elif component_type in ['Weapon', 'WeaponComponent'] or 'weapon' in component_type.lower():
-            return self._render_weapon_sheet(data, entity_id)
-        elif component_type in ['Armor', 'ArmorComponent'] or 'armor' in component_type.lower():
-            return self._render_armor_sheet(data, entity_id)
-        elif component_type in ['Health', 'health']:
-            return self._render_health_sheet(data, entity_id)
-        else:
-            # Use generic display with dice button detection
-            return self._render_generic_sheet(component_type, data, entity_id)
-
-    def _render_attributes_sheet(self, data: Dict[str, Any], entity_id: str) -> Markup:
-        """Render Attributes component with ability checks."""
-        from src.modules.generic_fantasy.attributes import AttributesComponent
-
-        html = ['<div class="attributes-grid">']
-
-        # Define attribute order
-        attributes = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma']
-        labels = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA']
-
-        for attr, label in zip(attributes, labels):
-            score = data.get(attr, 10)
-            modifier = AttributesComponent.calculate_modifier(score)
-            mod_str = f"+{modifier}" if modifier >= 0 else str(modifier)
-
-            html.append(f'''
-                <div class="attribute-card">
-                    <div class="attribute-label">{label}</div>
-                    <div class="attribute-score">{score}</div>
-                    <div class="attribute-modifier">{mod_str}</div>
-                    <button class="btn-roll-dice"
-                            @click="roll('1d20{mod_str}', entityId, 'ability_check', '{label} Check')">
-                        🎲 Roll
-                    </button>
-                </div>
-            ''')
-
-        html.append('</div>')
-        return Markup(''.join(html))
-
-    def _render_weapon_sheet(self, data: Dict[str, Any], entity_id: str) -> Markup:
-        """Render Weapon component with attack/damage rolls."""
-        name = data.get('name', 'Weapon')
-        damage_dice = data.get('damage_dice', '1d6')
-        damage_type = data.get('damage_type', 'slashing')
-        attack_bonus = data.get('attack_bonus', 0)
-        bonus_str = f"+{attack_bonus}" if attack_bonus >= 0 else str(attack_bonus)
-
-        # Escape name for Alpine attribute
-        name_escaped = escape(name).replace("'", "\\'")
-
-        html = [f'''
-            <div class="weapon-card">
-                <div class="weapon-name">{escape(name)}</div>
-                <div class="weapon-stats">
-                    <div class="weapon-stat">
-                        <span class="stat-label">Attack:</span>
-                        <span class="stat-value">1d20{bonus_str}</span>
-                        <button class="btn-roll-dice"
-                                @click="roll('1d20{bonus_str}', entityId, 'attack', '{name_escaped} Attack')">
-                            🎲
-                        </button>
-                    </div>
-                    <div class="weapon-stat">
-                        <span class="stat-label">Damage:</span>
-                        <span class="stat-value">{escape(damage_dice)} {escape(damage_type)}</span>
-                        <button class="btn-roll-dice"
-                                @click="roll('{escape(damage_dice)}', entityId, 'damage', '{name_escaped} Damage')">
-                            🎲
-                        </button>
-                    </div>
-                </div>
-            </div>
-        ''']
-
-        return Markup(''.join(html))
-
-    def _render_armor_sheet(self, data: Dict[str, Any], entity_id: str) -> Markup:
-        """Render Armor component."""
-        armor_type = data.get('armor_type', 'none')
-        ac_bonus = data.get('ac_bonus', 0)
-
-        html = [f'''
-            <div class="armor-display">
-                <div class="armor-stat">
-                    <span class="stat-label">Type:</span>
-                    <span class="stat-value">{escape(armor_type).title()}</span>
-                </div>
-                <div class="armor-stat">
-                    <span class="stat-label">AC Bonus:</span>
-                    <span class="stat-value">+{ac_bonus}</span>
-                </div>
-            </div>
-        ''']
-
-        return Markup(''.join(html))
-
-    def _render_health_sheet(self, data: Dict[str, Any], entity_id: str) -> Markup:
-        """Render Health component with HP bar using Alpine.js healthTracker."""
-        current_hp = data.get('current_hp', 0)
-        max_hp = data.get('max_hp', 1)
-        temp_hp = data.get('temp_hp', 0)
-
-        html = [f'''
-            <div class="health-display" x-data="healthTracker({current_hp}, {max_hp})" x-init="tempHp = {temp_hp}; entityId = '{escape(entity_id)}'">
-                <div class="hp-bar-container">
-                    <div class="hp-bar"
-                         :style="'width: ' + percentage + '%; background-color: ' + (color === 'success' ? '#4caf50' : color === 'warning' ? '#ff9800' : '#f44336')"></div>
-                    <div class="hp-text">
-                        <span x-text="current"></span> / <span x-text="max"></span> HP
-                    </div>
-                </div>
-                <div x-show="tempHp > 0" class="temp-hp">
-                    Temp HP: <span x-text="tempHp"></span>
-                </div>
-
-                <!-- HP Controls (optional for DM/editing) -->
-                <div class="hp-controls" style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
-                    <button class="btn-hp" @click="damage(5)" style="flex: 1; padding: 0.25rem; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer;">-5 HP</button>
-                    <button class="btn-hp" @click="heal(5)" style="flex: 1; padding: 0.25rem; background: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer;">+5 HP</button>
-                </div>
-            </div>
-        ''']
-
-        return Markup(''.join(html))
-
-    def _render_generic_sheet(self, component_type: str, data: Dict[str, Any], entity_id: str) -> Markup:
-        """Render generic component with automatic dice button detection."""
-        comp_def = self._get_component_definition(component_type)
-        if not comp_def:
-            return self._fallback_json_display(data)
-
-        ui_metadata = comp_def.get_ui_metadata()
-        if not ui_metadata:
-            return self._fallback_json_display(data)
-
-        schema = comp_def.get_schema()
-        properties = schema.get('properties', {})
-        required_fields = set(schema.get('required', []))
-
-        grouped_fields = self._group_fields(ui_metadata, properties, required_fields, data)
-
-        html_parts = []
-        for group_name, fields in grouped_fields.items():
-            if group_name:
-                html_parts.append(f'<div class="component-display-group">')
-                html_parts.append(f'<h4>{escape(group_name)}</h4>')
-
-            html_parts.append('<dl class="component-data">')
-            for field_data in fields:
-                html_parts.append(self._render_display_field_with_dice(field_data, entity_id))
-            html_parts.append('</dl>')
-
-            if group_name:
-                html_parts.append('</div>')
-
-        return Markup(''.join(html_parts))
 
     def _render_display_field_with_dice(self, field_data: Dict, entity_id: str) -> str:
         """Render display field with dice button if value looks like dice notation."""

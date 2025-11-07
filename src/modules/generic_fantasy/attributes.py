@@ -142,32 +142,43 @@ class AttributesComponent(ComponentTypeDefinition):
             "display_mode": "full"
         }
 
-    def get_character_sheet_renderer(self, data: Dict[str, Any], engine=None) -> str:
-        """Custom renderer showing attributes in a grid with modifiers."""
+    def get_character_sheet_renderer(self, data: Dict[str, Any], engine=None, entity_id=None) -> str:
+        """Custom renderer showing attributes in a grid with modifiers and dice rolling."""
         from markupsafe import escape
 
         attributes = [
-            ('strength', 'STR', 'Physical'),
-            ('dexterity', 'DEX', 'Physical'),
-            ('constitution', 'CON', 'Physical'),
-            ('intelligence', 'INT', 'Mental'),
-            ('wisdom', 'WIS', 'Mental'),
-            ('charisma', 'CHA', 'Mental')
+            ('strength', 'STR'),
+            ('dexterity', 'DEX'),
+            ('constitution', 'CON'),
+            ('intelligence', 'INT'),
+            ('wisdom', 'WIS'),
+            ('charisma', 'CHA')
         ]
 
-        html = ['<div class="attributes-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">']
+        html = ['<div class="attributes-grid">']
 
-        for attr_key, attr_abbr, attr_type in attributes:
+        for attr_key, attr_label in attributes:
             score = data.get(attr_key, 10)
             mod = self.calculate_modifier(score)
             mod_str = f"+{mod}" if mod >= 0 else str(mod)
 
+            # Dice button if entity_id provided
+            dice_btn = ''
+            if entity_id:
+                dice_btn = f'''
+                <button class="btn-roll-dice"
+                        @click="roll('1d20{mod_str}', entityId, 'ability_check', '{attr_label} Check')">
+                    🎲 Roll
+                </button>
+                '''
+
             html.append(f'''
-            <div class="attribute-box" style="border: 1px solid #ddd; padding: 10px; text-align: center; border-radius: 5px;">
-                <div style="font-weight: bold; font-size: 0.9em; color: #666;">{escape(attr_abbr)}</div>
-                <div style="font-size: 1.5em; font-weight: bold; margin: 5px 0;">{escape(str(score))}</div>
-                <div style="font-size: 1.2em; color: #007bff;">{escape(mod_str)}</div>
-            </div>
+                <div class="attribute-card">
+                    <div class="attribute-label">{attr_label}</div>
+                    <div class="attribute-score">{score}</div>
+                    <div class="attribute-modifier">{mod_str}</div>
+                    {dice_btn}
+                </div>
             ''')
 
         html.append('</div>')
