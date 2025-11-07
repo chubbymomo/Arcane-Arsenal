@@ -72,16 +72,19 @@
                 {% endif %}
             {% endfor %}
 
-            <!-- Real-Time Roll History -->
-            <div class="component-card roll-history-card">
-                <h3 class="component-title">🎲 Roll History</h3>
-                <div class="roll-history">
+            <!-- Collapsible Roll History (D&D Beyond style) -->
+            <div class="component-card" x-data="{ historyOpen: false }">
+                <h3 class="component-title" @click="historyOpen = !historyOpen" style="cursor: pointer;">
+                    🎲 Roll History
+                    <span class="toggle-icon" x-text="historyOpen ? '▼' : '▶'" style="float: right; font-size: 0.8em;"></span>
+                </h3>
+                <div x-show="historyOpen" x-transition class="roll-history">
                     <template x-if="history.length === 0">
                         <p class="roll-history-empty">No rolls yet. Click any 🎲 button to roll!</p>
                     </template>
 
                     <template x-for="(roll, index) in history.slice(0, 10)" :key="index">
-                        <div class="roll-entry roll-success roll-animate">
+                        <div class="roll-entry roll-success">
                             <div class="roll-label" x-text="roll.purpose || 'Roll'"></div>
                             <div class="roll-total"
                                  :class="{
@@ -93,10 +96,41 @@
                             <div class="roll-breakdown" x-text="roll.breakdown"></div>
                         </div>
                     </template>
+                </div>
+                <p x-show="!historyOpen" class="help-text" style="margin-top: 0.5rem; color: var(--text-muted); font-size: 0.9rem;">
+                    Click to view roll history (stored in database)
+                </p>
+            </div>
 
-                    <div x-show="rolling" class="roll-entry roll-rolling">
-                        <div class="roll-status">Rolling...</div>
+            <!-- Roll Toast Notification (temporary, D&D Beyond style) -->
+            <div x-show="result && !historyOpen"
+                 x-transition:enter="transition ease-out duration-300"
+                 x-transition:enter-start="opacity-0 transform scale-90"
+                 x-transition:enter-end="opacity-100 transform scale-100"
+                 x-transition:leave="transition ease-in duration-500"
+                 x-transition:leave-start="opacity-100"
+                 x-transition:leave-end="opacity-0"
+                 class="roll-toast"
+                 style="position: fixed; bottom: 20px; right: 20px; z-index: 1000;">
+                <div class="roll-toast-content">
+                    <div class="roll-toast-label" x-text="result?.purpose || 'Roll'"></div>
+                    <div class="roll-toast-total"
+                         :class="{
+                             'critical-success': result?.critical_success,
+                             'critical-failure': result?.critical_failure
+                         }"
+                         x-text="result?.total">
                     </div>
+                    <div class="roll-toast-breakdown" x-text="result?.breakdown"></div>
+                </div>
+            </div>
+
+            <!-- Rolling indicator -->
+            <div x-show="rolling"
+                 class="roll-toast"
+                 style="position: fixed; bottom: 20px; right: 20px; z-index: 1000;">
+                <div class="roll-toast-content">
+                    <div class="roll-status">🎲 Rolling...</div>
                 </div>
             </div>
         </div>
@@ -623,6 +657,61 @@ document.addEventListener('DOMContentLoaded', function() {
 
 .roll-breakdown {
     font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border-color);
+}
+
+/* Roll Toast (D&D Beyond style) */
+.roll-toast {
+    pointer-events: none;
+}
+
+.roll-toast-content {
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    border: 3px solid var(--primary-color);
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    min-width: 250px;
+    text-align: center;
+}
+
+.roll-toast-label {
+    font-weight: bold;
+    color: var(--primary-color);
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.roll-toast-total {
+    font-size: 3rem;
+    font-weight: bold;
+    color: var(--text-color);
+    margin: 0.5rem 0;
+    line-height: 1;
+}
+
+.roll-toast-total.critical-success {
+    color: #4caf50;
+    text-shadow: 0 0 20px rgba(76, 175, 80, 0.6);
+    animation: criticalPulse 1s infinite;
+}
+
+.roll-toast-total.critical-failure {
+    color: #f44336;
+    text-shadow: 0 0 20px rgba(244, 67, 54, 0.6);
+    animation: criticalPulse 1s infinite;
+}
+
+@keyframes criticalPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+.roll-toast-breakdown {
+    font-size: 0.9rem;
     color: var(--text-muted);
     margin-top: 0.5rem;
     padding-top: 0.5rem;
