@@ -75,7 +75,7 @@
             </div>
             <div class="form-actions" id="add-component-actions" style="display: none;">
                 <button type="submit" class="btn btn-primary">Add Component</button>
-                <button type="button" class="btn btn-secondary" onclick="toggleForm('add-component-form')">Cancel</button>
+                <button type="button" class="btn btn-secondary" @click="showAddComponentForm = false">Cancel</button>
             </div>
         </form>
     </div>
@@ -156,7 +156,7 @@
             </div>
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary">Create Relationship</button>
-                <button type="button" class="btn btn-secondary" onclick="toggleForm('add-relationship-form')">Cancel</button>
+                <button type="button" class="btn btn-secondary" @click="showAddRelationshipForm = false">Cancel</button>
             </div>
         </form>
     </div>

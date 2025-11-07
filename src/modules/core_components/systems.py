@@ -106,10 +106,10 @@ class PositionSystem:
         positioned_entities = self.engine.query_entities(['Position'])
 
         entities_in_region = []
-        for entity_id in positioned_entities:
-            position = self.engine.get_component(entity_id, 'Position')
+        for entity in positioned_entities:
+            position = self.engine.get_component(entity.id, 'Position')
             if position and position.data.get('region') == region_id:
-                entities_in_region.append(entity_id)
+                entities_in_region.append(entity.id)
 
         return entities_in_region
 
