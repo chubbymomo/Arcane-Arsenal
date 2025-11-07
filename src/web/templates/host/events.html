@@ -7,14 +7,14 @@
     <a href="{{ url_for('host.index') }}" style="color: var(--accent); text-decoration: none;">← Back to Dashboard</a>
 </div>
 
-<div class="card">
+<div class="card" x-data="{ eventType: '{{ current_type }}', limit: {{ limit }} }">
     <h2>⚡ Event Log</h2>
 
     <div style="margin: 2rem 0;">
         <form method="get" style="display: flex; gap: 1rem; flex-wrap: wrap;">
             <div>
                 <label>Event Type</label>
-                <select name="type" onchange="this.form.submit()">
+                <select name="type" x-model="eventType" @change="$el.form.submit()">
                     <option value="">All Types</option>
                     {% for type in event_types %}
                         <option value="{{ type }}" {% if type == current_type %}selected{% endif %}>
@@ -26,7 +26,7 @@
 
             <div>
                 <label>Limit</label>
-                <select name="limit" onchange="this.form.submit()">
+                <select name="limit" x-model="limit" @change="$el.form.submit()">
                     <option value="20" {% if limit == 20 %}selected{% endif %}>20</option>
                     <option value="50" {% if limit == 50 %}selected{% endif %}>50</option>
                     <option value="100" {% if limit == 100 %}selected{% endif %}>100</option>
