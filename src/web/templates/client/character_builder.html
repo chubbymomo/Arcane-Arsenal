@@ -91,7 +91,8 @@
             </div>
         </div>
 
-        <!-- Step 3: Attributes -->
+        <!-- Step 3: Attributes (from generic_fantasy module) -->
+        {% if races or classes or alignments %}
         <div class="builder-section attributes-section">
             <h3 class="section-title">💪 Ability Scores</h3>
             <p class="section-description">
@@ -172,6 +173,7 @@
                 <button type="button" class="btn btn-secondary" @click="rollAttributes()">🎲 Roll Random</button>
             </div>
         </div>
+        {% endif %}
 
         <!-- Submit -->
         <div class="builder-actions">
