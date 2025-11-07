@@ -3,7 +3,7 @@
 {% block title %}{{ entity.name }} - Character Sheet{% endblock %}
 
 {% block content %}
-<div class="character-sheet-container">
+<div class="character-sheet-container" x-data="diceRoller()" x-init="entityId = '{{ entity.id }}'">
     <!-- Header -->
     <div class="sheet-header">
         <div>
@@ -16,7 +16,7 @@
     <!-- 3-Column Layout -->
     <div class="sheet-grid">
         <!-- LEFT COLUMN: Core Stats & Checks -->
-        <div class="column-left">
+        <div class="column-left" x-data="{ coreOpen: true, skillsOpen: true }">
             <h2 class="column-title">⚡ Stats & Checks</h2>
 
             {% for comp_type, comp_data in components.items() %}
@@ -45,7 +45,7 @@
         </div>
 
         <!-- CENTER COLUMN: Combat & Actions -->
-        <div class="column-center">
+        <div class="column-center" x-data="{ combatOpen: true, resourcesOpen: true }">
             <h2 class="column-title">⚔️ Combat & Actions</h2>
 
             {% for comp_type, comp_data in components.items() %}
@@ -72,17 +72,37 @@
                 {% endif %}
             {% endfor %}
 
-            <!-- Roll History Log -->
+            <!-- Real-Time Roll History -->
             <div class="component-card roll-history-card">
                 <h3 class="component-title">🎲 Roll History</h3>
-                <div id="roll-history" class="roll-history">
-                    <p class="roll-history-empty">No rolls yet. Click any 🎲 button to roll!</p>
+                <div class="roll-history">
+                    <template x-if="history.length === 0">
+                        <p class="roll-history-empty">No rolls yet. Click any 🎲 button to roll!</p>
+                    </template>
+
+                    <template x-for="(roll, index) in history.slice(0, 10)" :key="index">
+                        <div class="roll-entry roll-success roll-animate">
+                            <div class="roll-label" x-text="roll.purpose || 'Roll'"></div>
+                            <div class="roll-total"
+                                 :class="{
+                                     'critical-success': roll.critical_success,
+                                     'critical-failure': roll.critical_failure
+                                 }"
+                                 x-text="roll.total">
+                            </div>
+                            <div class="roll-breakdown" x-text="roll.breakdown"></div>
+                        </div>
+                    </template>
+
+                    <div x-show="rolling" class="roll-entry roll-rolling">
+                        <div class="roll-status">Rolling...</div>
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- RIGHT COLUMN: Info & Inventory -->
-        <div class="column-right">
+        <div class="column-right" x-data="{ infoOpen: true, inventoryOpen: true }">
             <h2 class="column-title">📋 Info & Inventory</h2>
 
             <!-- Character Info -->
@@ -136,127 +156,48 @@
     </div>
 </div>
 
-<!-- Dice Rolling JavaScript -->
+<!-- WebSocket Room Joining & Character State -->
 <script>
-// Dice Roll Handler
+// Join entity room for real-time updates
 document.addEventListener('DOMContentLoaded', function() {
-    const rollHistory = document.getElementById('roll-history');
-    let rollCount = 0;
+    const entityId = '{{ entity.id }}';
+    const worldName = '{{ session.get("world_name", "") }}';
 
-    // Attach event listeners to all dice buttons
-    document.querySelectorAll('.btn-roll-dice').forEach(button => {
-        button.addEventListener('click', function() {
-            const entityId = this.dataset.entityId;
-            const notation = this.dataset.notation;
-            const rollType = this.dataset.rollType;
-            const label = this.dataset.label;
-            const advantage = this.dataset.advantage === 'true';
-            const disadvantage = this.dataset.disadvantage === 'true';
+    // Join entity-specific room
+    socket.emit('join_entity', { entity_id: entityId });
 
-            rollDice(entityId, notation, rollType, label, advantage, disadvantage);
-        });
-    });
+    // Join world room if available
+    if (worldName) {
+        socket.emit('join_world', { world_name: worldName });
+    }
 
-    function rollDice(entityId, notation, rollType, label, advantage = false, disadvantage = false) {
-        // Show loading state
-        const loadingId = addRollToHistory('rolling', label, notation);
+    console.log(`✅ Joined rooms: entity_${entityId}, world_${worldName}`);
 
-        // Make API request
-        fetch('/api/roll', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                entity_id: entityId,
-                notation: notation,
-                roll_type: rollType,
-                label: label,
-                advantage: advantage,
-                disadvantage: disadvantage
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                updateRollInHistory(loadingId, 'success', label, data.result);
-            } else {
-                updateRollInHistory(loadingId, 'error', label, { error: data.error });
+    // Make component cards collapsible (click title to toggle)
+    document.querySelectorAll('.component-card').forEach(card => {
+        const title = card.querySelector('.component-title');
+        if (!title) return;
+
+        // Wrap content after title in a collapsible div
+        const content = Array.from(card.childNodes).filter(node => node !== title);
+        const wrapper = document.createElement('div');
+        wrapper.className = 'component-content';
+        wrapper.setAttribute('x-show', 'open');
+        wrapper.setAttribute('x-transition', '');
+
+        // Move all content after title into wrapper
+        content.forEach(node => {
+            if (node !== title) {
+                wrapper.appendChild(node);
             }
-        })
-        .catch(error => {
-            updateRollInHistory(loadingId, 'error', label, { error: error.message });
         });
-    }
+        card.appendChild(wrapper);
 
-    function addRollToHistory(status, label, notation) {
-        rollCount++;
-        const rollId = `roll-${rollCount}`;
-
-        // Remove empty message if present
-        const emptyMsg = rollHistory.querySelector('.roll-history-empty');
-        if (emptyMsg) {
-            emptyMsg.remove();
-        }
-
-        const rollEntry = document.createElement('div');
-        rollEntry.id = rollId;
-        rollEntry.className = `roll-entry roll-${status}`;
-        rollEntry.innerHTML = `
-            <div class="roll-label">${escapeHtml(label)}</div>
-            <div class="roll-notation">${escapeHtml(notation)}</div>
-            <div class="roll-status">Rolling...</div>
-        `;
-
-        // Add to top of history
-        rollHistory.insertBefore(rollEntry, rollHistory.firstChild);
-
-        // Limit history to 10 entries
-        while (rollHistory.children.length > 10) {
-            rollHistory.removeChild(rollHistory.lastChild);
-        }
-
-        return rollId;
-    }
-
-    function updateRollInHistory(rollId, status, label, result) {
-        const rollEntry = document.getElementById(rollId);
-        if (!rollEntry) return;
-
-        rollEntry.className = `roll-entry roll-${status}`;
-
-        if (status === 'success') {
-            const total = result.total;
-            const breakdown = result.breakdown;
-            const natural20 = result.natural_20;
-            const natural1 = result.natural_1;
-
-            let resultClass = 'roll-total';
-            if (natural20) resultClass += ' critical-success';
-            if (natural1) resultClass += ' critical-failure';
-
-            rollEntry.innerHTML = `
-                <div class="roll-label">${escapeHtml(label)}</div>
-                <div class="${resultClass}">${total}</div>
-                <div class="roll-breakdown">${escapeHtml(breakdown)}</div>
-            `;
-
-            // Add animation
-            rollEntry.classList.add('roll-animate');
-            setTimeout(() => rollEntry.classList.remove('roll-animate'), 500);
-        } else {
-            rollEntry.innerHTML = `
-                <div class="roll-label">${escapeHtml(label)}</div>
-                <div class="roll-error">Error: ${escapeHtml(result.error)}</div>
-            `;
-        }
-    }
-
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
+        // Add Alpine data for collapsible state (default open)
+        card.setAttribute('x-data', '{ open: true }');
+        title.setAttribute('@click', 'open = !open');
+        title.setAttribute('x-bind:data-collapsed', '!open');
+    });
 });
 </script>
 
@@ -266,6 +207,32 @@ document.addEventListener('DOMContentLoaded', function() {
     max-width: 1600px;
     margin: 0 auto;
     padding: 2rem;
+}
+
+/* Collapsible Component Cards */
+.component-title {
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.2s;
+}
+
+.component-title:hover {
+    color: var(--accent);
+}
+
+.component-title::before {
+    content: '▼ ';
+    font-size: 0.8em;
+    transition: transform 0.2s;
+    display: inline-block;
+}
+
+.component-card[data-collapsed="true"] .component-title::before {
+    transform: rotate(-90deg);
+}
+
+.component-content {
+    overflow: hidden;
 }
 
 /* Header */

@@ -6,7 +6,7 @@ relationship types, and event types with the core engine.
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 
 class ComponentTypeDefinition(ABC):
@@ -639,3 +639,72 @@ class Module(ABC):
                 # Emit character.died event
         """
         pass
+
+    def register_web_resources(self) -> Dict[str, Any]:
+        """
+        Register frontend resources (JavaScript, CSS, Web Components) for this module.
+
+        This allows modules to ship custom UI elements, components, and styling
+        that integrate seamlessly with the web interface.
+
+        Returns:
+            Dict with keys:
+            - scripts: List[str] - Paths to JavaScript files
+            - styles: List[str] - Paths to CSS files
+            - components: List[str] - Names of Web Components defined by this module
+
+        Example:
+            def register_web_resources(self) -> Dict[str, Any]:
+                return {
+                    'scripts': [
+                        '/static/modules/spells/spell-list.js',
+                        '/static/modules/spells/spell-effects.js'
+                    ],
+                    'styles': [
+                        '/static/modules/spells/spells.css'
+                    ],
+                    'components': ['spell-list', 'spell-slot-tracker', 'spell-book']
+                }
+
+        File organization:
+            src/modules/my_module/
+                __init__.py          # Module definition
+                components.py        # Component type definitions
+                web/
+                    my-component.js  # Web Component definition
+                    styles.css       # Module-specific styles
+
+            src/web/static/modules/my_module/
+                my-component.js      # Symlink or copy of web/my-component.js
+                styles.css           # Symlink or copy of web/styles.css
+
+        Web Component template:
+            // src/modules/my_module/web/my-component.js
+            class MyComponent extends HTMLElement {
+                connectedCallback() {
+                    const entityId = this.getAttribute('entity-id');
+                    this.render();
+                }
+
+                render() {
+                    this.innerHTML = `
+                        <div class="my-component">
+                            <!-- Component HTML -->
+                        </div>
+                    `;
+                }
+            }
+            customElements.define('my-component', MyComponent);
+
+        Notes:
+            - Scripts are loaded in order
+            - Components should use custom element names with hyphens
+            - HTMX attributes work inside Web Components
+            - Alpine.js can be used within components
+            - Components have access to global socket for WebSocket
+        """
+        return {
+            'scripts': [],
+            'styles': [],
+            'components': []
+        }

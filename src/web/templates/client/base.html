@@ -418,6 +418,149 @@
         <p>⚔️ Arcane Arsenal - Your Adventure Awaits ⚔️</p>
     </footer>
 
+    <!-- HTMX - Hypermedia interactions -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+
+    <!-- Alpine.js - Reactive client state -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+
+    <!-- Socket.IO - Real-time WebSocket -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+
+    <!-- Core frontend initialization -->
+    <script>
+        // Initialize Socket.IO connection
+        const socket = io({
+            autoConnect: true,
+            reconnection: true,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            reconnectionAttempts: Infinity
+        });
+
+        // Connection status
+        socket.on('connect', () => {
+            console.log('✅ Connected to Arcane Arsenal server');
+        });
+
+        socket.on('disconnect', () => {
+            console.log('❌ Disconnected from server');
+        });
+
+        socket.on('connect_error', (error) => {
+            console.error('Connection error:', error);
+        });
+
+        // Global Alpine.js stores and components
+        document.addEventListener('alpine:init', () => {
+            // Dice roller Alpine component
+            Alpine.data('diceRoller', () => ({
+                rolling: false,
+                result: null,
+                history: [],
+
+                async roll(notation, entityId, rollType, purpose = '') {
+                    this.rolling = true;
+                    this.result = null;
+
+                    try {
+                        // Emit via WebSocket for real-time updates
+                        socket.emit('roll_dice', {
+                            entity_id: entityId,
+                            notation: notation,
+                            roll_type: rollType,
+                            purpose: purpose
+                        });
+                    } catch (error) {
+                        console.error('Roll error:', error);
+                        this.rolling = false;
+                    }
+                },
+
+                init() {
+                    // Listen for roll results via WebSocket
+                    socket.on('roll_result', (data) => {
+                        this.result = data;
+                        this.rolling = false;
+                        this.history.unshift(data);
+                        if (this.history.length > 10) {
+                            this.history = this.history.slice(0, 10);
+                        }
+                    });
+                }
+            }));
+
+            // Health tracker Alpine component
+            Alpine.data('healthTracker', (initialCurrent, initialMax) => ({
+                current: initialCurrent,
+                max: initialMax,
+                tempHp: 0,
+
+                get percentage() {
+                    return Math.round((this.current / this.max) * 100);
+                },
+
+                get color() {
+                    if (this.percentage > 50) return 'success';
+                    if (this.percentage > 25) return 'warning';
+                    return 'danger';
+                },
+
+                damage(amount) {
+                    if (this.tempHp > 0) {
+                        const tempDamage = Math.min(this.tempHp, amount);
+                        this.tempHp -= tempDamage;
+                        amount -= tempDamage;
+                    }
+                    this.current = Math.max(0, this.current - amount);
+                    this.syncToServer();
+                },
+
+                heal(amount) {
+                    this.current = Math.min(this.max, this.current + amount);
+                    this.syncToServer();
+                },
+
+                syncToServer() {
+                    // Emit HP update via WebSocket
+                    socket.emit('update_hp', {
+                        entity_id: this.entityId,
+                        current_hp: this.current,
+                        max_hp: this.max,
+                        temp_hp: this.tempHp
+                    });
+                }
+            }));
+
+            // Collapsible section component
+            Alpine.data('collapsible', (startOpen = false) => ({
+                open: startOpen,
+                toggle() {
+                    this.open = !this.open;
+                }
+            }));
+        });
+
+        // HTMX configuration
+        htmx.config.timeout = 10000; // 10 second timeout
+        htmx.config.defaultSwapStyle = 'innerHTML';
+
+        // HTMX event handlers
+        document.body.addEventListener('htmx:beforeRequest', (event) => {
+            // Could add loading indicators here
+        });
+
+        document.body.addEventListener('htmx:afterRequest', (event) => {
+            // Could handle errors here
+            if (event.detail.failed) {
+                console.error('HTMX request failed:', event.detail);
+            }
+        });
+    </script>
+
+    <!-- Module-specific resources -->
+    {% block module_scripts %}{% endblock %}
+
     {% block extra_scripts %}{% endblock %}
 </body>
 </html>

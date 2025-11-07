@@ -5,10 +5,12 @@ Flask app with separate client (player) and host (DM) interfaces.
 - /: World selector landing page
 - /client: Player interface for character management
 - /host: DM interface for full state management
+- WebSocket support for real-time updates
 """
 
 import logging
 from flask import Flask, jsonify, request, redirect, url_for, session, render_template, flash
+from flask_socketio import SocketIO, emit, join_room, leave_room
 import sys
 import os
 from pathlib import Path
@@ -18,24 +20,39 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.core.state_engine import StateEngine
 from src.core.module_loader import ModuleLoader
+from src.core.models import Event
 from src.web.blueprints import client_bp, host_bp
 
 logger = logging.getLogger(__name__)
 
+# Global SocketIO instance
+socketio = None
 
-def create_app(worlds_dir: str = 'worlds') -> Flask:
+
+def create_app(worlds_dir: str = 'worlds'):
     """
-    Create Flask app with world selection support.
+    Create Flask app with SocketIO support for real-time features.
 
     Args:
         worlds_dir: Directory containing world folders (default: 'worlds')
 
     Returns:
-        Configured Flask app with client and host blueprints
+        Tuple of (Flask app, SocketIO instance)
     """
+    global socketio
+
     app = Flask(__name__)
     app.config['WORLDS_DIR'] = worlds_dir
     app.config['SECRET_KEY'] = os.urandom(24)  # For sessions and flash messages
+
+    # Initialize SocketIO
+    socketio = SocketIO(
+        app,
+        cors_allowed_origins="*",  # Configure appropriately for production
+        async_mode='eventlet',
+        logger=True,
+        engineio_logger=False
+    )
 
     # Register blueprints
     app.register_blueprint(client_bp)
@@ -761,7 +778,180 @@ def create_app(worlds_dir: str = 'worlds') -> Flask:
                 'error': str(e)
             }), 500
 
-    return app
+    # ========== WebSocket Event Handlers ==========
+
+    @socketio.on('connect')
+    def handle_connect():
+        """Handle client connection."""
+        logger.info(f"Client connected: {request.sid}")
+        emit('connection_status', {'status': 'connected', 'message': 'Connected to Arcane Arsenal'})
+
+    @socketio.on('disconnect')
+    def handle_disconnect():
+        """Handle client disconnection."""
+        logger.info(f"Client disconnected: {request.sid}")
+
+    @socketio.on('join_world')
+    def handle_join_world(data):
+        """Join a world room for receiving updates."""
+        world_name = data.get('world_name')
+        if world_name:
+            join_room(f"world_{world_name}")
+            logger.info(f"Client {request.sid} joined world: {world_name}")
+            emit('joined_world', {'world': world_name})
+
+    @socketio.on('join_entity')
+    def handle_join_entity(data):
+        """Join an entity room for receiving entity-specific updates."""
+        entity_id = data.get('entity_id')
+        if entity_id:
+            join_room(f"entity_{entity_id}")
+            logger.info(f"Client {request.sid} joined entity: {entity_id}")
+            emit('joined_entity', {'entity_id': entity_id})
+
+    @socketio.on('roll_dice')
+    def handle_roll_dice(data):
+        """
+        Handle dice roll request via WebSocket.
+
+        Emits roll results in real-time to all clients watching the entity.
+        """
+        try:
+            entity_id = data.get('entity_id')
+            notation = data.get('notation')
+            roll_type = data.get('roll_type', 'check')
+            purpose = data.get('purpose', '')
+
+            if not entity_id or not notation:
+                emit('roll_error', {'error': 'Missing entity_id or notation'})
+                return
+
+            # Get world from session
+            world_path = session.get('world_path')
+            if not world_path:
+                emit('roll_error', {'error': 'No world selected'})
+                return
+
+            # Get engine
+            engine = StateEngine.load_world(world_path)
+            loader = ModuleLoader(engine)
+            loader.load_all_modules()
+
+            # Publish roll request event
+            engine.event_bus.publish(
+                Event.create(
+                    event_type='roll.requested',
+                    entity_id=entity_id,
+                    data={
+                        'entity_id': entity_id,
+                        'notation': notation,
+                        'roll_type': roll_type,
+                        'purpose': purpose
+                    }
+                )
+            )
+
+            # Subscribe to roll completion
+            def on_roll_complete(event):
+                # Emit to the specific entity room and world room
+                socketio.emit('roll_result', event.data, room=f"entity_{entity_id}")
+                socketio.emit('roll_result', event.data, room=f"world_{session.get('world_name')}")
+                engine.event_bus.clear_listeners('roll.completed')
+
+            engine.event_bus.subscribe('roll.completed', on_roll_complete)
+
+        except Exception as e:
+            logger.error(f"Dice roll error: {e}", exc_info=True)
+            emit('roll_error', {'error': str(e)})
+
+    @socketio.on('update_hp')
+    def handle_update_hp(data):
+        """
+        Handle HP update request via WebSocket.
+
+        Updates entity health and broadcasts to all watchers.
+        """
+        try:
+            entity_id = data.get('entity_id')
+            current_hp = data.get('current_hp')
+            max_hp = data.get('max_hp')
+            temp_hp = data.get('temp_hp', 0)
+
+            if entity_id is None or current_hp is None or max_hp is None:
+                emit('hp_error', {'error': 'Missing required HP data'})
+                return
+
+            # Get world from session
+            world_path = session.get('world_path')
+            if not world_path:
+                emit('hp_error', {'error': 'No world selected'})
+                return
+
+            # Get engine
+            engine = StateEngine.load_world(world_path)
+            loader = ModuleLoader(engine)
+            loader.load_all_modules()
+
+            # Update health component
+            result = engine.update_component(entity_id, 'health', {
+                'current_hp': current_hp,
+                'max_hp': max_hp,
+                'temp_hp': temp_hp
+            })
+
+            if result.success:
+                # Broadcast HP update to all watchers
+                hp_data = {
+                    'entity_id': entity_id,
+                    'current_hp': current_hp,
+                    'max_hp': max_hp,
+                    'temp_hp': temp_hp
+                }
+
+                # Emit to entity room and world room
+                socketio.emit('hp_updated', hp_data, room=f"entity_{entity_id}")
+                socketio.emit('hp_updated', hp_data, room=f"world_{session.get('world_name')}")
+
+                emit('hp_update_success', hp_data)
+            else:
+                emit('hp_error', {'error': result.error})
+
+        except Exception as e:
+            logger.error(f"HP update error: {e}", exc_info=True)
+            emit('hp_error', {'error': str(e)})
+
+    @socketio.on('broadcast_event')
+    def handle_broadcast_event(data):
+        """
+        Broadcast a game event to all clients in the world.
+
+        Used by DM to send notifications, announcements, etc.
+        """
+        try:
+            world_name = session.get('world_name')
+            if not world_name:
+                emit('error', {'error': 'No world selected'})
+                return
+
+            event_type = data.get('event_type', 'notification')
+            message = data.get('message', '')
+            event_data = data.get('data', {})
+
+            # Broadcast to all clients in the world
+            socketio.emit('game_event', {
+                'event_type': event_type,
+                'message': message,
+                'data': event_data,
+                'timestamp': Event.create(event_type=event_type).timestamp
+            }, room=f"world_{world_name}")
+
+            emit('broadcast_success', {'message': 'Event broadcasted'})
+
+        except Exception as e:
+            logger.error(f"Broadcast error: {e}", exc_info=True)
+            emit('error', {'error': str(e)})
+
+    return app, socketio
 
 
 def main():
@@ -781,14 +971,21 @@ def main():
         os.makedirs(args.worlds_dir)
         print(f"Created worlds directory: {args.worlds_dir}")
 
-    app = create_app(args.worlds_dir)
+    app, socketio = create_app(args.worlds_dir)
 
     print(f"\n╔══════════════════════════════════════════════════╗")
     print(f"║     Arcane Arsenal Web Interface                 ║")
+    print(f"║     Real-time WebSocket Support Enabled          ║")
     print(f"╚══════════════════════════════════════════════════╝")
     print(f"")
     print(f"  Worlds directory: {args.worlds_dir}")
     print(f"  Server URL:       http://{args.host}:{args.port}")
+    print(f"  WebSocket:        Enabled (eventlet)")
+    print(f"")
+    print(f"  Features:")
+    print(f"   • Real-time dice rolls")
+    print(f"   • Live HP synchronization")
+    print(f"   • Instant DM notifications")
     print(f"")
     print(f"  1. Open http://{args.host}:{args.port} in your browser")
     print(f"  2. Select a world from the list")
@@ -797,7 +994,8 @@ def main():
     print(f"  Press Ctrl+C to stop")
     print(f"")
 
-    app.run(host=args.host, port=args.port, debug=args.debug)
+    # Use socketio.run() instead of app.run() for WebSocket support
+    socketio.run(app, host=args.host, port=args.port, debug=args.debug)
 
 
 if __name__ == '__main__':
