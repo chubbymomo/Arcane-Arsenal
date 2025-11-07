@@ -458,10 +458,12 @@
                 rolling: false,
                 result: null,
                 history: [],
+                rollStartTime: null,
 
                 async roll(notation, entityId, rollType, purpose = '') {
                     this.rolling = true;
                     this.result = null;
+                    this.rollStartTime = Date.now();
 
                     try {
                         // Emit via WebSocket for real-time updates
@@ -481,11 +483,19 @@
                     // Listen for roll results via WebSocket
                     socket.on('roll_result', (data) => {
                         this.result = data;
-                        this.rolling = false;
                         this.history.unshift(data);
                         if (this.history.length > 10) {
                             this.history = this.history.slice(0, 10);
                         }
+
+                        // Keep "Rolling..." visible for at least 800ms for better UX
+                        const elapsed = Date.now() - this.rollStartTime;
+                        const minDisplayTime = 800;
+                        const remainingTime = Math.max(0, minDisplayTime - elapsed);
+
+                        setTimeout(() => {
+                            this.rolling = false;
+                        }, remainingTime);
 
                         // Auto-hide toast after 5 seconds (D&D Beyond style)
                         setTimeout(() => {
