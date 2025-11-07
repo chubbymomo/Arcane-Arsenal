@@ -355,9 +355,14 @@ def character_sheet(entity_id: str):
     if position:
         region = position.get('region')
         if region:
-            nearby_entities = position_system.get_entities_in_region(region)
-            # Filter out the character itself
-            nearby_entities = [e for e in nearby_entities if e.id != entity_id]
+            nearby_entity_ids = position_system.get_entities_in_region(region)
+            # Filter out the character itself and convert to Entity objects
+            nearby_entities = []
+            for e_id in nearby_entity_ids:
+                if e_id != entity_id:
+                    nearby_entity = engine.get_entity(e_id)
+                    if nearby_entity and nearby_entity.is_active():
+                        nearby_entities.append(nearby_entity)
         else:
             nearby_entities = []
     else:
