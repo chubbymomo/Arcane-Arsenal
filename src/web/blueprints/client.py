@@ -162,12 +162,12 @@ def character_builder():
         description = request.form.get('description', '')
         region = request.form.get('region', 'The Realm')
 
-        # Fantasy-specific fields
+        # Fantasy-specific fields (only present if generic_fantasy module loaded)
         race = request.form.get('race')
         char_class = request.form.get('class')
         alignment = request.form.get('alignment')
 
-        # Attributes
+        # Attributes (only present if generic_fantasy module loaded)
         strength = request.form.get('strength', type=int)
         dexterity = request.form.get('dexterity', type=int)
         constitution = request.form.get('constitution', type=int)
@@ -179,9 +179,10 @@ def character_builder():
             flash('Character name is required', 'error')
             return redirect(url_for('client.character_builder'))
 
-        # Validate attributes
+        # Validate attributes only if they were provided (module loaded)
         attrs = [strength, dexterity, constitution, intelligence, wisdom, charisma]
-        if any(attr is None or attr < 1 or attr > 20 for attr in attrs):
+        has_attributes = any(attr is not None for attr in attrs)
+        if has_attributes and any(attr is None or attr < 1 or attr > 20 for attr in attrs):
             flash('All attributes must be between 1 and 20', 'error')
             return redirect(url_for('client.character_builder'))
 
@@ -208,15 +209,16 @@ def character_builder():
             # Add PlayerCharacter component
             engine.add_component(entity_id, 'PlayerCharacter', {})
 
-            # Add Attributes component
-            engine.add_component(entity_id, 'Attributes', {
-                'strength': strength,
-                'dexterity': dexterity,
-                'constitution': constitution,
-                'intelligence': intelligence,
-                'wisdom': wisdom,
-                'charisma': charisma
-            })
+            # Add Attributes component (only if generic_fantasy module loaded)
+            if has_attributes:
+                engine.add_component(entity_id, 'Attributes', {
+                    'strength': strength,
+                    'dexterity': dexterity,
+                    'constitution': constitution,
+                    'intelligence': intelligence,
+                    'wisdom': wisdom,
+                    'charisma': charisma
+                })
 
             # Add CharacterDetails if provided
             if race or char_class or alignment:

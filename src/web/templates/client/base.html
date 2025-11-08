@@ -482,8 +482,10 @@
                 init() {
                     // Listen for roll results via WebSocket
                     socket.on('roll_result', (data) => {
+                        console.log('Roll result received:', data);
                         this.result = data;
                         this.history.unshift(data);
+                        console.log('History updated, length:', this.history.length);
                         if (this.history.length > 10) {
                             this.history = this.history.slice(0, 10);
                         }

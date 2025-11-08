@@ -42,7 +42,8 @@
             </div>
         </div>
 
-        <!-- Step 2: Race, Class & Alignment -->
+        <!-- Step 2: Race, Class & Alignment (from generic_fantasy module) -->
+        {% if races or classes or alignments %}
         <div class="builder-section">
             <h3 class="section-title">🎭 Race, Class & Alignment</h3>
             <div class="form-grid">
@@ -90,6 +91,7 @@
                 {% endif %}
             </div>
         </div>
+        {% endif %}
 
         <!-- Step 3: Attributes (from generic_fantasy module) -->
         {% if races or classes or alignments %}
