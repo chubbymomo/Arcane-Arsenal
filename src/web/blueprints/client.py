@@ -316,6 +316,9 @@ def character_sheet(entity_id: str):
     # Get all components
     components = engine.get_entity_components(entity_id)
 
+    # Check if RNG module is loaded (for dice rolling features)
+    rng_enabled = 'rng' in engine.component_validators or 'RollModifier' in engine.component_validators or 'Luck' in engine.component_validators
+
     # Get identity and position
     identity = components.get('Identity', {})
     position = components.get('Position', {})
@@ -384,5 +387,6 @@ def character_sheet(entity_id: str):
         inventory=inventory,
         nearby_entities=nearby_entities,
         other_relationships=other_relationships,
-        form_builder=form_builder
+        form_builder=form_builder,
+        rng_enabled=rng_enabled
     )
