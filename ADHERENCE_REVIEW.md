@@ -35,12 +35,73 @@ Review of Arcane Arsenal codebase against new implementation guides.
 - ✅ x-cloak usage - Prevents flash of unstyled content
 
 **Modules (MODULE_GUIDE.md):**
-- ✅ Module structure - Proper directory layout (components/, systems/, web/)
+- ✅ Module structure - Proper directory layout (components/, systems/)
 - ✅ Component design - Schema-first with clear validation
 - ✅ No tight coupling - Modules use events for communication
 - ✅ Self-contained - Modules don't modify core code
-- ✅ UI integration - Component renderers return HTML strings
+- ⚠️ UI integration - PARTIAL (see violations section)
 - ✅ Event handling - Modules subscribe to relevant events
+
+---
+
+## Active Violations
+
+### ❌ RNG Module UI Hardcoded in Core Templates
+
+**Issue:** RNG module UI is hardcoded in core templates instead of being provided by the module
+
+**MODULE_GUIDE.md states:**
+> "Provide UI
+> - Component renderers for character sheets
+> - Web components for complex interactions
+> - Styles scoped to module components"
+
+**Census of Module UI Implementation:**
+
+| Module | Components | Has Renderers? | UI Location | Compliant? |
+|--------|-----------|----------------|-------------|------------|
+| **generic_fantasy** | Attributes | ✅ YES | `attributes.py::get_character_sheet_renderer()` | ✅ COMPLIANT |
+| **fantasy_combat** | Health, Armor | ✅ YES | `__init__.py::get_character_sheet_renderer()` | ✅ COMPLIANT |
+| **core_components** | Identity, Position | ❌ NO | Generic form builder fallback | ⚠️ ACCEPTABLE (core module) |
+| **items** | (inventory components) | ❌ NO | Generic form builder fallback | ⚠️ ACCEPTABLE (no special UI needs) |
+| **rng** | Luck, RollModifier | ❌ NO | **Hardcoded in core templates** | ❌ VIOLATION |
+
+**Violation Details:**
+
+**Location:** `src/web/templates/client/character_sheet.html`
+- Lines 76-103: Roll History UI (hardcoded, conditionally rendered via `{% if rng_enabled %}`)
+- Lines 106-136: Dice roll toast UI (hardcoded, conditionally rendered via `{% if rng_enabled %}`)
+
+**Evidence:**
+```python
+# src/modules/rng/__init__.py
+# NO get_character_sheet_renderer() method exists
+# NO web/ or templates/ directory in module
+
+# src/web/templates/client/character_sheet.html (lines 76-77)
+{% if rng_enabled %}
+<div class="component-card roll-history-card non-collapsible">
+    <!-- Roll History UI hardcoded here -->
+```
+
+**Impact:**
+- RNG module UI cannot be modified without editing core templates
+- Violates module self-containment principle
+- Core template has knowledge of module-specific features
+- Breaks abstraction: template checks `rng_enabled` flag instead of asking module for UI
+
+**Why This Matters:**
+- Other modules (generic_fantasy, fantasy_combat) correctly provide their own renderers
+- RNG is a **non-core** module (can be enabled/disabled) but has UI in core templates
+- Sets bad precedent for future modules
+
+**Recommended Fix:**
+1. Create `src/modules/rng/components.py::get_character_sheet_renderer()` for Roll History
+2. OR: Create web component `<rng-roll-history>` in `src/web/static/modules/rng/`
+3. Remove hardcoded UI from character_sheet.html
+4. Use conditional component rendering pattern instead of template conditionals
+
+**Priority:** Medium - Architectural debt, not functional bug
 
 ---
 
@@ -111,26 +172,35 @@ registry.register_in_registry(..., self.storage, ...)
 
 ## Summary
 
-**Overall Adherence:** ✅ Excellent
+**Overall Adherence:** ⚠️ Good (with one architectural violation)
 
-**Violations Found:** 1 (event naming)
+**Violations Found:** 2 (event naming, UI integration)
 **Violations Fixed:** 1 (event naming)
+**Active Violations:** 1 (RNG module UI in core templates)
 
 **Architecture Quality:**
 - Core principles strongly adhered to
 - ECS pattern properly implemented
 - Event-driven design consistent
 - Frontend progressive enhancement working well
-- Module system clean and extensible
+- Module system mostly clean, with UI integration debt
 
 **Recommendations:**
 1. ✅ Continue using past-tense event names
 2. ✅ Maintain current component granularity
 3. ✅ Keep state in database, not client
 4. ⚠️ Consider adding StateEngine registry API (low priority)
+5. **⚠️ Refactor RNG module UI out of core templates (medium priority)**
+
+**Priority Actions:**
+1. **Medium**: Extract RNG UI from core templates to module
+   - Create component renderer or web component
+   - Remove `{% if rng_enabled %}` conditionals from character_sheet.html
+   - Maintain current functionality while improving architecture
 
 ---
 
 **Review Date:** 2025-11-08
 **Reviewed By:** Claude (Automated Adherence Review)
-**Status:** Compliant with minor fix applied
+**Updated:** 2025-11-08 (UI integration census added)
+**Status:** Good overall adherence with architectural debt in RNG module UI integration
