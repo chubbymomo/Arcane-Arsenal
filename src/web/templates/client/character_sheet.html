@@ -74,7 +74,7 @@
 
             <!-- Collapsible Roll History (D&D Beyond style) - Only if RNG module loaded -->
             {% if rng_enabled %}
-            <div class="component-card roll-history-card">
+            <div class="component-card roll-history-card non-collapsible">
                 <h3 class="component-title" @click="historyOpen = !historyOpen" style="cursor: pointer;"
                     :data-collapsed="!historyOpen">
                     🎲 Roll History
@@ -106,12 +106,7 @@
             {% if rng_enabled %}
             <!-- Rolling indicator toast -->
             <div x-show="rolling"
-                 x-transition:enter="transition ease-out duration-300"
-                 x-transition:enter-start="opacity-0 transform scale-90"
-                 x-transition:enter-end="opacity-100 transform scale-100"
-                 x-transition:leave="transition ease-in duration-200"
-                 x-transition:leave-start="opacity-100"
-                 x-transition:leave-end="opacity-0"
+                 x-transition.scale.90.opacity
                  class="roll-toast"
                  style="position: fixed; bottom: 20px; right: 20px; z-index: 1000;">
                 <div class="roll-toast-content">
@@ -121,12 +116,7 @@
 
             <!-- Result toast (shows after rolling completes) -->
             <div x-show="!rolling && result"
-                 x-transition:enter="transition ease-out duration-300"
-                 x-transition:enter-start="opacity-0 transform scale-90"
-                 x-transition:enter-end="opacity-100 transform scale-100"
-                 x-transition:leave="transition ease-in duration-500"
-                 x-transition:leave-start="opacity-100"
-                 x-transition:leave-end="opacity-0"
+                 x-transition.scale.90.opacity.duration.500ms
                  class="roll-toast"
                  style="position: fixed; bottom: 20px; right: 20px; z-index: 1000;">
                 <div class="roll-toast-content">
