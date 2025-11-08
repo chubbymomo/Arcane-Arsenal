@@ -74,7 +74,7 @@
 
             <!-- Collapsible Roll History (D&D Beyond style) - Only if RNG module loaded -->
             {% if rng_enabled %}
-            <div class="component-card roll-history-card" x-data="{ historyOpen: false }">
+            <div class="component-card roll-history-card">
                 <h3 class="component-title" @click="historyOpen = !historyOpen" style="cursor: pointer;"
                     :data-collapsed="!historyOpen">
                     🎲 Roll History
@@ -245,8 +245,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Add Alpine data for collapsible state (default open)
         card.setAttribute('x-data', '{ open: true }');
-        title.setAttribute('@click', 'open = !open');
-        title.setAttribute('x-bind:data-collapsed', '!open');
+        title.setAttribute('x-on:click', 'open = !open');
+        title.setAttribute(':data-collapsed', '!open');
     });
 });
 </script>
