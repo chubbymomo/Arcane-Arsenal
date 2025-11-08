@@ -230,7 +230,7 @@ class TestRNGModule:
 
         # Check events registered
         event_types = [et['type'] for et in engine.storage.get_event_types()]
-        assert 'roll.requested' in event_types
+        assert 'roll.initiated' in event_types
         assert 'roll.completed' in event_types
 
     def test_roll_request_event(self, temp_world):
@@ -256,7 +256,7 @@ class TestRNGModule:
 
         # Request a roll
         engine.event_bus.publish(Event.create(
-            event_type='roll.requested',
+            event_type='roll.initiated',
             entity_id=entity_id,
             actor_id=entity_id,
             data={
@@ -305,7 +305,7 @@ class TestRNGModule:
 
         # Request roll
         engine.event_bus.publish(Event.create(
-            event_type='roll.requested',
+            event_type='roll.initiated',
             entity_id=entity_id,
             actor_id=entity_id,
             data={
@@ -357,7 +357,7 @@ class TestRNGModule:
 
         # Request attack roll
         engine.event_bus.publish(Event.create(
-            event_type='roll.requested',
+            event_type='roll.initiated',
             entity_id=entity_id,
             actor_id=entity_id,
             data={
@@ -402,7 +402,7 @@ class TestRNGModule:
 
         # Request attack roll
         engine.event_bus.publish(Event.create(
-            event_type='roll.requested',
+            event_type='roll.initiated',
             entity_id=entity_id,
             actor_id=entity_id,
             data={
@@ -446,7 +446,7 @@ class TestRNGModule:
 
         # Request roll with INVALID roll_type
         engine.event_bus.publish(Event.create(
-            event_type='roll.requested',
+            event_type='roll.initiated',
             entity_id=entity_id,
             actor_id=entity_id,
             data={
@@ -462,7 +462,7 @@ class TestRNGModule:
 
         # Request roll with VALID roll_type
         engine.event_bus.publish(Event.create(
-            event_type='roll.requested',
+            event_type='roll.initiated',
             entity_id=entity_id,
             actor_id=entity_id,
             data={

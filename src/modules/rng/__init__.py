@@ -12,7 +12,7 @@ Provides:
 Usage:
     # Request a roll via event
     engine.event_bus.publish(Event(
-        event_type='roll.requested',
+        event_type='roll.initiated',
         entity_id='player_123',
         data={
             'entity_id': 'player_123',
@@ -41,7 +41,7 @@ from src.core.event_bus import Event
 from src.core.state_engine import StateEngine
 
 from .components import LuckComponent, RollModifierComponent
-from .events import roll_requested_event, roll_completed_event
+from .events import roll_initiated_event, roll_completed_event
 from .roller import DiceRoller, RollResult
 from .dice_parser import DiceParser, DiceNotationError
 from .roll_types import core_roll_types
@@ -103,7 +103,7 @@ class RNGModule(Module):
 
     def register_event_types(self) -> List[EventTypeDefinition]:
         return [
-            roll_requested_event(),
+            roll_initiated_event(),
             roll_completed_event()
         ]
 
@@ -116,14 +116,14 @@ class RNGModule(Module):
         self.engine = engine
 
         # Subscribe to roll requests
-        engine.event_bus.subscribe('roll.requested', self.on_roll_requested)
+        engine.event_bus.subscribe('roll.initiated', self.on_roll_initiated)
 
     def on_event(self, event: Event) -> None:
         """Handle events (called by engine)."""
-        if event.event_type == 'roll.requested':
-            self.on_roll_requested(event)
+        if event.event_type == 'roll.initiated':
+            self.on_roll_initiated(event)
 
-    def on_roll_requested(self, event: Event) -> None:
+    def on_roll_initiated(self, event: Event) -> None:
         """
         Process roll request.
 

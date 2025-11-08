@@ -846,7 +846,7 @@ def create_app(worlds_dir: str = 'worlds'):
             # Publish roll request event
             engine.event_bus.publish(
                 Event.create(
-                    event_type='roll.requested',
+                    event_type='roll.initiated',
                     entity_id=entity_id,
                     data={
                         'entity_id': entity_id,
