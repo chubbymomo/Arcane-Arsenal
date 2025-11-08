@@ -107,6 +107,7 @@
             <!-- Rolling indicator toast -->
             <div x-show="rolling"
                  x-transition.scale.90.opacity
+                 x-cloak
                  class="roll-toast"
                  style="position: fixed; bottom: 20px; right: 20px; z-index: 1000;">
                 <div class="roll-toast-content">
@@ -117,6 +118,7 @@
             <!-- Result toast (shows after rolling completes) -->
             <div x-show="!rolling && result"
                  x-transition.scale.90.opacity.duration.500ms
+                 x-cloak
                  class="roll-toast"
                  style="position: fixed; bottom: 20px; right: 20px; z-index: 1000;">
                 <div class="roll-toast-content">
@@ -290,6 +292,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
 .roll-history-card .component-title {
     color: var(--primary-color);
+    cursor: pointer !important;
+}
+
+/* Roll History needs arrow indicator even though it's non-collapsible */
+.roll-history-card .component-title::before {
+    display: inline-block !important;
 }
 
 /* Header */

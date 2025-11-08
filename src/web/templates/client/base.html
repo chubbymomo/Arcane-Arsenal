@@ -380,6 +380,11 @@
             }
         }
 
+        /* Alpine.js x-cloak: Hide elements until Alpine is ready */
+        [x-cloak] {
+            display: none !important;
+        }
+
         {% block extra_styles %}{% endblock %}
     </style>
 </head>
