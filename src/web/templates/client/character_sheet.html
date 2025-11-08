@@ -116,7 +116,7 @@
             </div>
 
             <!-- Result toast (shows after rolling completes) -->
-            <div x-show="!rolling && result"
+            <div x-show="!rolling && result && result.total !== undefined"
                  x-transition.scale.90.opacity.duration.500ms
                  x-cloak
                  class="roll-toast"
