@@ -107,7 +107,7 @@
             <!-- Dice roll toasts - Only if RNG module loaded -->
             {% if rng_enabled %}
             <!-- Rolling indicator toast -->
-            <div x-show="rolling && !historyOpen"
+            <div x-show="rolling"
                  x-transition:enter="transition ease-out duration-300"
                  x-transition:enter-start="opacity-0 transform scale-90"
                  x-transition:enter-end="opacity-100 transform scale-100"
@@ -122,7 +122,7 @@
             </div>
 
             <!-- Result toast (shows after rolling completes) -->
-            <div x-show="!rolling && result && !historyOpen"
+            <div x-show="!rolling && result"
                  x-transition:enter="transition ease-out duration-300"
                  x-transition:enter-start="opacity-0 transform scale-90"
                  x-transition:enter-end="opacity-100 transform scale-100"
