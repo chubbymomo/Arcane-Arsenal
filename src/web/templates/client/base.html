@@ -461,12 +461,15 @@
                 rollStartTime: null,
 
                 async roll(notation, entityId, rollType, purpose = '') {
+                    console.log('[DICE] Roll initiated:', { notation, entityId, rollType, purpose });
                     this.rolling = true;
                     this.result = null;
                     this.rollStartTime = Date.now();
+                    console.log('[DICE] State after roll start - rolling:', this.rolling, 'result:', this.result);
 
                     try {
                         // Emit via WebSocket for real-time updates
+                        console.log('[DICE] Emitting roll_dice event to server');
                         socket.emit('roll_dice', {
                             entity_id: entityId,
                             notation: notation,
@@ -474,18 +477,24 @@
                             purpose: purpose
                         });
                     } catch (error) {
-                        console.error('Roll error:', error);
+                        console.error('[DICE] Roll error:', error);
                         this.rolling = false;
                     }
                 },
 
                 init() {
+                    console.log('[DICE] Dice roller initialized');
+
                     // Listen for roll results via WebSocket
                     socket.on('roll_result', (data) => {
-                        console.log('Roll result received:', data);
+                        console.log('[DICE] Roll result received:', data);
+                        console.log('[DICE] Current state before update - rolling:', this.rolling, 'result:', this.result, 'history length:', this.history.length);
+
                         this.result = data;
                         this.history.unshift(data);
-                        console.log('History updated, length:', this.history.length);
+                        console.log('[DICE] History updated, new length:', this.history.length);
+                        console.log('[DICE] Full history:', this.history);
+
                         if (this.history.length > 10) {
                             this.history = this.history.slice(0, 10);
                         }
@@ -494,14 +503,18 @@
                         const elapsed = Date.now() - this.rollStartTime;
                         const minDisplayTime = 800;
                         const remainingTime = Math.max(0, minDisplayTime - elapsed);
+                        console.log('[DICE] Timing - elapsed:', elapsed, 'remaining:', remainingTime);
 
                         setTimeout(() => {
+                            console.log('[DICE] Setting rolling to false');
                             this.rolling = false;
+                            console.log('[DICE] State after rolling=false - rolling:', this.rolling, 'result:', this.result);
                         }, remainingTime);
 
                         // Auto-hide toast after 5 seconds (D&D Beyond style)
                         setTimeout(() => {
                             if (this.result === data) {
+                                console.log('[DICE] Auto-hiding result toast');
                                 this.result = null;
                             }
                         }, 5000);
