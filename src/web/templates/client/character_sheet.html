@@ -80,11 +80,9 @@
                     🎲 Roll History
                 </h3>
                 <div x-show="historyOpen" x-transition class="roll-history">
-                    <template x-if="history.length === 0">
-                        <p class="roll-history-empty">No rolls yet. Click any 🎲 button to roll!</p>
-                    </template>
+                    <p x-show="history.length === 0" class="roll-history-empty">No rolls yet. Click any 🎲 button to roll!</p>
 
-                    <template x-for="(roll, index) in history.slice(0, 10)" :key="index">
+                    <template x-for="(roll, index) in history" :key="index">
                         <div class="roll-entry roll-success">
                             <div class="roll-label" x-text="roll.purpose || 'Roll'"></div>
                             <div class="roll-total"

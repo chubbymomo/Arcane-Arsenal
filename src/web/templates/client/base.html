@@ -460,6 +460,7 @@
                 history: [],
                 historyOpen: false,
                 rollStartTime: null,
+                resultTimestamp: null,
 
                 async roll(notation, entityId, rollType, purpose = '') {
                     console.log('[DICE] Roll initiated:', { notation, entityId, rollType, purpose });
@@ -491,7 +492,9 @@
                         console.log('[DICE] Roll result received:', data);
                         console.log('[DICE] Current state before update - rolling:', this.rolling, 'result:', this.result, 'history length:', this.history.length);
 
+                        const timestamp = Date.now();
                         this.result = data;
+                        this.resultTimestamp = timestamp;
                         this.history.unshift(data);
                         console.log('[DICE] History updated, new length:', this.history.length);
                         console.log('[DICE] Full history:', this.history);
@@ -514,9 +517,10 @@
 
                         // Auto-hide toast after 5 seconds (D&D Beyond style)
                         setTimeout(() => {
-                            if (this.result === data) {
+                            if (this.resultTimestamp === timestamp) {
                                 console.log('[DICE] Auto-hiding result toast');
                                 this.result = null;
+                                this.resultTimestamp = null;
                             }
                         }, 5000);
                     });
