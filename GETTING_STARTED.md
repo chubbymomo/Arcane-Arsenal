@@ -1,130 +1,186 @@
 # Getting Started with Arcane Arsenal
 
-Arcane Arsenal is a TTRPG game engine using Entity Component System (ECS) architecture. Phase 1 is complete with full web interface, CLI tools, and module system.
+Quick guide to setting up and using Arcane Arsenal.
 
-## Quick Start
+---
 
-### 1. Clone the Repository
+## Installation
+
+### 1. Clone and Setup
 
 ```bash
 git clone https://github.com/YOUR_USERNAME/arcane-arsenal.git
 cd arcane-arsenal
-```
 
-### 2. Set Up Python Environment
-
-```bash
 # Create virtual environment
 python3 -m venv venv
-
-# Activate it
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate  # Windows: venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
-
-# Install in development mode
-pip install -e .
 ```
 
-### 3. Run Tests (Verify Setup)
+### 2. Verify Installation
 
 ```bash
-pytest tests/
-# All 99 tests should pass ✅
+# Run tests
+pytest tests/ -v
+
+# All tests should pass ✅
 ```
 
-### 4. Start the Web Interface
+---
+
+## Create Your First World
+
+### Option 1: Web Interface (Recommended)
 
 ```bash
+# Start server
 python src/web/server.py
 ```
 
-Then visit **http://localhost:5000**
+Visit **http://localhost:5000**:
 
-You'll see the **Realm Portal** (world selector) where you can:
-- Create new realms (worlds) with different module combinations
-- Select existing realms to edit
-- Switch between realms
-
-## Creating Your First Realm
-
-### Via Web Interface (Recommended)
-
-1. Visit http://localhost:5000
-2. Click **"Forge New Realm"**
-3. Enter realm details:
-   - **Folder Name**: `my_first_world` (filesystem directory name)
+1. Click **"Forge New Realm"**
+2. Configure your world:
+   - **Folder Name**: `my_campaign` (filesystem name)
    - **Realm Name**: `My First Campaign` (display name)
-4. Select modules to include:
-   - ✅ **core_components** (required - always included)
-   - ✅ **rng** (dice rolling - recommended)
-   - ☐ **fantasy_combat** (health, armor, weapons - optional)
-5. Click **"Create Realm"**
+3. Select modules:
+   - ✅ `core_components` (required - Identity, Position)
+   - ✅ `rng` (recommended - dice rolling)
+   - ☐ `fantasy_combat` (optional - Health, Armor, Weapons)
+4. Click **"Create Realm"**
 
-Your realm is now active! You'll be redirected to the client interface where you can:
-- Create entities (characters, locations, items)
-- Add components to entities
-- Create relationships between entities
+You're now in the world! Navigate to:
+- `/client` - Player interface
+- `/host` - DM interface
+
+### Option 2: CLI
+
+```bash
+# Initialize world
+python -m src.cli.commands init worlds/my_campaign --name "My Campaign"
+
+# Start web server for that world
+python src/web/server.py worlds/my_campaign
+```
+
+---
+
+## Understanding the Interface
+
+### Player Interface (`/client`)
+
+**For Players:**
+- Create and select characters
+- View character sheets
+- Roll dice (if RNG module enabled)
+- See inventory and equipment
+
+**URL**: http://localhost:5000/client
+
+### DM Interface (`/host`)
+
+**For Game Masters:**
+- Create/edit/delete entities
+- Add/remove components
+- Create relationships
 - View event history
+- Manage world state
+
+**URL**: http://localhost:5000/host
+
+---
+
+## Your First Entity
+
+### Via Web (DM Interface)
+
+1. Go to http://localhost:5000/host
+2. Click **"Create New Entity"**
+3. Enter name: `Theron the Brave`
+4. Click **"Create Entity"**
+5. Click the entity name to view details
+6. Click **"Add Component"**
+7. Select `Identity` component
+8. Enter JSON: `{"description": "A brave warrior"}`
+9. Click **"Add Component"**
 
 ### Via CLI
 
 ```bash
-# Initialize a new world
-python -m src.cli.commands init worlds/my_world --name "My Campaign"
+# Set world path for convenience
+WORLD=worlds/my_campaign
 
-# Create entities
-python -m src.cli.commands create --world worlds/my_world --entity "Theron the Brave"
+# Create entity
+python -m src.cli.commands entity create $WORLD "Theron the Brave"
+# Output: entity_abc123 (copy this ID)
 
-# List entities
-python -m src.cli.commands list --world worlds/my_world
+# Add Identity component
+python -m src.cli.commands component add $WORLD entity_abc123 Identity \
+  '{"description": "A brave warrior"}'
 
-# Add a component
-python -m src.cli.commands add-component \
-  --world worlds/my_world \
-  --entity entity_abc123 \
-  --type Identity \
-  --data '{"description": "A brave adventurer"}'
+# Add Position component
+python -m src.cli.commands component add $WORLD entity_abc123 Position \
+  '{"x": 100, "y": 200, "region": "tavern"}'
+
+# List entity components
+python -m src.cli.commands component list $WORLD entity_abc123
 ```
 
-## Web Interface Overview
+---
 
-Arcane Arsenal has two web interfaces:
+## Creating a Scene
 
-### 1. Client Interface (Player View)
-**URL**: http://localhost:5000/client
+Let's create a tavern with characters and items:
 
-Features:
-- Create and manage player characters
-- View character sheets
-- See world state from player perspective
+```bash
+WORLD=worlds/my_campaign
 
-### 2. Host Interface (GM/DM View)
-**URL**: http://localhost:5000/host
+# Create tavern location
+python -m src.cli.commands entity create $WORLD "The Golden Tankard"
+# TAVERN=<entity_id from output>
 
-Features:
-- Full CRUD operations on entities, components, relationships
-- Event history viewing
-- Complete world management
-- JSON editing with validation
+# Add location components
+python -m src.cli.commands component add $WORLD $TAVERN Identity \
+  '{"description": "A cozy tavern filled with adventurers"}'
 
-## Understanding the Module System
+python -m src.cli.commands component add $WORLD $TAVERN Position \
+  '{"x": 100, "y": 100, "region": "town_center"}'
 
-Arcane Arsenal uses a **modular architecture**. Each realm can use different module combinations:
+# Create character
+python -m src.cli.commands entity create $WORLD "Theron"
+# HERO=<entity_id from output>
 
-### Core Modules (Always Available)
+python -m src.cli.commands component add $WORLD $HERO Identity \
+  '{"description": "A brave warrior"}'
 
-- **core_components**: Identity, Position, Container, PlayerCharacter
-- **rng**: Random number generation, dice rolling, Luck, RollModifier
+python -m src.cli.commands component add $WORLD $HERO PlayerCharacter '{}'
 
-### Optional Modules
+# Place hero at tavern
+python -m src.cli.commands relationship create $WORLD $HERO $TAVERN located_at
 
-- **fantasy_combat**: Health, Armor, Weapon components for combat
+# Create an item
+python -m src.cli.commands entity create $WORLD "Rusty Sword"
+# SWORD=<entity_id from output>
 
-### Module Configuration
+python -m src.cli.commands component add $WORLD $SWORD Identity \
+  '{"description": "An old but serviceable weapon"}'
 
-Each realm has a `config.json` file specifying which modules to load:
+# Place sword in tavern
+python -m src.cli.commands relationship create $WORLD $TAVERN $SWORD contains
+```
+
+Now view in browser at http://localhost:5000/host to see your tavern scene!
+
+---
+
+## Working with Modules
+
+### Enable Modules for a World
+
+Edit `worlds/my_campaign/config.json`:
 
 ```json
 {
@@ -137,244 +193,185 @@ Each realm has a `config.json` file specifying which modules to load:
 }
 ```
 
-Modules are automatically:
-- ✅ Loaded in dependency order
-- ✅ Validated for dependencies
-- ✅ Registered with the engine
+Restart the web server to load the new modules.
 
-See [ADDING_MODULES.md](ADDING_MODULES.md) for creating custom modules.
+### Available Built-in Modules
 
-## Project Structure
+**core_components** (required)
+- `Identity`: Description, tags
+- `Position`: Spatial positioning
 
-```
-arcane-arsenal/
-├── src/
-│   ├── core/                   # Core engine
-│   │   ├── models.py          # Entity, Component, Relationship, Event
-│   │   ├── storage.py         # SQLite persistence
-│   │   ├── state_engine.py    # Main API
-│   │   ├── event_bus.py       # Pub/sub events
-│   │   └── module_loader.py   # Module system
-│   │
-│   ├── modules/               # Extensible modules
-│   │   ├── base.py           # Module interfaces
-│   │   ├── core_components/  # Core module
-│   │   ├── rng/             # Dice rolling
-│   │   └── fantasy_combat/  # Combat system
-│   │
-│   ├── cli/                  # Command-line interface
-│   ├── web/                  # Web interface
-│   │   ├── server.py        # Flask app
-│   │   ├── blueprints/      # Client/Host routes
-│   │   ├── templates/       # HTML templates
-│   │   └── static/          # CSS/JS
-│   │
-├── tests/                    # 99 passing tests
-│   ├── unit/                # Unit tests
-│   ├── integration/         # Integration tests
-│   └── test_*.py           # Module tests
-│
-├── worlds/                  # World data directories
-│   └── my_world/
-│       ├── world.db        # SQLite database
-│       └── config.json     # Module configuration
-│
-├── schema.sql              # Database schema
-├── requirements.txt        # Python dependencies
-└── setup.py               # Package setup
-```
+**rng** (recommended)
+- Real-time dice rolling
+- Roll history tracking
+- WebSocket-synced results
 
-## Key Documentation
+**fantasy_combat**
+- `Health`: HP tracking
+- `Armor`: AC/defense values
+- `Weapon`: Attack stats
 
-| Document | Purpose |
-|----------|---------|
-| **README.md** | Project overview and features |
-| **PROJECT_PLAN.md** | Complete architecture specification |
-| **IMPLEMENTATION_SUMMARY.md** | Phase 1 completion status |
-| **ADDING_MODULES.md** | Guide for creating custom modules |
-| **WEB_EDITING_GUIDE.md** | Web interface tutorial |
-| **THEMING_GUIDE.md** | CSS theming guidelines |
-| **docs/ECS_ARCHITECTURE.md** | ECS pattern explanation |
-| **CODEBASE_REVIEW.md** | Code quality review |
+---
 
-## Running Tests
+## Using the CLI
+
+### Common Commands
 
 ```bash
-# Run all tests
-pytest tests/
+# World management
+python -m src.cli.commands init <world_path> --name "Name"
 
-# Run with verbose output
-pytest tests/ -v
+# Entity operations
+python -m src.cli.commands entity create <world> "Name"
+python -m src.cli.commands entity list <world>
+python -m src.cli.commands entity get <world> <entity_id>
+python -m src.cli.commands entity delete <world> <entity_id>
 
-# Run specific test file
-pytest tests/test_rng_module.py
+# Component operations
+python -m src.cli.commands component add <world> <entity_id> <type> '<json>'
+python -m src.cli.commands component list <world> <entity_id>
+python -m src.cli.commands component get <world> <entity_id> <type>
+python -m src.cli.commands component remove <world> <entity_id> <type>
 
-# Run tests with coverage
-pytest tests/ --cov=src
+# Relationship operations
+python -m src.cli.commands relationship create <world> <from> <to> <type>
+python -m src.cli.commands relationship list <world> <entity_id>
+
+# Event log
+python -m src.cli.commands events <world> --limit 50
+python -m src.cli.commands events <world> --entity <id>
+python -m src.cli.commands events <world> --type entity_created
+
+# Type registry
+python -m src.cli.commands types components <world>
+python -m src.cli.commands types relationships <world>
 ```
 
-## Development Workflow
-
-### Adding a New Component Type
-
-1. Create component class in appropriate module
-2. Inherit from `ComponentTypeDefinition`
-3. Implement `get_schema()` method
-4. Optional: Implement `validate_with_engine()` for advanced validation
-5. Register in module's `register_component_types()` method
-
-See [docs/ECS_ARCHITECTURE.md](docs/ECS_ARCHITECTURE.md) for details.
-
-### Creating a Custom Module
-
-1. Create directory in `src/modules/your_module/`
-2. Create `__init__.py` with Module subclass
-3. Define component types, events, relationships
-4. Add to world's `config.json`
-
-See [ADDING_MODULES.md](ADDING_MODULES.md) for detailed guide.
-
-## Example: Creating a Character
-
-### Via Python API
-
-```python
-from src.core.state_engine import StateEngine
-
-# Load a world
-engine = StateEngine('worlds/my_world')
-
-# Create entity
-result = engine.create_entity("Theron the Brave")
-entity_id = result.data['id']
-
-# Add components
-engine.add_component(entity_id, 'Identity', {
-    'description': 'A brave Nord warrior'
-})
-
-engine.add_component(entity_id, 'Position', {
-    'x': 100, 'y': 200, 'z': 0, 'region': 'whiterun'
-})
-
-engine.add_component(entity_id, 'PlayerCharacter', {})
-
-# Query for all player characters
-players = engine.query_entities(['PlayerCharacter'])
-```
-
-### Via Web Interface
-
-1. Go to http://localhost:5000/client
-2. Click **"Create New Character"**
-3. Fill in character details
-4. Components are added automatically based on form
-
-## Common Tasks
-
-### Switch Between Realms
-
-1. Click **"Realm Portal"** in top navigation
-2. Select different realm from list
-3. Or create new realm
-
-### View All Entities
-
-- **Client View**: http://localhost:5000/client/characters
-- **Host View**: http://localhost:5000/host/entities
-
-### Add Custom Components
-
-```python
-# Via API
-engine.add_component(entity_id, 'health', {
-    'current_hp': 100,
-    'max_hp': 100,
-    'temp_hp': 0
-})
-
-# Via Web (Host Interface)
-1. Navigate to entity page
-2. Click "Add Component"
-3. Select component type
-4. Fill JSON data
-5. Submit
-```
-
-### View Event History
-
-**Web Interface**:
-- Go to http://localhost:5000/host/events
-- Filter by entity or event type
-
-**API**:
-```python
-events = engine.get_events(entity_id=entity_id, limit=50)
-```
-
-## Troubleshooting
-
-### Module Not Loading
-
-Check `worlds/my_world/config.json`:
-```json
-{
-  "world_name": "My World",
-  "modules": ["core_components", "rng"]
-}
-```
-
-Ensure module names match directory names in `src/modules/`.
-
-### Import Errors
-
-```bash
-# Reinstall in development mode
-pip install -e .
-
-# Or add to PYTHONPATH
-export PYTHONPATH="${PYTHONPATH}:$(pwd)"
-```
-
-### Tests Failing
-
-```bash
-# Check Python version (requires 3.8+)
-python --version
-
-# Reinstall dependencies
-pip install -r requirements.txt --force-reinstall
-
-# Run single test for debugging
-pytest tests/test_rng_module.py::TestDiceParser::test_simple_roll -v
-```
+---
 
 ## Next Steps
 
-Now that you're set up:
+### Learn the Architecture
 
-1. **Explore the Web Interface**: Create entities, add components, experiment
-2. **Read the Guides**:
-   - [WEB_EDITING_GUIDE.md](WEB_EDITING_GUIDE.md) - Web interface tutorial
-   - [ADDING_MODULES.md](ADDING_MODULES.md) - Create custom modules
-   - [docs/ECS_ARCHITECTURE.md](docs/ECS_ARCHITECTURE.md) - Understand ECS pattern
-3. **Build Custom Modules**: Add your own game-specific components
-4. **Contribute**: Report issues, suggest features, submit PRs
+Read the implementation guides to understand how to extend Arcane Arsenal:
+- **[IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md)** - Backend principles
+- **[FRONTEND_IMPLEMENTATION_GUIDE.md](FRONTEND_IMPLEMENTATION_GUIDE.md)** - Frontend principles
+- **[MODULE_GUIDE.md](MODULE_GUIDE.md)** - Creating modules
 
-## Phase 1 Complete ✅
+### Technical References
 
-Phase 1 is fully implemented with:
-- ✅ Core ECS engine
-- ✅ Module system with dependency resolution
-- ✅ Web interface (client + host views)
-- ✅ CLI tools
-- ✅ RNG module with dice rolling
-- ✅ 99 passing tests
-- ✅ Comprehensive documentation
+- **[PROJECT_PLAN.md](PROJECT_PLAN.md)** - Complete schemas and APIs
+- **[FRONTEND_GUIDE.md](FRONTEND_GUIDE.md)** - Frontend tutorials
 
-**Future Phases** (see PROJECT_PLAN.md):
-- Phase 2: Character Manager
-- Phase 3: AI Context Generation
-- Phase 4: Networking
+### Create Your Own Module
 
-Happy world building! 🎲✨
+See **[MODULE_GUIDE.md](MODULE_GUIDE.md)** for:
+- Module structure
+- Component type definitions
+- Relationship types
+- Event handling
+- UI integration
+
+---
+
+## Troubleshooting
+
+### "Module not found" error
+
+```bash
+# Install in development mode
+pip install -e .
+```
+
+### "No such file or directory: worlds/..."
+
+```bash
+# Initialize the world first
+python -m src.cli.commands init worlds/my_world --name "My World"
+```
+
+### Tests failing
+
+```bash
+# Ensure all dependencies installed
+pip install -r requirements.txt
+
+# Run tests with verbose output
+pytest tests/ -v
+```
+
+### Web interface not loading
+
+```bash
+# Check if port 5000 is in use
+# Try a different port
+python src/web/server.py worlds/my_world --port 8080
+```
+
+---
+
+## Quick Reference
+
+### Essential JSON Schemas
+
+**Identity Component**
+```json
+{
+  "description": "Text description",
+  "tags": ["optional", "list"]
+}
+```
+
+**Position Component**
+```json
+{
+  "x": 100,
+  "y": 200,
+  "z": 0,
+  "region": "region_name_or_entity_id"
+}
+```
+
+**Health Component** (fantasy_combat module)
+```json
+{
+  "current_hp": 50,
+  "max_hp": 100,
+  "temp_hp": 0
+}
+```
+
+**PlayerCharacter Component**
+```json
+{}
+```
+
+### Common Relationship Types
+
+- `located_at`: Entity is at a location
+- `contains`: Container holds another entity
+- `owns`: Entity owns another entity
+- `equipped_in`: Item equipped in slot
+
+---
+
+## Getting Help
+
+1. Check documentation:
+   - Implementation guides for architecture
+   - PROJECT_PLAN.md for technical details
+   - This guide for practical usage
+
+2. Run tests to verify setup:
+   ```bash
+   pytest tests/ -v
+   ```
+
+3. Check the event log for errors:
+   ```bash
+   python -m src.cli.commands events <world> --limit 50
+   ```
+
+---
+
+**Happy worldbuilding! 🎲**
