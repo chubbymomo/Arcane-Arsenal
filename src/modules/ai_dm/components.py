@@ -181,9 +181,9 @@ class DMDisplayComponent(ComponentTypeDefinition):
         }
 
     def get_character_sheet_config(self) -> Dict[str, Any]:
-        """DM Display appears in INFO category (right column)."""
+        """DM Display should not appear on character sheet - it has its own page."""
         return {
-            "visible": True,
+            "visible": False,
             "category": "info",
             "priority": 0,
             "display_mode": "full"
