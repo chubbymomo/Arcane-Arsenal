@@ -133,21 +133,22 @@ spells.register('fireball', 'Fireball - 8d6 fire damage in 20ft radius', {
 
 ## Priority Recommendations
 
-### HIGH Priority (Essential for playability)
+### ✅ HIGH Priority (Essential for playability) - COMPLETED
 1. ✅ **Add required_level check to equipment system** - DONE
-2. **Add spellcasting metadata to class registry**
-3. **Add proficiency bonus calculation**
-4. **Auto-add Magic component for spellcasting classes**
+2. ✅ **Add spellcasting metadata to class registry** - DONE
+3. ✅ **Add proficiency bonus calculation** - DONE
+4. ✅ **Auto-add Magic component for spellcasting classes** - DONE
+5. ✅ **Add spell slot progression tables** - DONE
 
-### MEDIUM Priority (Enhances gameplay)
-5. **Add spell slot progression tables**
-6. **Add saving throws tracking**
-7. **Add spell registry**
+### MEDIUM Priority (Enhances gameplay) - IN PROGRESS
+6. **Add saving throws tracking** - Next
+7. **Add spell registry** - Next
+8. **Add common spell list**
 
 ### LOW Priority (Nice to have)
-8. **Class features component**
-9. **Spell entities (vs strings)**
-10. **Multi-classing support**
+9. **Class features component**
+10. **Spell entities (vs strings)**
+11. **Multi-classing support**
 
 ## Implementation Philosophy Check
 

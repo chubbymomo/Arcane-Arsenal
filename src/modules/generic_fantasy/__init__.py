@@ -264,6 +264,157 @@ class GenericFantasyModule(Module):
         alignments.register('neutral_evil', 'Neutral Evil - Selfish and cruel')
         alignments.register('chaotic_evil', 'Chaotic Evil - Destructive and savage')
 
+        # === Spells Registry ===
+        spells = engine.create_registry('spells', self.name)
+
+        # Cantrips (Level 0)
+        spells.register('fire_bolt', 'Fire Bolt - Ranged fire damage cantrip', {
+            'level': 0,
+            'school': 'evocation',
+            'damage': '1d10',
+            'damage_type': 'fire',
+            'range': '120 feet',
+            'components': ['V', 'S']
+        })
+        spells.register('mage_hand', 'Mage Hand - Conjure spectral hand', {
+            'level': 0,
+            'school': 'conjuration',
+            'range': '30 feet',
+            'components': ['V', 'S'],
+            'utility': True
+        })
+        spells.register('prestidigitation', 'Prestidigitation - Minor magical trick', {
+            'level': 0,
+            'school': 'transmutation',
+            'components': ['V', 'S'],
+            'utility': True
+        })
+        spells.register('sacred_flame', 'Sacred Flame - Radiant damage cantrip', {
+            'level': 0,
+            'school': 'evocation',
+            'damage': '1d8',
+            'damage_type': 'radiant',
+            'range': '60 feet',
+            'components': ['V', 'S']
+        })
+
+        # Level 1 Spells
+        spells.register('magic_missile', 'Magic Missile - Auto-hit force damage', {
+            'level': 1,
+            'school': 'evocation',
+            'damage': '1d4+1',
+            'damage_type': 'force',
+            'range': '120 feet',
+            'components': ['V', 'S']
+        })
+        spells.register('shield', 'Shield - +5 AC reaction spell', {
+            'level': 1,
+            'school': 'abjuration',
+            'ac_bonus': 5,
+            'components': ['V', 'S'],
+            'reaction': True
+        })
+        spells.register('cure_wounds', 'Cure Wounds - Heal HP', {
+            'level': 1,
+            'school': 'evocation',
+            'healing': '1d8',
+            'range': 'Touch',
+            'components': ['V', 'S']
+        })
+        spells.register('detect_magic', 'Detect Magic - Sense magic auras', {
+            'level': 1,
+            'school': 'divination',
+            'ritual': True,
+            'components': ['V', 'S'],
+            'utility': True
+        })
+
+        # Level 2 Spells
+        spells.register('scorching_ray', 'Scorching Ray - 3 fire rays', {
+            'level': 2,
+            'school': 'evocation',
+            'damage': '2d6',
+            'damage_type': 'fire',
+            'range': '120 feet',
+            'components': ['V', 'S']
+        })
+        spells.register('misty_step', 'Misty Step - Teleport 30 feet', {
+            'level': 2,
+            'school': 'conjuration',
+            'range': '30 feet',
+            'components': ['V'],
+            'utility': True,
+            'bonus_action': True
+        })
+        spells.register('hold_person', 'Hold Person - Paralyze humanoid', {
+            'level': 2,
+            'school': 'enchantment',
+            'range': '60 feet',
+            'components': ['V', 'S', 'M'],
+            'control': True
+        })
+
+        # Level 3 Spells
+        spells.register('fireball', 'Fireball - 8d6 fire damage in 20ft radius', {
+            'level': 3,
+            'school': 'evocation',
+            'damage': '8d6',
+            'damage_type': 'fire',
+            'range': '150 feet',
+            'area': '20ft radius',
+            'components': ['V', 'S', 'M']
+        })
+        spells.register('counterspell', 'Counterspell - Negate enemy spell', {
+            'level': 3,
+            'school': 'abjuration',
+            'range': '60 feet',
+            'components': ['S'],
+            'reaction': True
+        })
+        spells.register('lightning_bolt', 'Lightning Bolt - 8d6 lightning in line', {
+            'level': 3,
+            'school': 'evocation',
+            'damage': '8d6',
+            'damage_type': 'lightning',
+            'range': '100 feet',
+            'area': '100ft line',
+            'components': ['V', 'S', 'M']
+        })
+
+        # Level 4 Spells
+        spells.register('polymorph', 'Polymorph - Transform creature', {
+            'level': 4,
+            'school': 'transmutation',
+            'range': '60 feet',
+            'components': ['V', 'S', 'M'],
+            'control': True
+        })
+        spells.register('dimension_door', 'Dimension Door - Teleport 500 feet', {
+            'level': 4,
+            'school': 'conjuration',
+            'range': '500 feet',
+            'components': ['V'],
+            'utility': True
+        })
+
+        # Level 5 Spells
+        spells.register('cone_of_cold', 'Cone of Cold - 8d8 cold damage in cone', {
+            'level': 5,
+            'school': 'evocation',
+            'damage': '8d8',
+            'damage_type': 'cold',
+            'range': '60 feet',
+            'area': '60ft cone',
+            'components': ['V', 'S', 'M']
+        })
+        spells.register('wall_of_force', 'Wall of Force - Invisible force barrier', {
+            'level': 5,
+            'school': 'evocation',
+            'range': '120 feet',
+            'components': ['V', 'S', 'M'],
+            'utility': True
+        })
+
         # Store engine reference for event handlers
         self.engine = engine
 
@@ -333,6 +484,23 @@ class GenericFantasyModule(Module):
                     logger.info(f"Auto-added Skills component to {entity_id} with +{prof_bonus} proficiency")
                 except Exception as e:
                     logger.warning(f"Could not auto-add Skills component: {e}")
+
+            # Auto-populate saving throw proficiencies in Attributes if missing
+            try:
+                attributes = self.engine.get_component(entity_id, 'Attributes')
+                if attributes and not attributes.data.get('saving_throw_proficiencies'):
+                    classes_registry = self.engine.create_registry('classes', self.name)
+                    class_data = classes_registry.get(class_name)
+                    if class_data:
+                        class_meta = class_data.get('metadata', {})
+                        save_profs = class_meta.get('saves', [])
+                        if save_profs:
+                            updated_attrs = attributes.data.copy()
+                            updated_attrs['saving_throw_proficiencies'] = save_profs
+                            self.engine.update_component(entity_id, 'Attributes', updated_attrs)
+                            logger.info(f"Auto-populated saving throw proficiencies for {entity_id}: {save_profs}")
+            except Exception as e:
+                logger.warning(f"Could not auto-populate saving throw proficiencies: {e}")
 
     def on_component_updated(self, event: Event) -> None:
         """
