@@ -238,6 +238,32 @@ function executeSuggestedAction(entityId, actionType, actionData) {
     });
 }
 
+function executeSuggestedActionFromData(button) {
+    try {
+        const entityId = button.getAttribute('data-entity-id');
+        const actionType = button.getAttribute('data-action-type');
+        const actionDataStr = button.getAttribute('data-action-data');
+
+        // Parse the JSON safely
+        let actionData = {};
+        if (actionDataStr) {
+            try {
+                actionData = JSON.parse(actionDataStr);
+            } catch (parseError) {
+                console.error('Failed to parse action data:', parseError);
+                console.error('Malformed action data string:', actionDataStr);
+                alert('Error: Invalid action data. Please try a different action or refresh the page.');
+                return;
+            }
+        }
+
+        executeSuggestedAction(entityId, actionType, actionData);
+    } catch (error) {
+        console.error('Error reading action data from button:', error);
+        alert('Failed to execute action due to a technical error.');
+    }
+}
+
 // Auto-scroll to bottom on load
 document.addEventListener('DOMContentLoaded', function() {
     const messagesDiv = document.getElementById('dm-messages');

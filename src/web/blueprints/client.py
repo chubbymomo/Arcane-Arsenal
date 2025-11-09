@@ -62,12 +62,14 @@ def index():
         components = engine.get_entity_components(entity.id)
         identity = components.get('Identity', {})
         position = components.get('Position', {})
+        player_char = components.get('PlayerCharacter', {})
 
         characters.append({
             'entity': entity,
             'description': identity.get('description', 'No description'),
             'has_position': True,  # Always true due to query filter
-            'region': position.get('region', 'Unknown')
+            'region': position.get('region', 'Unknown'),
+            'needs_ai_intro': player_char.get('needs_ai_intro', False)
         })
 
     return render_template(
