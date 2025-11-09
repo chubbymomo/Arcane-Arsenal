@@ -57,7 +57,7 @@ class LLMProvider(ABC):
         max_tokens: int = 4096,
         temperature: float = 0.7,
         **kwargs
-    ) -> Iterator[str]:
+    ) -> Iterator[Dict[str, Any]]:
         """
         Generate a streaming response from the LLM.
 
@@ -66,10 +66,10 @@ class LLMProvider(ABC):
             system: Optional system prompt (persona/instructions)
             max_tokens: Maximum tokens in response
             temperature: Sampling temperature (0.0-1.0)
-            **kwargs: Provider-specific options
+            **kwargs: Provider-specific options (including 'tools' for function calling)
 
         Yields:
-            Text chunks as they are generated
+            Dict chunks with 'type' and relevant data
 
         Raises:
             LLMError: If generation fails
@@ -182,7 +182,7 @@ class AnthropicProvider(LLMProvider):
         max_tokens: int = 4096,
         temperature: float = 0.7,
         **kwargs
-    ) -> Iterator[str]:
+    ) -> Iterator[Dict[str, Any]]:
         """
         Generate streaming response using Anthropic Claude API.
 
@@ -191,10 +191,10 @@ class AnthropicProvider(LLMProvider):
             system: System prompt
             max_tokens: Maximum response length
             temperature: Sampling temperature
-            **kwargs: Additional Anthropic-specific parameters
+            **kwargs: Additional Anthropic-specific parameters (including 'tools')
 
         Yields:
-            Text chunks as they are generated
+            Dict chunks with 'type' and 'content' or 'tool_use' data
 
         Raises:
             LLMError: If API call fails
@@ -202,15 +202,44 @@ class AnthropicProvider(LLMProvider):
         try:
             logger.debug(f"Calling Anthropic API (streaming) with {len(messages)} messages")
 
-            with self.client.messages.stream(
-                model=kwargs.get('model', self.model),
-                max_tokens=max_tokens,
-                temperature=temperature,
-                system=system if system else None,
-                messages=messages
-            ) as stream:
-                for text_chunk in stream.text_stream:
-                    yield text_chunk
+            tools = kwargs.get('tools')
+            stream_kwargs = {
+                'model': kwargs.get('model', self.model),
+                'max_tokens': max_tokens,
+                'temperature': temperature,
+                'messages': messages
+            }
+
+            if system:
+                stream_kwargs['system'] = system
+
+            if tools:
+                stream_kwargs['tools'] = tools
+
+            with self.client.messages.stream(**stream_kwargs) as stream:
+                for event in stream:
+                    if event.type == "content_block_start":
+                        if hasattr(event, 'content_block') and event.content_block.type == "tool_use":
+                            yield {
+                                'type': 'tool_use_start',
+                                'tool_use_id': event.content_block.id,
+                                'tool_name': event.content_block.name
+                            }
+                    elif event.type == "content_block_delta":
+                        if hasattr(event, 'delta'):
+                            if event.delta.type == "text_delta":
+                                yield {
+                                    'type': 'text',
+                                    'content': event.delta.text
+                                }
+                            elif event.delta.type == "input_json_delta":
+                                yield {
+                                    'type': 'tool_input_delta',
+                                    'partial_json': event.delta.partial_json
+                                }
+                    elif event.type == "content_block_stop":
+                        # Tool use block is complete
+                        pass
 
             logger.debug(f"Streaming response completed")
 

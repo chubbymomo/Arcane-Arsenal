@@ -1,0 +1,665 @@
+"""
+AI DM Tools - Functions the AI can call to interact with the game world.
+
+These tools give the AI the ability to create entities, query game state,
+and modify the world in structured ways beyond just narrative text.
+"""
+
+import logging
+from typing import Dict, Any, List
+from datetime import datetime
+
+logger = logging.getLogger(__name__)
+
+
+# Tool definitions for LLM function calling
+TOOL_DEFINITIONS = [
+    {
+        "name": "create_npc",
+        "description": "Create a new NPC (non-player character) in the game world. Use this when an NPC first appears in the story.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "The NPC's name (e.g., 'Blacksmith Gorn', 'Mysterious Hooded Figure')"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Physical description and notable features"
+                },
+                "race": {
+                    "type": "string",
+                    "description": "The NPC's race (e.g., 'human', 'elf', 'dwarf', 'orc')"
+                },
+                "occupation": {
+                    "type": "string",
+                    "description": "The NPC's occupation or role (e.g., 'blacksmith', 'guard', 'merchant')"
+                },
+                "disposition": {
+                    "type": "string",
+                    "description": "Initial attitude toward the player ('friendly', 'neutral', 'hostile', 'fearful')"
+                },
+                "location": {
+                    "type": "string",
+                    "description": "Where the NPC currently is (e.g., 'tavern', 'town_square', 'forest_path')"
+                }
+            },
+            "required": ["name", "description", "disposition"]
+        }
+    },
+    {
+        "name": "create_location",
+        "description": "Create a new location in the game world. Use this when the player enters a new area that should be tracked.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "The location's name (e.g., 'The Rusty Tankard Tavern', 'Ancient Crypt')"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Detailed description of the location"
+                },
+                "region": {
+                    "type": "string",
+                    "description": "The broader region this location is in"
+                },
+                "location_type": {
+                    "type": "string",
+                    "description": "Type of location (e.g., 'tavern', 'dungeon', 'shop', 'wilderness', 'building')"
+                },
+                "features": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Notable features (e.g., ['fireplace', 'bar', 'stage'])"
+                }
+            },
+            "required": ["name", "description", "location_type"]
+        }
+    },
+    {
+        "name": "create_item",
+        "description": "Create a new item that can be interacted with or acquired. Use this for loot, quest items, or notable objects.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "The item's name (e.g., 'Rusty Longsword', 'Ancient Tome')"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Detailed description of the item"
+                },
+                "item_type": {
+                    "type": "string",
+                    "description": "Type of item (e.g., 'weapon', 'armor', 'consumable', 'quest_item', 'treasure')"
+                },
+                "location": {
+                    "type": "string",
+                    "description": "Where the item currently is (location name or 'player_inventory' if given to player)"
+                },
+                "value": {
+                    "type": "integer",
+                    "description": "Gold piece value of the item"
+                }
+            },
+            "required": ["name", "description", "item_type"]
+        }
+    },
+    {
+        "name": "roll_dice",
+        "description": "Roll dice to determine outcomes. Use this when the player attempts something with uncertain results.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "dice_notation": {
+                    "type": "string",
+                    "description": "Dice to roll in standard notation (e.g., '1d20', '2d6+3', '1d20+5')"
+                },
+                "skill": {
+                    "type": "string",
+                    "description": "Skill being tested (e.g., 'perception', 'stealth', 'persuasion')"
+                },
+                "difficulty": {
+                    "type": "integer",
+                    "description": "DC (Difficulty Class) for the check (typically 5-30)"
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Why this roll is being made (e.g., 'Attempting to pick the lock')"
+                }
+            },
+            "required": ["dice_notation", "reason"]
+        }
+    },
+    {
+        "name": "move_player_to_location",
+        "description": "Move the player character to a different location. Use this when they travel or enter a new area.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "location_name": {
+                    "type": "string",
+                    "description": "Name of the location to move to (must exist or be created first)"
+                },
+                "region": {
+                    "type": "string",
+                    "description": "The region name if moving to a new region"
+                }
+            },
+            "required": ["location_name"]
+        }
+    },
+    {
+        "name": "query_entities",
+        "description": "Search for existing entities in the game world. Use this to check if an NPC, location, or item already exists before creating a duplicate.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "entity_type": {
+                    "type": "string",
+                    "description": "Type of entity to search for ('npc', 'location', 'item', 'player')"
+                },
+                "name_pattern": {
+                    "type": "string",
+                    "description": "Name or partial name to search for (case-insensitive)"
+                },
+                "location": {
+                    "type": "string",
+                    "description": "Filter by location (optional)"
+                }
+            },
+            "required": ["entity_type"]
+        }
+    },
+    {
+        "name": "update_npc_disposition",
+        "description": "Change how an NPC feels about the player based on their actions.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "npc_name": {
+                    "type": "string",
+                    "description": "Name of the NPC"
+                },
+                "new_disposition": {
+                    "type": "string",
+                    "description": "New disposition ('friendly', 'neutral', 'hostile', 'fearful', 'admiring')"
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Why the disposition changed"
+                }
+            },
+            "required": ["npc_name", "new_disposition", "reason"]
+        }
+    },
+    {
+        "name": "give_item_to_player",
+        "description": "Add an item to the player's inventory. The item must exist (create it first if needed).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "item_name": {
+                    "type": "string",
+                    "description": "Name of the item to give"
+                },
+                "quantity": {
+                    "type": "integer",
+                    "description": "How many to give (default 1)"
+                }
+            },
+            "required": ["item_name"]
+        }
+    },
+    {
+        "name": "deal_damage",
+        "description": "Apply damage to the player character. Use this when they take damage from combat, traps, or hazards.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "integer",
+                    "description": "Amount of damage to deal"
+                },
+                "damage_type": {
+                    "type": "string",
+                    "description": "Type of damage ('slashing', 'piercing', 'bludgeoning', 'fire', 'cold', 'poison', etc.)"
+                },
+                "source": {
+                    "type": "string",
+                    "description": "What caused the damage (e.g., 'goblin sword', 'falling rocks', 'poison trap')"
+                }
+            },
+            "required": ["amount", "source"]
+        }
+    },
+    {
+        "name": "heal_player",
+        "description": "Restore hit points to the player character.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "integer",
+                    "description": "Amount of HP to restore"
+                },
+                "source": {
+                    "type": "string",
+                    "description": "What caused the healing (e.g., 'healing potion', 'rest', 'divine blessing')"
+                }
+            },
+            "required": ["amount", "source"]
+        }
+    }
+]
+
+
+def execute_tool(tool_name: str, tool_input: Dict[str, Any], engine, player_entity_id: str) -> Dict[str, Any]:
+    """
+    Execute a tool call from the AI.
+
+    Args:
+        tool_name: Name of the tool to execute
+        tool_input: Parameters for the tool
+        engine: Game engine instance
+        player_entity_id: ID of the player character entity
+
+    Returns:
+        Result dict with 'success', 'message', and optional 'data' fields
+    """
+    logger.info(f"Executing tool: {tool_name} with input: {tool_input}")
+
+    try:
+        if tool_name == "create_npc":
+            return _create_npc(engine, tool_input, player_entity_id)
+        elif tool_name == "create_location":
+            return _create_location(engine, tool_input)
+        elif tool_name == "create_item":
+            return _create_item(engine, tool_input)
+        elif tool_name == "roll_dice":
+            return _roll_dice(tool_input)
+        elif tool_name == "move_player_to_location":
+            return _move_player_to_location(engine, player_entity_id, tool_input)
+        elif tool_name == "query_entities":
+            return _query_entities(engine, tool_input)
+        elif tool_name == "update_npc_disposition":
+            return _update_npc_disposition(engine, tool_input)
+        elif tool_name == "give_item_to_player":
+            return _give_item_to_player(engine, player_entity_id, tool_input)
+        elif tool_name == "deal_damage":
+            return _deal_damage(engine, player_entity_id, tool_input)
+        elif tool_name == "heal_player":
+            return _heal_player(engine, player_entity_id, tool_input)
+        else:
+            return {
+                "success": False,
+                "message": f"Unknown tool: {tool_name}"
+            }
+    except Exception as e:
+        logger.error(f"Error executing tool {tool_name}: {e}", exc_info=True)
+        return {
+            "success": False,
+            "message": f"Tool execution failed: {str(e)}"
+        }
+
+
+def _create_npc(engine, tool_input: Dict[str, Any], player_entity_id: str) -> Dict[str, Any]:
+    """Create an NPC entity."""
+    name = tool_input["name"]
+    description = tool_input["description"]
+    disposition = tool_input.get("disposition", "neutral")
+    race = tool_input.get("race", "human")
+    occupation = tool_input.get("occupation", "commoner")
+    location = tool_input.get("location")
+
+    # Create entity
+    result = engine.create_entity(name, entity_type="npc")
+    if not result.success:
+        return {"success": False, "message": f"Failed to create NPC: {result.error}"}
+
+    npc_id = result.data['id']
+
+    # Add Identity component
+    engine.add_component(npc_id, 'Identity', {
+        'description': description,
+        'race': race,
+        'occupation': occupation
+    })
+
+    # Add NPC component
+    engine.add_component(npc_id, 'NPC', {
+        'disposition': disposition,
+        'dialogue_state': 'initial',
+        'met_player': False
+    })
+
+    # Add Position component if location specified
+    if location:
+        # Get player's current location for region
+        player_position = engine.get_component(player_entity_id, 'Position')
+        region = player_position.data.get('region', 'Unknown') if player_position else 'Unknown'
+
+        engine.add_component(npc_id, 'Position', {
+            'x': 0,
+            'y': 0,
+            'z': 0,
+            'region': region,
+            'location': location
+        })
+
+    logger.info(f"Created NPC: {name} ({npc_id})")
+    return {
+        "success": True,
+        "message": f"Created NPC '{name}' with {disposition} disposition",
+        "data": {"entity_id": npc_id, "name": name}
+    }
+
+
+def _create_location(engine, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+    """Create a location entity."""
+    name = tool_input["name"]
+    description = tool_input["description"]
+    location_type = tool_input["location_type"]
+    region = tool_input.get("region", "The Realm")
+    features = tool_input.get("features", [])
+
+    # Create entity
+    result = engine.create_entity(name, entity_type="location")
+    if not result.success:
+        return {"success": False, "message": f"Failed to create location: {result.error}"}
+
+    location_id = result.data['id']
+
+    # Add Identity component
+    engine.add_component(location_id, 'Identity', {
+        'description': description,
+        'location_type': location_type
+    })
+
+    # Add Location component
+    engine.add_component(location_id, 'Location', {
+        'region': region,
+        'features': features,
+        'visited': False
+    })
+
+    logger.info(f"Created Location: {name} ({location_id})")
+    return {
+        "success": True,
+        "message": f"Created location '{name}' in {region}",
+        "data": {"entity_id": location_id, "name": name}
+    }
+
+
+def _create_item(engine, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+    """Create an item entity."""
+    name = tool_input["name"]
+    description = tool_input["description"]
+    item_type = tool_input["item_type"]
+    location = tool_input.get("location")
+    value = tool_input.get("value", 0)
+
+    # Create entity
+    result = engine.create_entity(name, entity_type="item")
+    if not result.success:
+        return {"success": False, "message": f"Failed to create item: {result.error}"}
+
+    item_id = result.data['id']
+
+    # Add Identity component
+    engine.add_component(item_id, 'Identity', {
+        'description': description
+    })
+
+    # Add Item component
+    engine.add_component(item_id, 'Item', {
+        'item_type': item_type,
+        'value': value,
+        'quantity': 1
+    })
+
+    # Add Position if location specified
+    if location:
+        engine.add_component(item_id, 'Position', {
+            'x': 0,
+            'y': 0,
+            'z': 0,
+            'region': 'Unknown',
+            'location': location
+        })
+
+    logger.info(f"Created Item: {name} ({item_id})")
+    return {
+        "success": True,
+        "message": f"Created {item_type} '{name}'",
+        "data": {"entity_id": item_id, "name": name}
+    }
+
+
+def _roll_dice(tool_input: Dict[str, Any]) -> Dict[str, Any]:
+    """Roll dice and return results."""
+    import random
+    import re
+
+    dice_notation = tool_input["dice_notation"]
+    reason = tool_input["reason"]
+    skill = tool_input.get("skill")
+    difficulty = tool_input.get("difficulty")
+
+    # Parse dice notation (e.g., "1d20+5", "2d6")
+    match = re.match(r'(\d+)d(\d+)([+-]\d+)?', dice_notation.lower())
+    if not match:
+        return {"success": False, "message": f"Invalid dice notation: {dice_notation}"}
+
+    num_dice = int(match.group(1))
+    die_size = int(match.group(2))
+    modifier = int(match.group(3)) if match.group(3) else 0
+
+    # Roll the dice
+    rolls = [random.randint(1, die_size) for _ in range(num_dice)]
+    total = sum(rolls) + modifier
+
+    # Determine success if DC provided
+    success_result = None
+    if difficulty:
+        success_result = total >= difficulty
+
+    result_msg = f"Rolled {dice_notation}: {rolls} "
+    if modifier:
+        result_msg += f"+ {modifier} "
+    result_msg += f"= {total}"
+
+    if difficulty:
+        result_msg += f" (DC {difficulty}: {'SUCCESS' if success_result else 'FAILURE'})"
+
+    logger.info(f"Dice roll: {result_msg} - Reason: {reason}")
+    return {
+        "success": True,
+        "message": result_msg,
+        "data": {
+            "rolls": rolls,
+            "modifier": modifier,
+            "total": total,
+            "difficulty": difficulty,
+            "success": success_result,
+            "skill": skill,
+            "reason": reason
+        }
+    }
+
+
+def _move_player_to_location(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+    """Move the player to a new location."""
+    location_name = tool_input["location_name"]
+    region = tool_input.get("region")
+
+    position = engine.get_component(player_entity_id, 'Position')
+    if not position:
+        return {"success": False, "message": "Player has no Position component"}
+
+    # Update position
+    update_data = {'location': location_name}
+    if region:
+        update_data['region'] = region
+
+    engine.update_component(player_entity_id, 'Position', update_data)
+
+    logger.info(f"Moved player to: {location_name}")
+    return {
+        "success": True,
+        "message": f"Moved to {location_name}" + (f" in {region}" if region else ""),
+        "data": {"location": location_name, "region": region}
+    }
+
+
+def _query_entities(engine, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+    """Query for entities in the game world."""
+    entity_type = tool_input["entity_type"]
+    name_pattern = tool_input.get("name_pattern", "").lower()
+    location = tool_input.get("location")
+
+    # Query entities by component type
+    component_map = {
+        "npc": "NPC",
+        "location": "Location",
+        "item": "Item",
+        "player": "PlayerCharacter"
+    }
+
+    component_type = component_map.get(entity_type)
+    if not component_type:
+        return {"success": False, "message": f"Unknown entity type: {entity_type}"}
+
+    entities = engine.query_entities([component_type])
+    results = []
+
+    for entity in entities:
+        if name_pattern and name_pattern not in entity.name.lower():
+            continue
+
+        if location:
+            pos = engine.get_component(entity.id, 'Position')
+            if not pos or pos.data.get('location') != location:
+                continue
+
+        identity = engine.get_component(entity.id, 'Identity')
+        results.append({
+            "id": entity.id,
+            "name": entity.name,
+            "description": identity.data.get('description') if identity else None
+        })
+
+    return {
+        "success": True,
+        "message": f"Found {len(results)} {entity_type}(s)",
+        "data": {"entities": results}
+    }
+
+
+def _update_npc_disposition(engine, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+    """Update an NPC's disposition toward the player."""
+    npc_name = tool_input["npc_name"]
+    new_disposition = tool_input["new_disposition"]
+    reason = tool_input["reason"]
+
+    # Find the NPC
+    npcs = engine.query_entities(['NPC'])
+    npc = next((e for e in npcs if e.name.lower() == npc_name.lower()), None)
+
+    if not npc:
+        return {"success": False, "message": f"NPC '{npc_name}' not found"}
+
+    # Update disposition
+    engine.update_component(npc.id, 'NPC', {'disposition': new_disposition})
+
+    logger.info(f"Updated {npc_name} disposition to {new_disposition}: {reason}")
+    return {
+        "success": True,
+        "message": f"{npc_name} is now {new_disposition} (Reason: {reason})",
+        "data": {"npc_id": npc.id, "disposition": new_disposition}
+    }
+
+
+def _give_item_to_player(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+    """Give an item to the player."""
+    item_name = tool_input["item_name"]
+    quantity = tool_input.get("quantity", 1)
+
+    # Find the item
+    items = engine.query_entities(['Item'])
+    item = next((e for e in items if e.name.lower() == item_name.lower()), None)
+
+    if not item:
+        return {"success": False, "message": f"Item '{item_name}' not found (create it first)"}
+
+    # Update item position to player's inventory
+    engine.update_component(item.id, 'Position', {
+        'location': 'player_inventory',
+        'owner_id': player_entity_id
+    })
+
+    if quantity > 1:
+        engine.update_component(item.id, 'Item', {'quantity': quantity})
+
+    logger.info(f"Gave {quantity}x {item_name} to player")
+    return {
+        "success": True,
+        "message": f"Gave {quantity}x {item_name} to player",
+        "data": {"item_id": item.id, "quantity": quantity}
+    }
+
+
+def _deal_damage(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+    """Deal damage to the player."""
+    amount = tool_input["amount"]
+    damage_type = tool_input.get("damage_type", "untyped")
+    source = tool_input["source"]
+
+    # Get player's health component
+    health = engine.get_component(player_entity_id, 'Health')
+    if not health:
+        return {"success": False, "message": "Player has no Health component"}
+
+    current_hp = health.data.get('current', 0)
+    max_hp = health.data.get('max', 1)
+    new_hp = max(0, current_hp - amount)
+
+    engine.update_component(player_entity_id, 'Health', {'current': new_hp})
+
+    logger.info(f"Dealt {amount} {damage_type} damage to player from {source} ({new_hp}/{max_hp} HP)")
+    return {
+        "success": True,
+        "message": f"Took {amount} {damage_type} damage from {source} ({new_hp}/{max_hp} HP remaining)",
+        "data": {"damage": amount, "new_hp": new_hp, "max_hp": max_hp}
+    }
+
+
+def _heal_player(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+    """Heal the player."""
+    amount = tool_input["amount"]
+    source = tool_input["source"]
+
+    # Get player's health component
+    health = engine.get_component(player_entity_id, 'Health')
+    if not health:
+        return {"success": False, "message": "Player has no Health component"}
+
+    current_hp = health.data.get('current', 0)
+    max_hp = health.data.get('max', 1)
+    new_hp = min(max_hp, current_hp + amount)
+
+    engine.update_component(player_entity_id, 'Health', {'current': new_hp})
+
+    logger.info(f"Healed player {amount} HP from {source} ({new_hp}/{max_hp} HP)")
+    return {
+        "success": True,
+        "message": f"Restored {amount} HP from {source} ({new_hp}/{max_hp} HP)",
+        "data": {"healing": amount, "new_hp": new_hp, "max_hp": max_hp}
+    }
+
+
+__all__ = ['TOOL_DEFINITIONS', 'execute_tool']
