@@ -381,6 +381,22 @@ def character_builder():
 
                         logger.info(f"Generated AI intro for character {entity_id}")
 
+                        # Entity-based positioning: Move player to created location if any
+                        # Find any location entities created during intro
+                        location_entities = engine.query_entities(['Location'])
+                        if location_entities:
+                            # Get the first (most recent) location
+                            starting_location = location_entities[0]
+                            logger.info(f"Found starting location: {starting_location.name} ({starting_location.id})")
+
+                            # Update player's Position to be AT this location (entity-based)
+                            engine.update_component(entity_id, 'Position', {
+                                'region': starting_location.id  # Entity reference!
+                            })
+                            logger.info(f"  → Moved player to location entity: {starting_location.id}")
+                        else:
+                            logger.warning("No location entities found after AI intro - player remains in named region")
+
                 except Exception as e:
                     logger.error(f"Failed to generate AI intro: {e}")
                     # Non-fatal - character still created, just no intro
