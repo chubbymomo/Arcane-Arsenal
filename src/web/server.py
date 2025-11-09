@@ -80,8 +80,11 @@ def create_app(worlds_dir: str = 'worlds'):
 
         for module_info in available_modules:
             try:
-                # Instantiate the module
-                module_instance = loader.load_module_instance(module_info['name'])
+                # Load the module instance
+                module_instance = loader.load_module(module_info['name'])
+
+                if module_instance is None:
+                    continue
 
                 # Check if module provides a blueprint
                 blueprint = module_instance.register_blueprint()

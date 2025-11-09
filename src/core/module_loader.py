@@ -268,6 +268,27 @@ class ModuleLoader:
 
         return sorted_modules
 
+    def load_module(self, module_name: str) -> Optional[Module]:
+        """
+        Load a single module by name.
+
+        Public interface for loading a module instance. Useful for loading
+        modules on-demand (e.g., for blueprint registration).
+
+        Args:
+            module_name: Name of module directory (e.g., 'items', 'core_components')
+
+        Returns:
+            Module instance if found and loaded successfully, None otherwise
+
+        Example:
+            loader = ModuleLoader()
+            items_module = loader.load_module('items')
+            if items_module:
+                blueprint = items_module.register_blueprint()
+        """
+        return self._import_module(module_name)
+
     def discover_available_modules(self) -> List[Dict[str, Any]]:
         """
         Discover all available modules without loading them.
