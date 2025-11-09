@@ -63,6 +63,15 @@ class AttributesComponent(ComponentTypeDefinition):
                     "minimum": 1,
                     "maximum": 30,
                     "description": "Force of personality and leadership"
+                },
+                "saving_throw_proficiencies": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"]
+                    },
+                    "default": [],
+                    "description": "Saving throws the character is proficient in"
                 }
             },
             "required": ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"]
@@ -130,6 +139,14 @@ class AttributesComponent(ComponentTypeDefinition):
                 "max": 30,
                 "step": 1,
                 "group": "Mental Attributes"
+            },
+            "saving_throw_proficiencies": {
+                "label": "Saving Throw Proficiencies",
+                "widget": "textarea",
+                "order": 6,
+                "help_text": "Saving throws this character is proficient in (comma-separated: strength, dexterity, etc.)",
+                "placeholder": "strength, constitution",
+                "group": "Saving Throws"
             }
         }
 
@@ -155,7 +172,18 @@ class AttributesComponent(ComponentTypeDefinition):
             ('charisma', 'CHA')
         ]
 
-        html = ['<div class="attributes-grid">']
+        # Get saving throw proficiencies and proficiency bonus
+        save_profs = data.get('saving_throw_proficiencies', [])
+        proficiency_bonus = 2  # default
+        if engine and entity_id:
+            skills = engine.get_component(entity_id, 'Skills')
+            if skills:
+                proficiency_bonus = skills.data.get('proficiency_bonus', 2)
+
+        html = ['<div class="attributes-and-saves">']
+
+        # Attributes Grid
+        html.append('<div class="attributes-grid">')
 
         for attr_key, attr_label in attributes:
             score = data.get(attr_key, 10)
@@ -182,6 +210,77 @@ class AttributesComponent(ComponentTypeDefinition):
             ''')
 
         html.append('</div>')
+
+        # Saving Throws Section
+        html.append('<div class="saving-throws" style="margin-top: 1.5rem;">')
+        html.append('<h4 style="margin: 0 0 0.75rem 0; font-size: 1rem; color: var(--primary-color);">Saving Throws</h4>')
+        html.append('<div class="saves-grid">')
+
+        for attr_key, attr_label in attributes:
+            score = data.get(attr_key, 10)
+            mod = self.calculate_modifier(score)
+
+            # Check if proficient in this save
+            is_proficient = attr_key in save_profs
+            save_bonus = mod + (proficiency_bonus if is_proficient else 0)
+            save_str = f"+{save_bonus}" if save_bonus >= 0 else str(save_bonus)
+
+            prof_marker = '⭐ ' if is_proficient else ''
+
+            # Dice button for saving throw
+            dice_btn = ''
+            if entity_id:
+                dice_btn = f'''
+                <button class="btn-roll-dice inline"
+                        @click="roll('1d20{save_str}', entityId, 'saving_throw', '{attr_label} Save')">
+                    🎲
+                </button>
+                '''
+
+            html.append(f'''
+                <div class="save-row">
+                    <div class="save-name">{prof_marker}{attr_label}</div>
+                    <div class="save-bonus">{save_str}</div>
+                    {dice_btn}
+                </div>
+            ''')
+
+        html.append('</div>')
+        html.append('</div>')
+
+        html.append('</div>')
+
+        # Add CSS
+        html.append('''
+        <style>
+        .saves-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem;
+        }
+        .save-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0.5rem;
+            background: var(--background-color);
+            border-radius: 4px;
+        }
+        .save-name {
+            flex: 1;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+        .save-bonus {
+            min-width: 2rem;
+            text-align: right;
+            font-weight: bold;
+            color: var(--primary-color);
+            font-size: 0.9rem;
+        }
+        </style>
+        ''')
+
         return ''.join(html)
 
     @staticmethod
