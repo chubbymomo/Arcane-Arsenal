@@ -395,12 +395,11 @@ def character_sheet(entity_id: str):
 def equip_item(entity_id):
     """Equip an item on an entity."""
     from flask import request, jsonify
+    from src.core.module_loader import ModuleLoader
 
     logger.info(f"[EQUIP] Starting equip request for entity {entity_id}")
 
-    engine = get_engine()
-    logger.info(f"[EQUIP] Got engine instance: {engine}")
-
+    world_path = session.get('world_path')
     data = request.get_json()
     item_id = data.get('item_id')
     logger.info(f"[EQUIP] Request data - entity_id: {entity_id}, item_id: {item_id}")
@@ -411,21 +410,28 @@ def equip_item(entity_id):
 
     # Get the equipment system from the items module
     try:
+        engine = get_engine()
+        logger.info(f"[EQUIP] Got engine for world: {world_path}")
+
+        # Load modules to find items module
+        loader = ModuleLoader(world_path)
+        modules = loader.load_modules(strategy='config')
+        logger.info(f"[EQUIP] Loaded {len(modules)} modules")
+
+        # Find items module
         items_module = None
-        logger.info(f"[EQUIP] Searching for items module among {len(engine.modules)} modules")
-        for module in engine.modules:
-            logger.debug(f"[EQUIP] Checking module: {module.name}")
+        for module in modules:
             if module.name == 'items':
                 items_module = module
                 logger.info("[EQUIP] Found items module")
                 break
 
         if not items_module:
-            logger.error("[EQUIP] Items module not loaded in engine")
+            logger.error("[EQUIP] Items module not loaded in this world")
             return jsonify({'success': False, 'error': 'Items module not loaded'}), 400
 
         equipment_system = items_module.get_equipment_system()
-        logger.info(f"[EQUIP] Got equipment system: {equipment_system}")
+        logger.info(f"[EQUIP] Got equipment system")
 
         # Equip the item
         logger.info(f"[EQUIP] Calling equipment_system.equip_item({entity_id}, {item_id})")
@@ -449,12 +455,11 @@ def equip_item(entity_id):
 def unequip_item(entity_id):
     """Unequip an item from an entity."""
     from flask import request, jsonify
+    from src.core.module_loader import ModuleLoader
 
     logger.info(f"[UNEQUIP] Starting unequip request for entity {entity_id}")
 
-    engine = get_engine()
-    logger.info(f"[UNEQUIP] Got engine instance: {engine}")
-
+    world_path = session.get('world_path')
     data = request.get_json()
     item_id = data.get('item_id')
     logger.info(f"[UNEQUIP] Request data - entity_id: {entity_id}, item_id: {item_id}")
@@ -465,20 +470,28 @@ def unequip_item(entity_id):
 
     # Get the equipment system from the items module
     try:
+        engine = get_engine()
+        logger.info(f"[UNEQUIP] Got engine for world: {world_path}")
+
+        # Load modules to find items module
+        loader = ModuleLoader(world_path)
+        modules = loader.load_modules(strategy='config')
+        logger.info(f"[UNEQUIP] Loaded {len(modules)} modules")
+
+        # Find items module
         items_module = None
-        logger.info(f"[UNEQUIP] Searching for items module among {len(engine.modules)} modules")
-        for module in engine.modules:
+        for module in modules:
             if module.name == 'items':
                 items_module = module
                 logger.info("[UNEQUIP] Found items module")
                 break
 
         if not items_module:
-            logger.error("[UNEQUIP] Items module not loaded in engine")
+            logger.error("[UNEQUIP] Items module not loaded in this world")
             return jsonify({'success': False, 'error': 'Items module not loaded'}), 400
 
         equipment_system = items_module.get_equipment_system()
-        logger.info(f"[UNEQUIP] Got equipment system: {equipment_system}")
+        logger.info(f"[UNEQUIP] Got equipment system")
 
         # Unequip the item
         logger.info(f"[UNEQUIP] Calling equipment_system.unequip_item({entity_id}, {item_id})")
