@@ -872,6 +872,14 @@ def create_app(worlds_dir: str = 'worlds'):
             # Event should be processed synchronously since we're in same thread
             if roll_complete_received:
                 result_data = roll_complete_received[0].data
+
+                # Add entity name for display in roll history
+                entity = engine.get_entity(entity_id)
+                if entity:
+                    result_data['entity_name'] = entity.name
+                else:
+                    result_data['entity_name'] = 'Unknown'
+
                 # Broadcast to all players in the world (everyone should see dice rolls)
                 socketio.emit('roll_result', result_data, room=f"world_{session.get('world_name')}")
             else:
