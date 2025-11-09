@@ -28,6 +28,49 @@ def get_current_world_path():
     return session.get('world_path')
 
 
+def get_equipment_system(world_path: str):
+    """
+    Get initialized equipment system for a world.
+
+    This helper function properly loads and initializes the items module
+    with an engine instance, ensuring the equipment system is ready to use.
+
+    Args:
+        world_path: Path to the world directory
+
+    Returns:
+        EquipmentSystem instance
+
+    Raises:
+        ValueError: If items module is not loaded in this world
+    """
+    # Create engine instance
+    engine = StateEngine(world_path)
+
+    # Load and initialize modules with the engine
+    loader = ModuleLoader(world_path)
+    modules = loader.load_modules(strategy='config')
+
+    # Initialize each module with the engine
+    for module in modules:
+        try:
+            module.initialize(engine)
+        except Exception as e:
+            logger.warning(f"Failed to initialize module {module.name}: {e}")
+
+    # Find items module
+    items_module = None
+    for module in modules:
+        if module.name == 'items':
+            items_module = module
+            break
+
+    if not items_module:
+        raise ValueError('Items module not loaded in this world')
+
+    return items_module.get_equipment_system()
+
+
 @items_bp.route('/api/equipment/<entity_id>')
 def api_equipment(entity_id: str):
     """
@@ -51,29 +94,7 @@ def api_equipment(entity_id: str):
         return jsonify({'error': 'No world selected', 'success': False}), 400
 
     try:
-        engine = StateEngine(world_path)
-
-        # Get items module and equipment system
-        from src.core.module_loader import ModuleLoader
-
-        # Load modules to get equipment system
-        loader = ModuleLoader(world_path)
-        modules = loader.load_modules(strategy='config')
-
-        # Find items module
-        items_module = None
-        for module in modules:
-            if module.name == 'items':
-                items_module = module
-                break
-
-        if not items_module:
-            return jsonify({
-                'success': False,
-                'error': 'Items module not loaded in this world'
-            }), 400
-
-        equipment_system = items_module.get_equipment_system()
+        equipment_system = get_equipment_system(world_path)
         equipped_items = equipment_system.get_equipped_items(entity_id)
 
         return jsonify({
@@ -119,27 +140,7 @@ def api_inventory(entity_id: str):
         return jsonify({'error': 'No world selected', 'success': False}), 400
 
     try:
-        engine = StateEngine(world_path)
-
-        # Get items module and equipment system
-        from src.core.module_loader import ModuleLoader
-
-        loader = ModuleLoader(world_path)
-        modules = loader.load_modules(strategy='config')
-
-        items_module = None
-        for module in modules:
-            if module.name == 'items':
-                items_module = module
-                break
-
-        if not items_module:
-            return jsonify({
-                'success': False,
-                'error': 'Items module not loaded in this world'
-            }), 400
-
-        equipment_system = items_module.get_equipment_system()
+        equipment_system = get_equipment_system(world_path)
         inventory = equipment_system.get_inventory(entity_id)
 
         return jsonify({
@@ -198,27 +199,7 @@ def api_equip_item():
                 'error': 'Missing required fields: character_id, item_id'
             }), 400
 
-        engine = StateEngine(world_path)
-
-        # Get equipment system
-        from src.core.module_loader import ModuleLoader
-
-        loader = ModuleLoader(world_path)
-        modules = loader.load_modules(strategy='config')
-
-        items_module = None
-        for module in modules:
-            if module.name == 'items':
-                items_module = module
-                break
-
-        if not items_module:
-            return jsonify({
-                'success': False,
-                'error': 'Items module not loaded in this world'
-            }), 400
-
-        equipment_system = items_module.get_equipment_system()
+        equipment_system = get_equipment_system(world_path)
         result = equipment_system.equip_item(character_id, item_id)
 
         if result.success:
@@ -275,27 +256,7 @@ def api_unequip_item():
                 'error': 'Missing required fields: character_id, item_id'
             }), 400
 
-        engine = StateEngine(world_path)
-
-        # Get equipment system
-        from src.core.module_loader import ModuleLoader
-
-        loader = ModuleLoader(world_path)
-        modules = loader.load_modules(strategy='config')
-
-        items_module = None
-        for module in modules:
-            if module.name == 'items':
-                items_module = module
-                break
-
-        if not items_module:
-            return jsonify({
-                'success': False,
-                'error': 'Items module not loaded in this world'
-            }), 400
-
-        equipment_system = items_module.get_equipment_system()
+        equipment_system = get_equipment_system(world_path)
         result = equipment_system.unequip_item(character_id, item_id)
 
         if result.success:

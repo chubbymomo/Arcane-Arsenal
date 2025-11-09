@@ -707,3 +707,51 @@ class Module(ABC):
             'styles': [],
             'components': []
         }
+
+    def register_blueprint(self) -> Optional[Any]:
+        """
+        Register a Flask blueprint for this module's API endpoints.
+
+        Override this method to provide module-specific REST API endpoints.
+        The blueprint will be automatically registered with the Flask app during
+        server initialization, eliminating the need to modify core server code.
+
+        This follows the "Don't Modify Core" principle from MODULE_GUIDE.md.
+        Modules can provide their own API endpoints without touching core infrastructure.
+
+        Returns:
+            Flask Blueprint instance, or None if module has no API endpoints
+
+        Example:
+            # In src/modules/my_module/api.py
+            from flask import Blueprint, jsonify, session
+
+            my_module_bp = Blueprint('my_module', __name__)
+
+            @my_module_bp.route('/api/my_module/action', methods=['POST'])
+            def my_action():
+                world_path = session.get('world_path')
+                # ... implement endpoint logic
+                return jsonify({'success': True})
+
+            # In src/modules/my_module/__init__.py
+            from .api import my_module_bp
+
+            class MyModule(Module):
+                def register_blueprint(self):
+                    return my_module_bp
+
+        Blueprint guidelines:
+            - Use session.get('world_path') to access the current world
+            - Return JSON responses with {'success': bool, ...} format
+            - Handle errors gracefully with appropriate HTTP status codes
+            - Use module name as blueprint name for clarity
+            - Prefix routes with /api/{module_name}/ for consistency
+
+        Notes:
+            - Blueprints are registered after core blueprints (client, host)
+            - Modules are loaded in dependency order, blueprints registered in same order
+            - Blueprint registration happens during create_app(), before server starts
+            - Use StateEngine(world_path) to access the database, not stored instances
+        """
+        return None

@@ -22,7 +22,7 @@ and be first-class citizens in the ECS.
 """
 
 import logging
-from typing import List
+from typing import List, Optional, Any
 from ..base import Module, ComponentTypeDefinition, RelationshipTypeDefinition
 from .components import ItemComponent, EquippableComponent, ConsumableComponent, InventoryDisplayComponent
 from .relationships import OwnsRelationship, EquippedRelationship
@@ -159,6 +159,19 @@ class ItemsModule(Module):
             OwnsRelationship(),
             EquippedRelationship()
         ]
+
+    def register_blueprint(self) -> Optional[Any]:
+        """
+        Register Flask blueprint for inventory API endpoints.
+
+        Provides REST API endpoints for inventory and equipment management:
+        - GET  /api/equipment/<entity_id> - Get equipped items
+        - GET  /api/inventory/<entity_id> - Get inventory (owned items)
+        - POST /api/equip                 - Equip an item
+        - POST /api/unequip               - Unequip an item
+        """
+        from .api import items_bp
+        return items_bp
 
 
 __all__ = [
