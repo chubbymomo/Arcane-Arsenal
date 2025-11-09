@@ -186,7 +186,7 @@ def build_context_prompt(ai_context: Dict[str, Any]) -> str:
     return "\n".join(prompt_parts)
 
 
-def build_message_history(messages: List[Dict], limit: int = 10) -> List[Dict[str, str]]:
+def build_message_history(messages: List[Dict], limit: int = 10, player_message: str = None) -> List[Dict[str, str]]:
     """
     Convert conversation messages to LLM format.
 
@@ -196,17 +196,18 @@ def build_message_history(messages: List[Dict], limit: int = 10) -> List[Dict[st
     Args:
         messages: List of message dicts from conversation history
         limit: Maximum number of messages to include (default: 10)
+        player_message: Optional current player message to append
 
     Returns:
         List of formatted messages for LLM
 
     Example:
         >>> messages = context['conversation']
-        >>> llm_messages = build_message_history(messages)
+        >>> llm_messages = build_message_history(messages, player_message="I search the room")
         >>> print(llm_messages)
         [
-            {'role': 'user', 'content': 'I search the room'},
-            {'role': 'assistant', 'content': 'You find a hidden door...'}
+            {'role': 'assistant', 'content': 'You find a hidden door...'},
+            {'role': 'user', 'content': 'I search the room'}
         ]
     """
     llm_messages = []
@@ -228,6 +229,13 @@ def build_message_history(messages: List[Dict], limit: int = 10) -> List[Dict[st
                 'role': role,
                 'content': content
             })
+
+    # Add current player message if provided
+    if player_message:
+        llm_messages.append({
+            'role': 'user',
+            'content': player_message
+        })
 
     logger.debug(f"Built {len(llm_messages)} messages for LLM context")
     return llm_messages

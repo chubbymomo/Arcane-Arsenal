@@ -3,17 +3,67 @@ AI DM Tools - Functions the AI can call to interact with the game world.
 
 These tools give the AI the ability to create entities, query game state,
 and modify the world in structured ways beyond just narrative text.
+
+This module also provides a registry system so other modules can register
+their own tools (e.g., spell casting, crafting, etc.).
 """
 
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Callable
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
 
-# Tool definitions for LLM function calling
-TOOL_DEFINITIONS = [
+# Tool registry - modules can add their own tools here
+_tool_registry: Dict[str, Callable] = {}
+_tool_definitions: List[Dict[str, Any]] = []
+
+
+def register_tool(definition: Dict[str, Any], handler: Callable):
+    """
+    Register a new tool that the AI can use.
+
+    Args:
+        definition: Tool definition dict with name, description, input_schema
+        handler: Function that takes (engine, player_entity_id, tool_input) and returns result dict
+
+    Example:
+        def cast_spell_handler(engine, player_id, tool_input):
+            spell_name = tool_input['spell_name']
+            # ... cast the spell ...
+            return {'success': True, 'message': f'Cast {spell_name}!'}
+
+        register_tool({
+            'name': 'cast_spell',
+            'description': 'Cast a magical spell',
+            'input_schema': {
+                'type': 'object',
+                'properties': {
+                    'spell_name': {'type': 'string', 'description': 'Name of the spell'}
+                },
+                'required': ['spell_name']
+            }
+        }, cast_spell_handler)
+    """
+    tool_name = definition['name']
+    _tool_registry[tool_name] = handler
+    _tool_definitions.append(definition)
+    logger.info(f"Registered tool: {tool_name}")
+
+
+def get_tool_definitions() -> List[Dict[str, Any]]:
+    """Get all registered tool definitions for the LLM."""
+    return _tool_definitions.copy()
+
+
+def get_tool_handler(tool_name: str) -> Callable:
+    """Get the handler function for a tool."""
+    return _tool_registry.get(tool_name)
+
+
+# Core tool definitions for LLM function calling
+_CORE_TOOL_DEFINITIONS = [
     {
         "name": "create_npc",
         "description": "Create a new NPC (non-player character) in the game world. Use this when an NPC first appears in the story.",
@@ -274,31 +324,31 @@ def execute_tool(tool_name: str, tool_input: Dict[str, Any], engine, player_enti
     logger.info(f"Executing tool: {tool_name} with input: {tool_input}")
 
     try:
-        if tool_name == "create_npc":
-            return _create_npc(engine, tool_input, player_entity_id)
-        elif tool_name == "create_location":
-            return _create_location(engine, tool_input)
-        elif tool_name == "create_item":
-            return _create_item(engine, tool_input)
-        elif tool_name == "roll_dice":
-            return _roll_dice(tool_input)
-        elif tool_name == "move_player_to_location":
-            return _move_player_to_location(engine, player_entity_id, tool_input)
-        elif tool_name == "query_entities":
-            return _query_entities(engine, tool_input)
-        elif tool_name == "update_npc_disposition":
-            return _update_npc_disposition(engine, tool_input)
-        elif tool_name == "give_item_to_player":
-            return _give_item_to_player(engine, player_entity_id, tool_input)
-        elif tool_name == "deal_damage":
-            return _deal_damage(engine, player_entity_id, tool_input)
-        elif tool_name == "heal_player":
-            return _heal_player(engine, player_entity_id, tool_input)
-        else:
+        handler = get_tool_handler(tool_name)
+        if not handler:
             return {
                 "success": False,
                 "message": f"Unknown tool: {tool_name}"
             }
+
+        # Call the handler - core handlers have varying signatures
+        # So we need to handle them carefully
+        if tool_name in ['roll_dice']:
+            # Dice rolling doesn't need engine or player_id
+            return handler(tool_input)
+        elif tool_name in ['create_npc', 'move_player_to_location', 'give_item_to_player', 'deal_damage', 'heal_player']:
+            # These need both engine and player_id
+            return handler(engine, player_entity_id, tool_input)
+        elif tool_name in ['create_location', 'query_entities', 'update_npc_disposition']:
+            # These only need engine
+            return handler(engine, tool_input)
+        elif tool_name == 'create_item':
+            # Item creation needs engine
+            return handler(engine, tool_input)
+        else:
+            # Custom tools from modules - try standard signature
+            return handler(engine, player_entity_id, tool_input)
+
     except Exception as e:
         logger.error(f"Error executing tool {tool_name}: {e}", exc_info=True)
         return {
@@ -662,4 +712,33 @@ def _heal_player(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> D
     }
 
 
-__all__ = ['TOOL_DEFINITIONS', 'execute_tool']
+# Initialize core tools on module load
+def _initialize_core_tools():
+    """Register all core DM tools."""
+    core_handlers = {
+        'create_npc': _create_npc,
+        'create_location': _create_location,
+        'create_item': _create_item,
+        'roll_dice': _roll_dice,
+        'move_player_to_location': _move_player_to_location,
+        'query_entities': _query_entities,
+        'update_npc_disposition': _update_npc_disposition,
+        'give_item_to_player': _give_item_to_player,
+        'deal_damage': _deal_damage,
+        'heal_player': _heal_player
+    }
+
+    for tool_def in _CORE_TOOL_DEFINITIONS:
+        tool_name = tool_def['name']
+        handler = core_handlers.get(tool_name)
+        if handler:
+            register_tool(tool_def, handler)
+        else:
+            logger.warning(f"No handler found for core tool: {tool_name}")
+
+
+# Initialize on import
+_initialize_core_tools()
+
+
+__all__ = ['execute_tool', 'register_tool', 'get_tool_definitions', 'get_tool_handler']
