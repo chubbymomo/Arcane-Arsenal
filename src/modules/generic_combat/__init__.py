@@ -1,13 +1,20 @@
 """
-Fantasy Combat Module for Arcane Arsenal.
+Generic Combat Module for Arcane Arsenal.
 
-Provides combat-related components for fantasy adventures including:
+Provides genre-agnostic combat components that work across fantasy, sci-fi, modern,
+and other game settings:
 - Health: Hit points and damage tracking
-- Armor: Protection and defense
-- Weapon: Attack power and type
-- Combat Stats: Strength, dexterity, constitution
+- Armor: Protection and defense (AC or equivalent)
+- Weapon: Attack power and damage types
 
-This module demonstrates the dependency system by depending on core_components.
+While designed for fantasy RPGs, these components are generic enough to be used in:
+- Fantasy (D&D-style adventures)
+- Sci-fi (space combat, energy weapons)
+- Modern (contemporary action)
+- Cyberpunk (tech-enhanced combat)
+- Any system using HP/damage/armor mechanics
+
+Depends on: core_components, rng
 """
 
 from typing import List, Dict, Any
@@ -24,7 +31,7 @@ class HealthComponent(ComponentTypeDefinition):
     type = "health"
     description = "Tracks entity health and hit points"
     schema_version = "1.0.0"
-    module = "fantasy_combat"
+    module = "generic_combat"
 
     def get_schema(self) -> Dict[str, Any]:
         return {
@@ -147,7 +154,7 @@ class ArmorComponent(ComponentTypeDefinition):
     type = "armor"
     description = "Armor class and damage resistance"
     schema_version = "1.0.0"
-    module = "fantasy_combat"
+    module = "generic_combat"
 
     def get_schema(self) -> Dict[str, Any]:
         return {
@@ -231,13 +238,13 @@ class WeaponComponent(ComponentTypeDefinition):
     Weapon component for attacks.
 
     Validates damage_dice using RNG module's DiceParser and damage_type
-    against the fantasy_combat module's damage_types registry.
+    against the generic_combat module's damage_types registry.
     """
 
     type = "weapon"
     description = "Weapon attack properties"
     schema_version = "1.0.0"
-    module = "fantasy_combat"
+    module = "generic_combat"
 
     def get_schema(self) -> Dict[str, Any]:
         return {
@@ -342,20 +349,25 @@ class WeaponComponent(ComponentTypeDefinition):
         return True
 
 
-class FantasyCombatModule(Module):
+class GenericCombatModule(Module):
     """
-    Fantasy Combat module for Arcane Arsenal.
+    Generic Combat module for Arcane Arsenal.
 
-    Provides combat mechanics for fantasy tabletop RPGs including
-    health tracking, armor, weapons, and combat stats.
+    Provides genre-agnostic combat mechanics that work across multiple game settings.
+    While commonly used with fantasy RPGs (via generic_fantasy module), these
+    components are reusable for sci-fi, modern, cyberpunk, and other genres.
 
-    This module depends on core_components for entity positioning
-    and basic identity.
+    Common usage:
+    - Fantasy RPG: generic_combat + generic_fantasy + items
+    - Sci-fi: generic_combat + sci_fi_character + tech_items
+    - Modern: generic_combat + modern_skills + equipment
+
+    Depends on: core_components (entity basics), rng (dice rolling)
     """
 
     @property
     def name(self) -> str:
-        return "fantasy_combat"
+        return "generic_combat"
 
     @property
     def version(self) -> str:
@@ -363,15 +375,15 @@ class FantasyCombatModule(Module):
 
     @property
     def display_name(self) -> str:
-        return "Fantasy Combat System"
+        return "Generic Combat System"
 
     @property
     def description(self) -> str:
-        return "Combat mechanics including health, armor, weapons, and damage for epic battles"
+        return "Genre-agnostic combat mechanics: health, armor, weapons, and damage"
 
     def dependencies(self) -> List[str]:
         """
-        Fantasy combat depends on core components and RNG module.
+        Generic combat depends on core components and RNG module.
 
         - core_components: Basic entity functionality (Position, Identity)
         - rng: DiceParser for damage_dice validation
@@ -380,10 +392,11 @@ class FantasyCombatModule(Module):
 
     def initialize(self, engine) -> None:
         """
-        Initialize fantasy_combat module registries.
+        Initialize generic_combat module registries.
 
-        Creates and populates armor_types and damage_types registries
-        with common fantasy RPG values.
+        Creates and populates armor_types and damage_types registries.
+        While values are fantasy-focused, they work for other genres
+        (e.g., 'light' armor could be Kevlar vest in modern settings).
         """
         # Create armor types registry
         armor_types = engine.create_registry('armor_types', self.name)
@@ -425,7 +438,7 @@ class FantasyCombatModule(Module):
 
 # Export
 __all__ = [
-    'FantasyCombatModule',
+    'GenericCombatModule',
     'HealthComponent',
     'ArmorComponent',
     'WeaponComponent'
