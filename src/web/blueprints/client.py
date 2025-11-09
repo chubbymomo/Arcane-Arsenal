@@ -391,21 +391,15 @@ def character_sheet(entity_id: str):
 # ==================== Inventory Management API ====================
 
 @client_bp.route('/api/entities/<entity_id>/equip', methods=['POST'])
+@require_world
 def equip_item(entity_id):
     """Equip an item on an entity."""
-    from flask import request, jsonify, session, current_app
+    from flask import request, jsonify
 
     logger.info(f"[EQUIP] Starting equip request for entity {entity_id}")
 
-    world_name = session.get('world_name')
-    if not world_name:
-        logger.warning("[EQUIP] No world selected in session")
-        return jsonify({'success': False, 'error': 'No world selected'}), 400
-
-    engine = current_app.engine_instances.get(world_name)
-    if not engine:
-        logger.error(f"[EQUIP] World engine not found for world: {world_name}")
-        return jsonify({'success': False, 'error': 'World engine not found'}), 404
+    engine = get_engine()
+    logger.info(f"[EQUIP] Got engine instance: {engine}")
 
     data = request.get_json()
     item_id = data.get('item_id')
@@ -451,21 +445,15 @@ def equip_item(entity_id):
 
 
 @client_bp.route('/api/entities/<entity_id>/unequip', methods=['POST'])
+@require_world
 def unequip_item(entity_id):
     """Unequip an item from an entity."""
-    from flask import request, jsonify, session, current_app
+    from flask import request, jsonify
 
     logger.info(f"[UNEQUIP] Starting unequip request for entity {entity_id}")
 
-    world_name = session.get('world_name')
-    if not world_name:
-        logger.warning("[UNEQUIP] No world selected in session")
-        return jsonify({'success': False, 'error': 'No world selected'}), 400
-
-    engine = current_app.engine_instances.get(world_name)
-    if not engine:
-        logger.error(f"[UNEQUIP] World engine not found for world: {world_name}")
-        return jsonify({'success': False, 'error': 'World engine not found'}), 404
+    engine = get_engine()
+    logger.info(f"[UNEQUIP] Got engine instance: {engine}")
 
     data = request.get_json()
     item_id = data.get('item_id')
