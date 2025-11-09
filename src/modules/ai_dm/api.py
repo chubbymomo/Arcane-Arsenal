@@ -111,8 +111,11 @@ def dm_chat_page(entity_id: str):
         # Check if we need to generate an AI intro (empty conversation + needs_ai_intro flag)
         if len(messages) == 0:
             player_comp = engine.get_component(entity_id, 'PlayerCharacter')
+            logger.info(f"Checking AI intro for {entity_id}: player_comp={player_comp is not None}, needs_ai_intro={player_comp.data.get('needs_ai_intro', False) if player_comp else 'N/A'}")
+
             if player_comp and player_comp.data.get('needs_ai_intro', False):
                 # Generate AI opening scene
+                logger.info(f"Starting AI intro generation for {entity_id}")
                 try:
                     from .llm_client import get_llm_client, LLMError
                     from .prompts import build_full_prompt
@@ -120,8 +123,7 @@ def dm_chat_page(entity_id: str):
                     from src.core.config import get_config
                     from datetime import datetime
 
-                    logger.info(f"Generating AI intro for {entity_id}")
-
+                    logger.info(f"Building AI context for {entity_id}")
                     # Build context for intro generation
                     ai_context = engine.generate_ai_context(entity_id)
                     full_system_prompt = build_full_prompt(ai_context)
@@ -134,6 +136,7 @@ def dm_chat_page(entity_id: str):
                         "Remember: no meta-gaming, just vivid narrative."
                     )
 
+                    logger.info(f"Calling LLM for AI intro")
                     # Call LLM
                     config = get_config()
                     llm = get_llm_client(config)
@@ -144,13 +147,16 @@ def dm_chat_page(entity_id: str):
                         temperature=config.ai_temperature
                     )
 
+                    logger.info(f"Parsing AI response (length: {len(raw_response)})")
                     # Parse response
                     intro_text, intro_actions = parse_dm_response(raw_response)
+                    logger.info(f"Parsed intro text (length: {len(intro_text)}), actions: {len(intro_actions)}")
 
                     # Create DM message entity for intro
                     dm_msg_result = engine.create_entity("DM intro message")
                     if dm_msg_result.success:
                         dm_msg_id = dm_msg_result.data['id']
+                        logger.info(f"Created intro message entity: {dm_msg_id}")
 
                         engine.add_component(dm_msg_id, 'ChatMessage', {
                             'speaker': 'dm',
@@ -160,11 +166,15 @@ def dm_chat_page(entity_id: str):
                             'suggested_actions': intro_actions
                         })
 
-                        # Add to conversation
-                        message_ids.append(dm_msg_id)
+                        # Add to conversation - need to get fresh message_ids list
+                        conversation = engine.get_component(entity_id, 'Conversation')
+                        current_message_ids = conversation.data.get('message_ids', []).copy()
+                        current_message_ids.append(dm_msg_id)
+
                         engine.update_component(entity_id, 'Conversation', {
-                            'message_ids': message_ids
+                            'message_ids': current_message_ids
                         })
+                        logger.info(f"Updated conversation with intro message")
 
                         # Add to messages list for rendering
                         messages.append({
@@ -183,10 +193,12 @@ def dm_chat_page(entity_id: str):
                             'needs_ai_intro': False
                         })
 
-                        logger.info(f"AI intro generated successfully for {entity_id}")
+                        logger.info(f"✓ AI intro generated successfully for {entity_id}")
+                    else:
+                        logger.error(f"Failed to create intro message entity: {dm_msg_result.error}")
 
                 except LLMError as e:
-                    logger.error(f"Failed to generate AI intro: {e}")
+                    logger.error(f"LLM error during AI intro generation: {e}")
                     # Continue without intro - user can start conversation manually
                 except Exception as e:
                     logger.error(f"Unexpected error generating AI intro: {e}", exc_info=True)

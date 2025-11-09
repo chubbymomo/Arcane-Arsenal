@@ -49,9 +49,10 @@
             border: 2px solid #3d2b4d;
             border-radius: 12px;
         ">
-            <input type="text"
+            <textarea
                    id="dm-input"
-                   placeholder="Speak with the Dungeon Master..."
+                   placeholder="Speak with the Dungeon Master... (Enter to send, Shift+Enter for new line)"
+                   rows="1"
                    style="
                        flex: 1;
                        padding: 1rem;
@@ -61,9 +62,11 @@
                        color: #f0e6d6;
                        font-family: inherit;
                        font-size: 1rem;
-                   "
-                   onkeypress="if(event.key==='Enter') sendDMMessage()">
-            <button onclick="sendDMMessage()"
+                       resize: vertical;
+                       min-height: 3rem;
+                       max-height: 12rem;
+                   "></textarea>
+            <button id="send-button" onclick="sendDMMessage()"
                     style="
                         padding: 1rem 2rem;
                         background: linear-gradient(135deg, #d4af37, #b8942b);
@@ -77,10 +80,16 @@
                         transition: all 0.2s;
                         text-transform: uppercase;
                         letter-spacing: 0.05em;
+                        min-width: 120px;
                     "
-                    onmouseover="this.style.background='linear-gradient(135deg, #ffd700, #d4af37)'; this.style.transform='scale(1.05)'"
-                    onmouseout="this.style.background='linear-gradient(135deg, #d4af37, #b8942b)'; this.style.transform='scale(1)'">
-                Send
+                    onmouseover="if(!this.disabled) {this.style.background='linear-gradient(135deg, #ffd700, #d4af37)'; this.style.transform='scale(1.05)'}"
+                    onmouseout="if(!this.disabled) {this.style.background='linear-gradient(135deg, #d4af37, #b8942b)'; this.style.transform='scale(1)'}">
+                <span id="send-button-text">Send</span>
+                <span id="send-button-spinner" style="display: none;">
+                    <svg style="animation: spin 1s linear infinite; width: 1rem; height: 1rem; display: inline-block;" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="31.4 31.4" stroke-linecap="round"/>
+                    </svg>
+                </span>
             </button>
         </div>
     </div>
@@ -89,6 +98,7 @@
 <!-- JavaScript for chat interactions -->
 <script>
 const entityId = '{{ entity.id }}';
+let isLoading = false;
 
 function reloadMessages() {
     // Fetch updated messages HTML without reloading the page
@@ -97,6 +107,12 @@ function reloadMessages() {
     .then(html => {
         const messagesDiv = document.getElementById('dm-messages');
         if (messagesDiv) {
+            // Remove thinking indicator if present
+            const thinkingIndicator = messagesDiv.querySelector('.dm-thinking-indicator');
+            if (thinkingIndicator) {
+                thinkingIndicator.remove();
+            }
+
             messagesDiv.innerHTML = html;
             // Auto-scroll to bottom
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
@@ -107,11 +123,68 @@ function reloadMessages() {
     });
 }
 
+function showThinkingIndicator() {
+    const messagesDiv = document.getElementById('dm-messages');
+    if (!messagesDiv) return;
+
+    const thinkingDiv = document.createElement('div');
+    thinkingDiv.className = 'dm-thinking-indicator';
+    thinkingDiv.innerHTML = `
+        <div style="
+            margin-bottom: 1rem;
+            padding: 1rem;
+            background: rgba(212, 175, 55, 0.1);
+            border-left: 4px solid #d4af37;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        ">
+            <div class="thinking-dots" style="display: flex; gap: 0.5rem;">
+                <span style="width: 8px; height: 8px; background: #d4af37; border-radius: 50%; animation: bounce 1.4s infinite ease-in-out both;"></span>
+                <span style="width: 8px; height: 8px; background: #d4af37; border-radius: 50%; animation: bounce 1.4s infinite ease-in-out both; animation-delay: 0.16s;"></span>
+                <span style="width: 8px; height: 8px; background: #d4af37; border-radius: 50%; animation: bounce 1.4s infinite ease-in-out both; animation-delay: 0.32s;"></span>
+            </div>
+            <span style="color: #d4af37; font-family: 'Cinzel', serif; font-style: italic;">The DM is thinking...</span>
+        </div>
+    `;
+
+    messagesDiv.appendChild(thinkingDiv);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+function setLoadingState(loading) {
+    isLoading = loading;
+    const input = document.getElementById('dm-input');
+    const button = document.getElementById('send-button');
+    const buttonText = document.getElementById('send-button-text');
+    const buttonSpinner = document.getElementById('send-button-spinner');
+
+    if (loading) {
+        input.disabled = true;
+        button.disabled = true;
+        button.style.opacity = '0.6';
+        button.style.cursor = 'not-allowed';
+        buttonText.style.display = 'none';
+        buttonSpinner.style.display = 'inline-block';
+        showThinkingIndicator();
+    } else {
+        input.disabled = false;
+        button.disabled = false;
+        button.style.opacity = '1';
+        button.style.cursor = 'pointer';
+        buttonText.style.display = 'inline';
+        buttonSpinner.style.display = 'none';
+    }
+}
+
 function sendDMMessage() {
     const input = document.getElementById('dm-input');
     const message = input.value.trim();
 
-    if (!message) return;
+    if (!message || isLoading) return;
+
+    setLoadingState(true);
 
     fetch('/api/dm/message', {
         method: 'POST',
@@ -134,6 +207,9 @@ function sendDMMessage() {
     .catch(error => {
         console.error('DM message error:', error);
         alert('Failed to send message');
+    })
+    .finally(() => {
+        setLoadingState(false);
     });
 }
 
@@ -167,6 +243,25 @@ document.addEventListener('DOMContentLoaded', function() {
     const messagesDiv = document.getElementById('dm-messages');
     if (messagesDiv) {
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    // Add Enter key handler to textarea
+    const input = document.getElementById('dm-input');
+    if (input) {
+        input.addEventListener('keydown', function(e) {
+            // Send on Enter (without Shift)
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault(); // Prevent newline
+                sendDMMessage();
+            }
+            // Shift+Enter allows newline (default behavior)
+        });
+
+        // Auto-resize textarea as user types
+        input.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 192) + 'px'; // Max 12rem
+        });
     }
 });
 </script>
@@ -207,6 +302,23 @@ document.addEventListener('DOMContentLoaded', function() {
 
 .dm-messages::-webkit-scrollbar-thumb:hover {
     background: #d4af37;
+}
+
+/* Animations */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes bounce {
+    0%, 80%, 100% {
+        transform: scale(0);
+        opacity: 0.5;
+    }
+    40% {
+        transform: scale(1);
+        opacity: 1;
+    }
 }
 </style>
 {% endblock %}
