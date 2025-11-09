@@ -22,7 +22,6 @@ from src.core.state_engine import StateEngine
 from src.core.module_loader import ModuleLoader
 from src.core.models import Event
 from src.web.blueprints import client_bp, host_bp
-from src.modules.items.api import items_bp
 
 logger = logging.getLogger(__name__)
 
@@ -69,10 +68,32 @@ def create_app(worlds_dir: str = 'worlds'):
         formatted = re.sub(r'(?<!^)(?=[A-Z])', ' ', name)
         return formatted
 
-    # Register blueprints
+    # Register core blueprints
     app.register_blueprint(client_bp)
     app.register_blueprint(host_bp)
-    app.register_blueprint(items_bp)
+
+    # Auto-discover and register module blueprints
+    # This allows modules to provide their own API endpoints without modifying core
+    try:
+        loader = ModuleLoader()
+        available_modules = loader.discover_available_modules()
+
+        for module_info in available_modules:
+            try:
+                # Instantiate the module
+                module_instance = loader.load_module_instance(module_info['name'])
+
+                # Check if module provides a blueprint
+                blueprint = module_instance.register_blueprint()
+
+                if blueprint is not None:
+                    app.register_blueprint(blueprint)
+                    logger.info(f"Registered blueprint from module: {module_info['name']}")
+            except Exception as e:
+                # Don't fail server startup if a module blueprint fails to load
+                logger.warning(f"Failed to register blueprint from module '{module_info['name']}': {e}")
+    except Exception as e:
+        logger.warning(f"Failed to auto-discover module blueprints: {e}")
 
     # Helper: Get list of available worlds
     def get_available_worlds():
