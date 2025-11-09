@@ -389,6 +389,98 @@ _CORE_TOOL_DEFINITIONS = [
             },
             "required": ["location"]
         }
+    },
+    {
+        "name": "get_entity_details",
+        "description": "Get complete details about an entity including all its components. Use this to inspect an entity's current state before modifying it.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "entity_name": {
+                    "type": "string",
+                    "description": "Name of the entity to inspect"
+                },
+                "entity_type": {
+                    "type": "string",
+                    "description": "Type of entity ('npc', 'location', 'item', 'player') to narrow search"
+                }
+            },
+            "required": ["entity_name"]
+        }
+    },
+    {
+        "name": "update_component",
+        "description": "Update a component's data on any entity. Use this to modify NPC stats, location features, item properties, etc. Get entity details first to see current values.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "entity_name": {
+                    "type": "string",
+                    "description": "Name of the entity to update"
+                },
+                "component_type": {
+                    "type": "string",
+                    "description": "Component to update (e.g., 'Identity', 'NPC', 'Location', 'Item', 'Health')"
+                },
+                "updates": {
+                    "type": "object",
+                    "description": "Fields to update with new values (e.g., {'race': 'elf', 'occupation': 'mage'})"
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Why this update is being made (for narrative context)"
+                }
+            },
+            "required": ["entity_name", "component_type", "updates", "reason"]
+        }
+    },
+    {
+        "name": "add_component",
+        "description": "Add a new component to an existing entity. Use this to give an NPC combat stats, add health tracking to an entity, etc.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "entity_name": {
+                    "type": "string",
+                    "description": "Name of the entity"
+                },
+                "component_type": {
+                    "type": "string",
+                    "description": "Component type to add (e.g., 'Health', 'CharacterDetails', 'Magic')"
+                },
+                "component_data": {
+                    "type": "object",
+                    "description": "Initial data for the component (schema depends on component type)"
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Why this component is being added"
+                }
+            },
+            "required": ["entity_name", "component_type", "component_data", "reason"]
+        }
+    },
+    {
+        "name": "remove_component",
+        "description": "Remove a component from an entity. Use carefully - this removes capabilities (e.g., removing Health makes entity not trackable in combat).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "entity_name": {
+                    "type": "string",
+                    "description": "Name of the entity"
+                },
+                "component_type": {
+                    "type": "string",
+                    "description": "Component type to remove"
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Why this component is being removed"
+                }
+            },
+            "required": ["entity_name", "component_type", "reason"]
+        }
     }
 ]
 
@@ -936,6 +1028,146 @@ def _long_rest(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dic
     }
 
 
+def _get_entity_details(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+    """Get complete details about an entity including all components."""
+    entity_name = tool_input["entity_name"]
+    entity_type = tool_input.get("entity_type")
+
+    # Find the entity
+    entities = []
+    if entity_type:
+        component_map = {"npc": "NPC", "location": "Location", "item": "Item", "player": "PlayerCharacter"}
+        component = component_map.get(entity_type)
+        if component:
+            entities = engine.query_entities([component])
+    else:
+        # Search all entity types
+        entities = engine.query_entities(['NPC']) + engine.query_entities(['Location']) + \
+                   engine.query_entities(['Item']) + engine.query_entities(['PlayerCharacter'])
+
+    entity = next((e for e in entities if e.name.lower() == entity_name.lower()), None)
+    if not entity:
+        return {"success": False, "message": f"Entity '{entity_name}' not found"}
+
+    # Get all components
+    components = engine.get_entity_components(entity.id)
+    component_summary = {}
+    for comp_type, comp_data in components.items():
+        component_summary[comp_type] = comp_data
+
+    logger.info(f"Retrieved details for entity {entity_name} ({entity.id}): {len(components)} components")
+    return {
+        "success": True,
+        "message": f"Found {entity_name} with {len(components)} components",
+        "data": {
+            "entity_id": entity.id,
+            "name": entity.name,
+            "components": component_summary
+        }
+    }
+
+
+def _update_component(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+    """Update a component on an entity."""
+    entity_name = tool_input["entity_name"]
+    component_type = tool_input["component_type"]
+    updates = tool_input["updates"]
+    reason = tool_input["reason"]
+
+    # Find the entity (search all types)
+    entities = engine.query_entities(['NPC']) + engine.query_entities(['Location']) + \
+               engine.query_entities(['Item']) + engine.query_entities(['PlayerCharacter'])
+    entity = next((e for e in entities if e.name.lower() == entity_name.lower()), None)
+
+    if not entity:
+        return {"success": False, "message": f"Entity '{entity_name}' not found"}
+
+    # Check if component exists
+    component = engine.get_component(entity.id, component_type)
+    if not component:
+        return {"success": False, "message": f"Entity '{entity_name}' does not have a {component_type} component"}
+
+    # Update the component
+    result = engine.update_component(entity.id, component_type, updates)
+    if not result.success:
+        logger.error(f"Failed to update {component_type} on {entity_name}: {result.error}")
+        return {"success": False, "message": f"Failed to update component: {result.error}"}
+
+    logger.info(f"Updated {component_type} on {entity_name} ({entity.id}): {updates} - {reason}")
+    return {
+        "success": True,
+        "message": f"Updated {entity_name}'s {component_type} component: {reason}",
+        "data": {"entity_id": entity.id, "component_type": component_type, "updates": updates}
+    }
+
+
+def _add_component(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+    """Add a component to an entity."""
+    entity_name = tool_input["entity_name"]
+    component_type = tool_input["component_type"]
+    component_data = tool_input["component_data"]
+    reason = tool_input["reason"]
+
+    # Find the entity
+    entities = engine.query_entities(['NPC']) + engine.query_entities(['Location']) + \
+               engine.query_entities(['Item']) + engine.query_entities(['PlayerCharacter'])
+    entity = next((e for e in entities if e.name.lower() == entity_name.lower()), None)
+
+    if not entity:
+        return {"success": False, "message": f"Entity '{entity_name}' not found"}
+
+    # Check if component already exists
+    existing = engine.get_component(entity.id, component_type)
+    if existing:
+        return {"success": False, "message": f"Entity '{entity_name}' already has a {component_type} component. Use update_component instead."}
+
+    # Add the component
+    result = engine.add_component(entity.id, component_type, component_data)
+    if not result.success:
+        logger.error(f"Failed to add {component_type} to {entity_name}: {result.error}")
+        return {"success": False, "message": f"Failed to add component: {result.error}"}
+
+    logger.info(f"Added {component_type} to {entity_name} ({entity.id}): {component_data} - {reason}")
+    return {
+        "success": True,
+        "message": f"Added {component_type} component to {entity_name}: {reason}",
+        "data": {"entity_id": entity.id, "component_type": component_type, "data": component_data}
+    }
+
+
+def _remove_component(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+    """Remove a component from an entity."""
+    entity_name = tool_input["entity_name"]
+    component_type = tool_input["component_type"]
+    reason = tool_input["reason"]
+
+    # Find the entity
+    entities = engine.query_entities(['NPC']) + engine.query_entities(['Location']) + \
+               engine.query_entities(['Item']) + engine.query_entities(['PlayerCharacter'])
+    entity = next((e for e in entities if e.name.lower() == entity_name.lower()), None)
+
+    if not entity:
+        return {"success": False, "message": f"Entity '{entity_name}' not found"}
+
+    # Check if component exists
+    component = engine.get_component(entity.id, component_type)
+    if not component:
+        return {"success": False, "message": f"Entity '{entity_name}' does not have a {component_type} component"}
+
+    # Remove the component
+    result = engine.remove_component(entity.id, component_type)
+    if not result.success:
+        logger.error(f"Failed to remove {component_type} from {entity_name}: {result.error}")
+        return {"success": False, "message": f"Failed to remove component: {result.error}"}
+
+    logger.info(f"Removed {component_type} from {entity_name} ({entity.id}): {reason}")
+    return {
+        "success": True,
+        "message": f"Removed {component_type} component from {entity_name}: {reason}",
+        "data": {"entity_id": entity.id, "component_type": component_type}
+    }
+
+
 # Initialize core tools on module load
 def _initialize_core_tools():
     """Register all core DM tools."""
@@ -951,7 +1183,11 @@ def _initialize_core_tools():
         'remove_item': _remove_item,
         'deal_damage': _deal_damage,
         'heal_player': _heal_player,
-        'long_rest': _long_rest
+        'long_rest': _long_rest,
+        'get_entity_details': _get_entity_details,
+        'update_component': _update_component,
+        'add_component': _add_component,
+        'remove_component': _remove_component
     }
 
     for tool_def in _CORE_TOOL_DEFINITIONS:
