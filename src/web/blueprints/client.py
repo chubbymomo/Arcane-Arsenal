@@ -423,7 +423,7 @@ def equip_item(entity_id):
         equipment_system = items_module.get_equipment_system()
 
         # Equip the item
-        result = equipment_system.equip(entity_id, item_id)
+        result = equipment_system.equip_item(entity_id, item_id)
 
         if result.is_ok():
             return jsonify({'success': True, 'message': 'Item equipped successfully'})
@@ -468,7 +468,7 @@ def unequip_item(entity_id):
         equipment_system = items_module.get_equipment_system()
 
         # Unequip the item
-        result = equipment_system.unequip(entity_id, item_id)
+        result = equipment_system.unequip_item(entity_id, item_id)
 
         if result.is_ok():
             return jsonify({'success': True, 'message': 'Item unequipped successfully'})

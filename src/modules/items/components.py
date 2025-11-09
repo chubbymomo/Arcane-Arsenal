@@ -382,17 +382,19 @@ class InventoryDisplayComponent(ComponentTypeDefinition):
                 if item_comp:
                     rarity = item_comp.data.get('rarity', 'common')
                     html.append(f'''
-                        <div class="equipped-item" style="padding: 0.5rem; background: var(--bg-secondary, #f5f5f5); border-radius: 4px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <div>
-                                    <strong>{escape(item.name)}</strong>
-                                    <div style="font-size: 0.85rem; color: var(--text-muted, #666);">
+                        <div class="equipped-item" style="padding: 0.75rem; background: linear-gradient(145deg, #211528, #2d1b3d); border: 1px solid #3d2b4d; border-radius: 8px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
+                                <div style="flex: 1;">
+                                    <strong style="color: #d4af37; font-family: 'Cinzel', serif;">{escape(item.name)}</strong>
+                                    <div style="font-size: 0.85rem; color: #a99b8a;">
                                         {escape(slot.replace('_', ' ').title())}
-                                        {' • ' + escape(rarity) if rarity else ''}
+                                        {' • ' + escape(rarity).upper() if rarity else ''}
                                     </div>
                                 </div>
                                 <button class="btn-unequip"
-                                        style="padding: 0.25rem 0.5rem; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem;"
+                                        style="padding: 0.5rem 1rem; background: linear-gradient(135deg, #c0392b, #a82820); color: #ffffff; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; transition: all 0.2s;"
+                                        onmouseover="this.style.background='linear-gradient(135deg, #d43f2f, #c0392b)'; this.style.transform='translateY(-1px)'"
+                                        onmouseout="this.style.background='linear-gradient(135deg, #c0392b, #a82820)'; this.style.transform='translateY(0)'"
                                         onclick="unequipItem('{escape(entity_id)}', '{escape(item.id)}')">
                                     Unequip
                                 </button>
@@ -401,7 +403,7 @@ class InventoryDisplayComponent(ComponentTypeDefinition):
                     ''')
             html.append('</div>')
         else:
-            html.append('<p style="color: var(--text-muted, #888); font-style: italic;">No items equipped</p>')
+            html.append('<p style="color: #6a5a7a; font-style: italic;">No items equipped</p>')
 
         html.append('</div>')
 
@@ -411,11 +413,11 @@ class InventoryDisplayComponent(ComponentTypeDefinition):
 
         # Stats
         if data.get('show_weight') or data.get('show_value'):
-            html.append('<div style="display: flex; gap: 1rem; margin-bottom: 0.5rem; font-size: 0.9rem; color: var(--text-muted, #666);">')
+            html.append('<div style="display: flex; gap: 1rem; margin-bottom: 0.5rem; font-size: 0.9rem; color: #a99b8a;">')
             if data.get('show_weight'):
-                html.append(f'<span>⚖️ {total_weight:.1f} lbs</span>')
+                html.append(f'<span style="color: #d4af37;">⚖️ {total_weight:.1f} lbs</span>')
             if data.get('show_value'):
-                html.append(f'<span>💰 {total_value:.2f} gp</span>')
+                html.append(f'<span style="color: #d4af37;">💰 {total_value:.2f} gp</span>')
             html.append('</div>')
 
         if owned_items:
@@ -436,10 +438,10 @@ class InventoryDisplayComponent(ComponentTypeDefinition):
                     # Build buttons separately to avoid f-string nesting issues
                     buttons_html = ''
                     if equippable:
-                        buttons_html += f'<button class="btn-equip" style="padding: 0.25rem 0.5rem; background: var(--primary, #007bff); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem;" onclick="equipItem(\'{escape(entity_id)}\', \'{escape(item.id)}\')">Equip</button>'
+                        buttons_html += f'<button class="btn-equip" style="padding: 0.4rem 0.75rem; background: linear-gradient(135deg, #d4af37, #b8942b); color: #1a1520; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; transition: all 0.2s; font-family: \'Cinzel\', serif;" onmouseover="this.style.background=\'linear-gradient(135deg, #ffd700, #d4af37)\'; this.style.transform=\'translateY(-1px)\'" onmouseout="this.style.background=\'linear-gradient(135deg, #d4af37, #b8942b)\'; this.style.transform=\'translateY(0)\'" onclick="equipItem(\'{escape(entity_id)}\', \'{escape(item.id)}\')">Equip</button>'
                     if consumable:
                         charges = consumable.data.get('charges', 0)
-                        buttons_html += f'<button class="btn-use" style="padding: 0.25rem 0.5rem; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem;" onclick="useItem(\'{escape(entity_id)}\', \'{escape(item.id)}\')">Use ({charges})</button>'
+                        buttons_html += f'<button class="btn-use" style="padding: 0.4rem 0.75rem; background: linear-gradient(135deg, #4a4a4a, #353535); color: #f0e6d6; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; transition: all 0.2s;" onmouseover="this.style.background=\'linear-gradient(135deg, #5a5a5a, #454545)\'" onmouseout="this.style.background=\'linear-gradient(135deg, #4a4a4a, #353535)\'" onclick="useItem(\'{escape(entity_id)}\', \'{escape(item.id)}\')">Use ({charges})</button>'
 
                     # Build item stats line
                     stats_parts = []
@@ -456,20 +458,20 @@ class InventoryDisplayComponent(ComponentTypeDefinition):
                     if consumable:
                         effect_desc = consumable.data.get('effect_description', '')
                         if effect_desc:
-                            effect_line = f'<div style="font-size: 0.85rem; color: var(--text-muted, #666);">{escape(effect_desc)}</div>'
+                            effect_line = f'<div style="font-size: 0.85rem; color: #9b59b6; margin-top: 0.25rem; font-style: italic;">{escape(effect_desc)}</div>'
 
                     html.append(f'''
-                        <div class="inventory-item" style="padding: 0.5rem; background: var(--bg-secondary, #f5f5f5); border-radius: 4px;">
-                            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div class="inventory-item" style="padding: 0.75rem; background: linear-gradient(145deg, #211528, #2d1b3d); border: 1px solid #3d2b4d; border-radius: 8px;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.75rem;">
                                 <div style="flex: 1;">
-                                    <strong>{escape(item.name)}</strong>
-                                    {f' x{quantity}' if quantity > 1 else ''}
-                                    <div style="font-size: 0.85rem; color: var(--text-muted, #666);">
+                                    <strong style="color: #f0e6d6; font-family: 'Cinzel', serif;">{escape(item.name)}</strong>
+                                    {f' <span style="color: #a99b8a;">x{quantity}</span>' if quantity > 1 else ''}
+                                    <div style="font-size: 0.85rem; color: #a99b8a; margin-top: 0.25rem;">
                                         {stats_line}
                                     </div>
                                     {effect_line}
                                 </div>
-                                <div style="display: flex; gap: 0.25rem;">
+                                <div style="display: flex; gap: 0.5rem; flex-shrink: 0;">
                                     {buttons_html}
                                 </div>
                             </div>
@@ -477,7 +479,7 @@ class InventoryDisplayComponent(ComponentTypeDefinition):
                     ''')
             html.append('</div>')
         else:
-            html.append('<p style="color: var(--text-muted, #888); font-style: italic;">No items in inventory</p>')
+            html.append('<p style="color: #6a5a7a; font-style: italic;">No items in inventory</p>')
 
         html.append('</div>')
         html.append('</div>')

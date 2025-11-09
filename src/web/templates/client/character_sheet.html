@@ -107,7 +107,7 @@
                     {% set category = form_builder.categorize_component(comp_type, comp_data) %}
                     {% if category in ['INVENTORY', 'INFO', 'MISC'] %}
                     <div class="component-card">
-                        <h3 class="component-title">{{ comp_type }}</h3>
+                        <h3 class="component-title">{{ comp_type|component_name }}</h3>
                         {{ form_builder.build_display(comp_type, comp_data, entity.id) | safe }}
                     </div>
                     {% endif %}
