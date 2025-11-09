@@ -372,23 +372,8 @@ def execute_tool(tool_name: str, tool_input: Dict[str, Any], engine, player_enti
                 "message": f"Unknown tool: {tool_name}"
             }
 
-        # Call the handler - core handlers have varying signatures
-        # So we need to handle them carefully
-        if tool_name in ['roll_dice']:
-            # Dice rolling doesn't need engine or player_id
-            return handler(tool_input)
-        elif tool_name in ['create_npc', 'move_player_to_location', 'give_item_to_player', 'deal_damage', 'heal_player']:
-            # These need both engine and player_id
-            return handler(engine, player_entity_id, tool_input)
-        elif tool_name in ['create_location', 'query_entities', 'update_npc_disposition']:
-            # These only need engine
-            return handler(engine, tool_input)
-        elif tool_name == 'create_item':
-            # Item creation needs engine
-            return handler(engine, tool_input)
-        else:
-            # Custom tools from modules - try standard signature
-            return handler(engine, player_entity_id, tool_input)
+        # All handlers follow the standard signature
+        return handler(engine, player_entity_id, tool_input)
 
     except Exception as e:
         logger.error(f"Error executing tool {tool_name}: {e}", exc_info=True)
@@ -450,7 +435,7 @@ def _create_npc(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Di
     }
 
 
-def _create_location(engine, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+def _create_location(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
     """Create a location entity."""
     name = tool_input["name"]
     description = tool_input["description"]
@@ -486,7 +471,7 @@ def _create_location(engine, tool_input: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _create_item(engine, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+def _create_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
     """Create an item entity."""
     name = tool_input["name"]
     description = tool_input["description"]
@@ -531,7 +516,7 @@ def _create_item(engine, tool_input: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _roll_dice(tool_input: Dict[str, Any]) -> Dict[str, Any]:
+def _roll_dice(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
     """Roll dice and return results."""
     import random
     import re
@@ -607,7 +592,7 @@ def _move_player_to_location(engine, player_entity_id: str, tool_input: Dict[str
     }
 
 
-def _query_entities(engine, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+def _query_entities(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
     """Query for entities in the game world."""
     entity_type = tool_input["entity_type"]
     name_pattern = tool_input.get("name_pattern", "").lower()
@@ -651,7 +636,7 @@ def _query_entities(engine, tool_input: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _update_npc_disposition(engine, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+def _update_npc_disposition(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
     """Update an NPC's disposition toward the player."""
     npc_name = tool_input["npc_name"]
     new_disposition = tool_input["new_disposition"]
