@@ -15,6 +15,16 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 
+def _format_error(message: str) -> str:
+    """Format an error message in red for display."""
+    return f'<span style="color: #ff4444; font-weight: bold;">❌ {message}</span>'
+
+
+def _format_success(message: str) -> str:
+    """Format a success message in green for display."""
+    return f'<span style="color: #44ff44;">✅ {message}</span>'
+
+
 # Tool registry - modules can add their own tools here
 _tool_registry: Dict[str, Callable] = {}
 _tool_definitions: List[Dict[str, Any]] = []
@@ -481,6 +491,85 @@ _CORE_TOOL_DEFINITIONS = [
             },
             "required": ["entity_name", "component_type", "reason"]
         }
+    },
+    {
+        "name": "add_relationship",
+        "description": "Create a relationship between two entities. Use this to establish connections like ownership, location, allegiance, etc.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "from_entity_name": {
+                    "type": "string",
+                    "description": "Name of the source entity"
+                },
+                "to_entity_name": {
+                    "type": "string",
+                    "description": "Name of the target entity"
+                },
+                "relationship_type": {
+                    "type": "string",
+                    "description": "Type of relationship (e.g., 'owns', 'located_at', 'ally_of', 'enemy_of', 'knows')"
+                },
+                "relationship_data": {
+                    "type": "object",
+                    "description": "Optional data for the relationship (depends on relationship type)"
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Why this relationship is being created"
+                }
+            },
+            "required": ["from_entity_name", "to_entity_name", "relationship_type", "reason"]
+        }
+    },
+    {
+        "name": "remove_relationship",
+        "description": "Remove a relationship between two entities. Use when relationships end (ownership transfer, allegiance breaks, etc.).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "from_entity_name": {
+                    "type": "string",
+                    "description": "Name of the source entity"
+                },
+                "to_entity_name": {
+                    "type": "string",
+                    "description": "Name of the target entity"
+                },
+                "relationship_type": {
+                    "type": "string",
+                    "description": "Type of relationship to remove"
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Why this relationship is being removed"
+                }
+            },
+            "required": ["from_entity_name", "to_entity_name", "relationship_type", "reason"]
+        }
+    },
+    {
+        "name": "query_relationships",
+        "description": "Query relationships for an entity. Use to find what/who an entity is connected to.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "entity_name": {
+                    "type": "string",
+                    "description": "Name of the entity to query relationships for"
+                },
+                "relationship_type": {
+                    "type": "string",
+                    "description": "Optional: Filter by specific relationship type"
+                },
+                "direction": {
+                    "type": "string",
+                    "enum": ["outgoing", "incoming", "both"],
+                    "description": "Direction of relationships to query (default: both)"
+                }
+            },
+            "required": ["entity_name"]
+        }
     }
 ]
 
@@ -544,7 +633,7 @@ def _create_npc(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Di
     result = engine.add_component(npc_id, 'Identity', identity_data)
     if not result.success:
         logger.error(f"  ✗ Failed to add Identity: {result.error}")
-        return {"success": False, "message": f"Failed to add Identity component: {result.error}"}
+        return {"success": False, "message": _format_error(f"Failed to add Identity component: {result.error}")}
     logger.info(f"  → Added Identity: desc={description[:50]}...")
 
     # Add CharacterDetails if class is provided (enables mechanics like spells, skills)
@@ -571,7 +660,7 @@ def _create_npc(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Di
     })
     if not result.success:
         logger.error(f"  ✗ Failed to add NPC component: {result.error}")
-        return {"success": False, "message": f"Failed to add NPC component: {result.error}"}
+        return {"success": False, "message": _format_error(f"Failed to add NPC component: {result.error}")}
     logger.info(f"  → Added NPC component: race={race}, occupation={occupation}, disposition={disposition}")
 
     # Add Position component - entity-based hierarchical positioning
@@ -1047,7 +1136,7 @@ def _get_entity_details(engine, player_entity_id: str, tool_input: Dict[str, Any
 
     entity = next((e for e in entities if e.name.lower() == entity_name.lower()), None)
     if not entity:
-        return {"success": False, "message": f"Entity '{entity_name}' not found"}
+        return {"success": False, "message": _format_error(f"Entity '{entity_name}' not found")}
 
     # Get all components
     components = engine.get_entity_components(entity.id)
@@ -1080,18 +1169,18 @@ def _update_component(engine, player_entity_id: str, tool_input: Dict[str, Any])
     entity = next((e for e in entities if e.name.lower() == entity_name.lower()), None)
 
     if not entity:
-        return {"success": False, "message": f"Entity '{entity_name}' not found"}
+        return {"success": False, "message": _format_error(f"Entity '{entity_name}' not found")}
 
     # Check if component exists
     component = engine.get_component(entity.id, component_type)
     if not component:
-        return {"success": False, "message": f"Entity '{entity_name}' does not have a {component_type} component"}
+        return {"success": False, "message": _format_error(f"Entity '{entity_name}' does not have a {component_type} component")}
 
     # Update the component
     result = engine.update_component(entity.id, component_type, updates)
     if not result.success:
         logger.error(f"Failed to update {component_type} on {entity_name}: {result.error}")
-        return {"success": False, "message": f"Failed to update component: {result.error}"}
+        return {"success": False, "message": _format_error(f"Failed to update component: {result.error}")}
 
     logger.info(f"Updated {component_type} on {entity_name} ({entity.id}): {updates} - {reason}")
     return {
@@ -1114,18 +1203,18 @@ def _add_component(engine, player_entity_id: str, tool_input: Dict[str, Any]) ->
     entity = next((e for e in entities if e.name.lower() == entity_name.lower()), None)
 
     if not entity:
-        return {"success": False, "message": f"Entity '{entity_name}' not found"}
+        return {"success": False, "message": _format_error(f"Entity '{entity_name}' not found")}
 
     # Check if component already exists
     existing = engine.get_component(entity.id, component_type)
     if existing:
-        return {"success": False, "message": f"Entity '{entity_name}' already has a {component_type} component. Use update_component instead."}
+        return {"success": False, "message": _format_error(f"Entity '{entity_name}' already has a {component_type} component. Use update_component instead.")}
 
     # Add the component
     result = engine.add_component(entity.id, component_type, component_data)
     if not result.success:
         logger.error(f"Failed to add {component_type} to {entity_name}: {result.error}")
-        return {"success": False, "message": f"Failed to add component: {result.error}"}
+        return {"success": False, "message": _format_error(f"Failed to add component: {result.error}")}
 
     logger.info(f"Added {component_type} to {entity_name} ({entity.id}): {component_data} - {reason}")
     return {
@@ -1147,24 +1236,166 @@ def _remove_component(engine, player_entity_id: str, tool_input: Dict[str, Any])
     entity = next((e for e in entities if e.name.lower() == entity_name.lower()), None)
 
     if not entity:
-        return {"success": False, "message": f"Entity '{entity_name}' not found"}
+        return {"success": False, "message": _format_error(f"Entity '{entity_name}' not found")}
 
     # Check if component exists
     component = engine.get_component(entity.id, component_type)
     if not component:
-        return {"success": False, "message": f"Entity '{entity_name}' does not have a {component_type} component"}
+        return {"success": False, "message": _format_error(f"Entity '{entity_name}' does not have a {component_type} component")}
 
     # Remove the component
     result = engine.remove_component(entity.id, component_type)
     if not result.success:
         logger.error(f"Failed to remove {component_type} from {entity_name}: {result.error}")
-        return {"success": False, "message": f"Failed to remove component: {result.error}"}
+        return {"success": False, "message": _format_error(f"Failed to remove component: {result.error}")}
 
     logger.info(f"Removed {component_type} from {entity_name} ({entity.id}): {reason}")
     return {
         "success": True,
         "message": f"Removed {component_type} component from {entity_name}: {reason}",
         "data": {"entity_id": entity.id, "component_type": component_type}
+    }
+
+
+def _add_relationship(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+    """Add a relationship between two entities."""
+    from_entity_name = tool_input["from_entity_name"]
+    to_entity_name = tool_input["to_entity_name"]
+    relationship_type = tool_input["relationship_type"]
+    relationship_data = tool_input.get("relationship_data", {})
+    reason = tool_input["reason"]
+
+    # Find both entities
+    all_entities = engine.query_entities(['NPC']) + engine.query_entities(['Location']) + \
+                   engine.query_entities(['Item']) + engine.query_entities(['PlayerCharacter'])
+
+    from_entity = next((e for e in all_entities if e.name.lower() == from_entity_name.lower()), None)
+    to_entity = next((e for e in all_entities if e.name.lower() == to_entity_name.lower()), None)
+
+    if not from_entity:
+        return {"success": False, "message": _format_error(f"Entity '{from_entity_name}' not found")}
+    if not to_entity:
+        return {"success": False, "message": _format_error(f"Entity '{to_entity_name}' not found")}
+
+    # Add the relationship
+    result = engine.add_relationship(from_entity.id, to_entity.id, relationship_type, relationship_data)
+    if not result.success:
+        logger.error(f"Failed to add relationship {relationship_type} from {from_entity_name} to {to_entity_name}: {result.error}")
+        return {"success": False, "message": _format_error(f"Failed to add relationship: {result.error}")}
+
+    logger.info(f"Added relationship {relationship_type}: {from_entity_name} -> {to_entity_name} ({reason})")
+    return {
+        "success": True,
+        "message": _format_success(f"Created {relationship_type} relationship: {from_entity_name} → {to_entity_name} ({reason})"),
+        "data": {
+            "from_entity_id": from_entity.id,
+            "to_entity_id": to_entity.id,
+            "relationship_type": relationship_type
+        }
+    }
+
+
+def _remove_relationship(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+    """Remove a relationship between two entities."""
+    from_entity_name = tool_input["from_entity_name"]
+    to_entity_name = tool_input["to_entity_name"]
+    relationship_type = tool_input["relationship_type"]
+    reason = tool_input["reason"]
+
+    # Find both entities
+    all_entities = engine.query_entities(['NPC']) + engine.query_entities(['Location']) + \
+                   engine.query_entities(['Item']) + engine.query_entities(['PlayerCharacter'])
+
+    from_entity = next((e for e in all_entities if e.name.lower() == from_entity_name.lower()), None)
+    to_entity = next((e for e in all_entities if e.name.lower() == to_entity_name.lower()), None)
+
+    if not from_entity:
+        return {"success": False, "message": _format_error(f"Entity '{from_entity_name}' not found")}
+    if not to_entity:
+        return {"success": False, "message": _format_error(f"Entity '{to_entity_name}' not found")}
+
+    # Remove the relationship
+    result = engine.remove_relationship(from_entity.id, to_entity.id, relationship_type)
+    if not result.success:
+        logger.error(f"Failed to remove relationship {relationship_type} from {from_entity_name} to {to_entity_name}: {result.error}")
+        return {"success": False, "message": _format_error(f"Failed to remove relationship: {result.error}")}
+
+    logger.info(f"Removed relationship {relationship_type}: {from_entity_name} -> {to_entity_name} ({reason})")
+    return {
+        "success": True,
+        "message": _format_success(f"Removed {relationship_type} relationship: {from_entity_name} → {to_entity_name} ({reason})"),
+        "data": {
+            "from_entity_id": from_entity.id,
+            "to_entity_id": to_entity.id,
+            "relationship_type": relationship_type
+        }
+    }
+
+
+def _query_relationships(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+    """Query relationships for an entity."""
+    entity_name = tool_input["entity_name"]
+    relationship_type = tool_input.get("relationship_type")
+    direction = tool_input.get("direction", "both")
+
+    # Find the entity
+    all_entities = engine.query_entities(['NPC']) + engine.query_entities(['Location']) + \
+                   engine.query_entities(['Item']) + engine.query_entities(['PlayerCharacter'])
+    entity = next((e for e in all_entities if e.name.lower() == entity_name.lower()), None)
+
+    if not entity:
+        return {"success": False, "message": _format_error(f"Entity '{entity_name}' not found")}
+
+    relationships = []
+
+    # Query outgoing relationships (from this entity)
+    if direction in ["outgoing", "both"]:
+        outgoing = engine.get_relationships_from(entity.id, relationship_type)
+        for rel in outgoing:
+            to_entity = engine.get_entity(rel.to_entity_id)
+            if to_entity:
+                relationships.append({
+                    "direction": "outgoing",
+                    "type": rel.relationship_type,
+                    "target": to_entity.name,
+                    "target_id": to_entity.id,
+                    "data": rel.data
+                })
+
+    # Query incoming relationships (to this entity)
+    if direction in ["incoming", "both"]:
+        incoming = engine.get_relationships_to(entity.id, relationship_type)
+        for rel in incoming:
+            from_entity = engine.get_entity(rel.from_entity_id)
+            if from_entity:
+                relationships.append({
+                    "direction": "incoming",
+                    "type": rel.relationship_type,
+                    "source": from_entity.name,
+                    "source_id": from_entity.id,
+                    "data": rel.data
+                })
+
+    logger.info(f"Queried relationships for {entity_name}: found {len(relationships)}")
+
+    # Format for display
+    if relationships:
+        rel_summary = "\n".join([
+            f"  • {r['type']} ({r['direction']}): {r.get('target', r.get('source'))}"
+            for r in relationships
+        ])
+        message = f"Found {len(relationships)} relationship(s) for {entity_name}:\n{rel_summary}"
+    else:
+        message = f"No relationships found for {entity_name}"
+
+    return {
+        "success": True,
+        "message": message,
+        "data": {
+            "entity_id": entity.id,
+            "entity_name": entity_name,
+            "relationships": relationships
+        }
     }
 
 
@@ -1187,7 +1418,10 @@ def _initialize_core_tools():
         'get_entity_details': _get_entity_details,
         'update_component': _update_component,
         'add_component': _add_component,
-        'remove_component': _remove_component
+        'remove_component': _remove_component,
+        'add_relationship': _add_relationship,
+        'remove_relationship': _remove_relationship,
+        'query_relationships': _query_relationships
     }
 
     for tool_def in _CORE_TOOL_DEFINITIONS:
