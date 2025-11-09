@@ -182,8 +182,23 @@ def create_app(worlds_dir: str = 'worlds'):
         # Initialize StateEngine for this world if not already cached
         if world_name not in app.engine_instances:
             logger.info(f"Initializing StateEngine for world: {world_name}")
-            app.engine_instances[world_name] = StateEngine(world_path)
-            logger.info(f"✓ StateEngine initialized and cached for: {world_name}")
+            engine = StateEngine(world_path)
+
+            # Load and initialize modules for this world
+            logger.info(f"Loading modules for world: {world_name}")
+            loader = ModuleLoader(world_path)
+            modules = loader.load_modules(strategy='config')
+
+            for module in modules:
+                try:
+                    module.initialize(engine)
+                    logger.info(f"  ✓ Initialized module: {module.name}")
+                except Exception as e:
+                    logger.warning(f"  ✗ Failed to initialize module {module.name}: {e}")
+
+            # Cache the fully initialized engine
+            app.engine_instances[world_name] = engine
+            logger.info(f"✓ StateEngine initialized and cached for: {world_name} with {len(modules)} modules")
 
         flash(f'Entered realm: {display_name}', 'success')
 
@@ -209,38 +224,35 @@ def create_app(worlds_dir: str = 'worlds'):
     @app.route('/api/roll_types')
     def api_roll_types():
         """JSON API: Get all registered roll types."""
-        world_path = session.get('world_path')
-        if not world_path:
-            return jsonify({'error': 'No world selected'}), 400
-
-        engine = StateEngine(world_path)
-        roll_types = engine.storage.get_roll_types()
-        return jsonify({'roll_types': roll_types})
+        try:
+            engine = get_engine()
+            roll_types = engine.storage.get_roll_types()
+            return jsonify({'roll_types': roll_types})
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
 
     @app.route('/api/registries')
     def api_registries():
         """JSON API: Get all module registry names."""
-        world_path = session.get('world_path')
-        if not world_path:
-            return jsonify({'error': 'No world selected'}), 400
-
-        engine = StateEngine(world_path)
-        registry_names = engine.storage.get_registry_names()
-        return jsonify({'registries': registry_names})
+        try:
+            engine = get_engine()
+            registry_names = engine.storage.get_registry_names()
+            return jsonify({'registries': registry_names})
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
 
     @app.route('/api/registries/<registry_name>')
     def api_registry_values(registry_name):
         """JSON API: Get all values from a specific registry."""
-        world_path = session.get('world_path')
-        if not world_path:
-            return jsonify({'error': 'No world selected'}), 400
-
-        engine = StateEngine(world_path)
-        values = engine.storage.get_registry_values(registry_name)
-        return jsonify({
-            'registry_name': registry_name,
-            'values': values
-        })
+        try:
+            engine = get_engine()
+            values = engine.storage.get_registry_values(registry_name)
+            return jsonify({
+                'registry_name': registry_name,
+                'values': values
+            })
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
 
     @app.route('/create_world', methods=['POST'])
     def create_world():
@@ -346,83 +358,87 @@ def create_app(worlds_dir: str = 'worlds'):
         """Get current world path from session or return None."""
         return session.get('world_path')
 
+    def get_engine():
+        """Get the cached StateEngine for the current world."""
+        world_name = session.get('world_name')
+        if not world_name:
+            raise ValueError('No world selected')
+
+        engine = app.engine_instances.get(world_name)
+        if not engine:
+            raise ValueError(f'StateEngine not initialized for world: {world_name}')
+
+        return engine
+
     @app.route('/api/entities')
     def api_entities():
         """JSON API: List all entities."""
-        world_path = get_current_world_path()
-        if not world_path:
-            return jsonify({'error': 'No world selected'}), 400
-
-        engine = StateEngine(world_path)
-        entities = engine.list_entities()
-        return jsonify([e.to_dict() for e in entities])
+        try:
+            engine = get_engine()
+            entities = engine.list_entities()
+            return jsonify([e.to_dict() for e in entities])
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
 
     @app.route('/api/entity/<entity_id>')
     def api_entity(entity_id: str):
         """JSON API: Get entity details."""
-        world_path = get_current_world_path()
-        if not world_path:
-            return jsonify({'error': 'No world selected'}), 400
+        try:
+            engine = get_engine()
+            entity = engine.get_entity(entity_id)
 
-        engine = StateEngine(world_path)
-        entity = engine.get_entity(entity_id)
+            if not entity:
+                return jsonify({'error': 'Entity not found'}), 404
 
-        if not entity:
-            return jsonify({'error': 'Entity not found'}), 404
+            components = engine.get_entity_components(entity_id)
+            relationships = engine.get_relationships(entity_id)
 
-        components = engine.get_entity_components(entity_id)
-        relationships = engine.get_relationships(entity_id)
-
-        return jsonify({
-            'entity': entity.to_dict(),
-            'components': components,
-            'relationships': [r.to_dict() for r in relationships]
-        })
+            return jsonify({
+                'entity': entity.to_dict(),
+                'components': components,
+                'relationships': [r.to_dict() for r in relationships]
+            })
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
 
     @app.route('/api/events')
     def api_events():
         """JSON API: Get recent events."""
-        world_path = get_current_world_path()
-        if not world_path:
-            return jsonify({'error': 'No world selected'}), 400
+        try:
+            engine = get_engine()
+            limit = request.args.get('limit', 50, type=int)
+            entity_id = request.args.get('entity_id', None)
+            event_type = request.args.get('type', None)
 
-        engine = StateEngine(world_path)
-        limit = request.args.get('limit', 50, type=int)
-        entity_id = request.args.get('entity_id', None)
-        event_type = request.args.get('type', None)
+            events = engine.get_events(
+                entity_id=entity_id,
+                event_type=event_type,
+                limit=limit
+            )
 
-        events = engine.get_events(
-            entity_id=entity_id,
-            event_type=event_type,
-            limit=limit
-        )
-
-        return jsonify([e.to_dict() for e in events])
+            return jsonify([e.to_dict() for e in events])
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
 
     @app.route('/api/types')
     def api_types():
         """JSON API: Get registered types."""
-        world_path = get_current_world_path()
-        if not world_path:
-            return jsonify({'error': 'No world selected'}), 400
-
-        engine = StateEngine(world_path)
-        return jsonify({
-            'components': engine.storage.get_component_types(),
-            'relationships': engine.storage.get_relationship_types(),
-            'events': engine.storage.get_event_types()
-        })
+        try:
+            engine = get_engine()
+            return jsonify({
+                'components': engine.storage.get_component_types(),
+                'relationships': engine.storage.get_relationship_types(),
+                'events': engine.storage.get_event_types()
+            })
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
 
     @app.route('/api/component_form/<component_type>')
     def api_component_form(component_type: str):
         """JSON API: Get form HTML for a component type."""
-        world_path = get_current_world_path()
-        if not world_path:
-            return jsonify({'error': 'No world selected', 'success': False}), 400
-
         try:
             from src.web.form_builder import FormBuilder
-            engine = StateEngine(world_path)
+            engine = get_engine()
             form_builder = FormBuilder(engine)
 
             # Generate form HTML for empty component (for adding new)
@@ -432,6 +448,8 @@ def create_app(worlds_dir: str = 'worlds'):
                 'success': True,
                 'form_html': str(form_html)
             })
+        except ValueError as e:
+            return jsonify({'error': str(e), 'success': False}), 400
         except Exception as e:
             return jsonify({
                 'success': False,
@@ -466,11 +484,8 @@ def create_app(worlds_dir: str = 'worlds'):
                 }
             }
         """
-        world_path = get_current_world_path()
-        if not world_path:
-            return jsonify({'error': 'No world selected', 'success': False}), 400
-
         try:
+            engine = get_engine()
             data = request.get_json()
 
             # Validate required fields
@@ -489,8 +504,7 @@ def create_app(worlds_dir: str = 'worlds'):
             advantage = data.get('advantage', False)
             disadvantage = data.get('disadvantage', False)
 
-            # Initialize engine and roller
-            engine = StateEngine(world_path)
+            # Initialize roller
             from src.modules.rng.roller import DiceRoller
             roller = DiceRoller()
 
@@ -596,14 +610,12 @@ def create_app(worlds_dir: str = 'worlds'):
                 emit('roll_error', {'error': 'Missing entity_id or notation'})
                 return
 
-            # Get world from session
-            world_path = session.get('world_path')
-            if not world_path:
-                emit('roll_error', {'error': 'No world selected'})
+            # Get engine (cached, already initialized with modules)
+            try:
+                engine = get_engine()
+            except ValueError as e:
+                emit('roll_error', {'error': str(e)})
                 return
-
-            # Get engine (already loads and initializes all modules)
-            engine = StateEngine(world_path)
 
             # Subscribe to roll completion BEFORE publishing request (fix race condition)
             roll_complete_received = []
@@ -665,14 +677,12 @@ def create_app(worlds_dir: str = 'worlds'):
                 emit('hp_error', {'error': 'Missing required HP data'})
                 return
 
-            # Get world from session
-            world_path = session.get('world_path')
-            if not world_path:
-                emit('hp_error', {'error': 'No world selected'})
+            # Get engine (cached, already initialized with modules)
+            try:
+                engine = get_engine()
+            except ValueError as e:
+                emit('hp_error', {'error': str(e)})
                 return
-
-            # Get engine (already loads and initializes all modules)
-            engine = StateEngine(world_path)
 
             # Update health component
             result = engine.update_component(entity_id, 'health', {
