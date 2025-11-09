@@ -30,6 +30,40 @@ class AIContextBuilder:
         """
         self.engine = engine
 
+    def build_game_system_context(self) -> Dict[str, Any]:
+        """
+        Build context about the game system (all registered game data).
+
+        Dynamically includes all registries (races, classes, skills, spells, etc.)
+        that modules have registered with the engine.
+
+        Returns:
+            Dict with game system information from all registries
+        """
+        context = {}
+
+        try:
+            # Get all registry names dynamically
+            registry_names = self.engine.storage.get_registry_names()
+
+            # Include ALL registries dynamically
+            for registry_name in registry_names:
+                try:
+                    values = self.engine.storage.get_registry_values(registry_name)
+                    # Only include key and description for cleaner AI context
+                    context[registry_name] = [
+                        {'key': v['key'], 'description': v['description']}
+                        for v in values
+                        if 'key' in v and 'description' in v
+                    ]
+                except Exception as e:
+                    logger.debug(f"Skipping registry '{registry_name}': {e}")
+
+        except Exception as e:
+            logger.warning(f"Error building game system context: {e}")
+
+        return context
+
     def build_character_context(self, entity_id: str) -> Dict[str, Any]:
         """
         Build comprehensive character context.
@@ -418,7 +452,8 @@ class AIContextBuilder:
         context = {
             'character': self.build_character_context(entity_id),
             'location': self.build_location_context(entity_id, include_nearby=include_nearby),
-            'inventory': self.build_inventory_context(entity_id)
+            'inventory': self.build_inventory_context(entity_id),
+            'game_system': self.build_game_system_context()  # Available races, classes, skills, etc.
         }
 
         if include_history:
