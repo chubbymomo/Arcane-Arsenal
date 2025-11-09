@@ -368,6 +368,9 @@ def send_dm_message_stream():
                     return
                 conversation = engine.get_component(entity_id, 'Conversation')
 
+            # Get message_ids from conversation (needed for both paths)
+            message_ids = conversation.data.get('message_ids', [])
+
             # Create player message entity (unless skip_player_message is true)
             if not skip_player_message:
                 entity = engine.get_entity(entity_id)
@@ -391,7 +394,6 @@ def send_dm_message_stream():
                 })
 
                 # Add message to conversation history
-                message_ids = conversation.data.get('message_ids', [])
                 message_ids.append(player_msg_id)
 
                 engine.update_component(entity_id, 'Conversation', {
