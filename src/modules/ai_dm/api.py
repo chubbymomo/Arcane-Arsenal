@@ -474,6 +474,168 @@ def api_send_message():
         }), 500
 
 
+@ai_dm_bp.route('/api/dm/message_stream', methods=['POST'])
+def send_dm_message_stream():
+    """
+    Send a message to the DM and stream the response.
+
+    Uses Server-Sent Events (SSE) to stream the AI response as it's generated.
+
+    Request JSON:
+        {
+            "entity_id": "player_entity_123",
+            "message": "I want to search the room"
+        }
+
+    Streams:
+        data: {"type": "token", "content": "You"}
+        data: {"type": "token", "content": " search"}
+        data: {"type": "token", "content": " the"}
+        ...
+        data: {"type": "done", "message_id": "msg_456", "suggested_actions": [...]}
+    """
+    import json
+    from flask import Response, stream_with_context
+
+    def generate():
+        try:
+            ensure_modules_loaded()
+            engine = get_engine()
+
+            data = request.get_json()
+            entity_id = data.get('entity_id')
+            message = data.get('message')
+
+            if not entity_id or not message:
+                yield f"data: {json.dumps({'type': 'error', 'error': 'Missing required fields'})}\n\n"
+                return
+
+            # Get or create Conversation component
+            conversation = engine.get_component(entity_id, 'Conversation')
+            if not conversation:
+                result = engine.add_component(entity_id, 'Conversation', {
+                    'message_ids': [],
+                    'active': True
+                })
+                if not result.success:
+                    yield f"data: {json.dumps({'type': 'error', 'error': f'Failed to create conversation'})}\n\n"
+                    return
+                conversation = engine.get_component(entity_id, 'Conversation')
+
+            # Create player message entity
+            entity = engine.get_entity(entity_id)
+            player_name = entity.name if entity else "Player"
+
+            player_msg_result = engine.create_entity(f"Player message from {player_name}")
+
+            if not player_msg_result.success:
+                yield f"data: {json.dumps({'type': 'error', 'error': 'Failed to create message entity'})}\n\n"
+                return
+
+            player_msg_id = player_msg_result.data['id']
+
+            # Add ChatMessage component to player message
+            timestamp = datetime.utcnow().isoformat()
+            engine.add_component(player_msg_id, 'ChatMessage', {
+                'speaker': 'player',
+                'speaker_name': player_name,
+                'message': message,
+                'timestamp': timestamp
+            })
+
+            # Add message to conversation history
+            message_ids = conversation.data.get('message_ids', [])
+            message_ids.append(player_msg_id)
+
+            engine.update_component(entity_id, 'Conversation', {
+                'message_ids': message_ids,
+                'last_message_time': timestamp
+            })
+
+            # Generate DM response using streaming LLM
+            try:
+                from .llm_client import get_llm_client, LLMError
+                from .prompts import build_full_prompt, build_message_history
+                from .response_parser import parse_dm_response, get_fallback_actions
+                from src.core.config import get_config
+
+                logger.info(f"Generating streaming AI response for entity {entity_id}")
+                ai_context = engine.generate_ai_context(entity_id)
+
+                # Get conversation history
+                conversation_messages = []
+                for msg_id in message_ids[:-1]:  # Exclude the message we just added
+                    msg_entity = engine.get_entity(msg_id)
+                    if msg_entity and msg_entity.is_active():
+                        msg_comp = engine.get_component(msg_id, 'ChatMessage')
+                        if msg_comp:
+                            conversation_messages.append(msg_comp.data)
+
+                # Build prompts
+                full_system_prompt = build_full_prompt(ai_context)
+                llm_messages = build_message_history(conversation_messages, player_message=message)
+
+                # Get LLM client and stream response
+                config = get_config()
+                llm = get_llm_client(config)
+
+                # Accumulate full response for parsing
+                full_response = ""
+
+                # Stream the response
+                for chunk in llm.generate_response_stream(
+                    messages=llm_messages,
+                    system=full_system_prompt,
+                    max_tokens=config.ai_max_tokens,
+                    temperature=config.ai_temperature
+                ):
+                    full_response += chunk
+                    yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
+
+                # Parse complete response for actions
+                narrative, suggested_actions = parse_dm_response(full_response)
+
+                # Create DM message entity
+                dm_msg_result = engine.create_entity("DM response")
+                if dm_msg_result.success:
+                    dm_msg_id = dm_msg_result.data['id']
+                    dm_timestamp = datetime.utcnow().isoformat()
+
+                    engine.add_component(dm_msg_id, 'ChatMessage', {
+                        'speaker': 'dm',
+                        'speaker_name': 'Dungeon Master',
+                        'message': narrative,
+                        'timestamp': dm_timestamp,
+                        'suggested_actions': suggested_actions
+                    })
+
+                    # Add to conversation
+                    message_ids.append(dm_msg_id)
+                    engine.update_component(entity_id, 'Conversation', {
+                        'message_ids': message_ids
+                    })
+
+                    # Send completion event with actions
+                    yield f"data: {json.dumps({'type': 'done', 'message_id': dm_msg_id, 'suggested_actions': suggested_actions})}\n\n"
+                else:
+                    yield f"data: {json.dumps({'type': 'error', 'error': 'Failed to save DM response'})}\n\n"
+
+            except LLMError as e:
+                logger.error(f"LLM error during streaming: {e}")
+                fallback_actions = get_fallback_actions()
+                yield f"data: {json.dumps({'type': 'error', 'error': str(e), 'fallback_actions': fallback_actions})}\n\n"
+
+            except Exception as e:
+                logger.error(f"Error during streaming response: {e}", exc_info=True)
+                yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+
+        except Exception as e:
+            logger.error(f"Error in stream generator: {e}", exc_info=True)
+            yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+
+    return Response(stream_with_context(generate()), mimetype='text/event-stream')
+
+
 @ai_dm_bp.route('/api/dm/chat_display/<entity_id>')
 def api_chat_display(entity_id: str):
     """

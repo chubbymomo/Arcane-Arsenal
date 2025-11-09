@@ -7,7 +7,7 @@ with error handling, retries, and response validation.
 
 import logging
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Iterator
 from src.core.config import Config
 
 logger = logging.getLogger(__name__)
@@ -43,6 +43,33 @@ class LLMProvider(ABC):
 
         Returns:
             Generated text response
+
+        Raises:
+            LLMError: If generation fails
+        """
+        pass
+
+    @abstractmethod
+    def generate_response_stream(
+        self,
+        messages: List[Dict[str, str]],
+        system: Optional[str] = None,
+        max_tokens: int = 4096,
+        temperature: float = 0.7,
+        **kwargs
+    ) -> Iterator[str]:
+        """
+        Generate a streaming response from the LLM.
+
+        Args:
+            messages: List of message dicts with 'role' and 'content'
+            system: Optional system prompt (persona/instructions)
+            max_tokens: Maximum tokens in response
+            temperature: Sampling temperature (0.0-1.0)
+            **kwargs: Provider-specific options
+
+        Yields:
+            Text chunks as they are generated
 
         Raises:
             LLMError: If generation fails
@@ -148,6 +175,50 @@ class AnthropicProvider(LLMProvider):
             logger.error(error_msg, exc_info=True)
             raise LLMError(error_msg, provider="anthropic", original_error=e)
 
+    def generate_response_stream(
+        self,
+        messages: List[Dict[str, str]],
+        system: Optional[str] = None,
+        max_tokens: int = 4096,
+        temperature: float = 0.7,
+        **kwargs
+    ) -> Iterator[str]:
+        """
+        Generate streaming response using Anthropic Claude API.
+
+        Args:
+            messages: Conversation history
+            system: System prompt
+            max_tokens: Maximum response length
+            temperature: Sampling temperature
+            **kwargs: Additional Anthropic-specific parameters
+
+        Yields:
+            Text chunks as they are generated
+
+        Raises:
+            LLMError: If API call fails
+        """
+        try:
+            logger.debug(f"Calling Anthropic API (streaming) with {len(messages)} messages")
+
+            with self.client.messages.stream(
+                model=kwargs.get('model', self.model),
+                max_tokens=max_tokens,
+                temperature=temperature,
+                system=system if system else None,
+                messages=messages
+            ) as stream:
+                for text_chunk in stream.text_stream:
+                    yield text_chunk
+
+            logger.debug(f"Streaming response completed")
+
+        except Exception as e:
+            error_msg = f"Anthropic API streaming error: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            raise LLMError(error_msg, provider="anthropic", original_error=e)
+
 
 class OpenAIProvider(LLMProvider):
     """
@@ -237,6 +308,56 @@ class OpenAIProvider(LLMProvider):
 
         except Exception as e:
             error_msg = f"OpenAI API error: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            raise LLMError(error_msg, provider="openai", original_error=e)
+
+    def generate_response_stream(
+        self,
+        messages: List[Dict[str, str]],
+        system: Optional[str] = None,
+        max_tokens: int = 4096,
+        temperature: float = 0.7,
+        **kwargs
+    ) -> Iterator[str]:
+        """
+        Generate streaming response using OpenAI GPT API.
+
+        Args:
+            messages: Conversation history
+            system: System prompt (prepended as system message)
+            max_tokens: Maximum response length
+            temperature: Sampling temperature
+            **kwargs: Additional OpenAI-specific parameters
+
+        Yields:
+            Text chunks as they are generated
+
+        Raises:
+            LLMError: If API call fails
+        """
+        try:
+            # OpenAI uses system message in messages array
+            if system:
+                messages = [{"role": "system", "content": system}] + messages
+
+            logger.debug(f"Calling OpenAI API (streaming) with {len(messages)} messages")
+
+            stream = self.client.chat.completions.create(
+                model=kwargs.get('model', self.model),
+                max_tokens=max_tokens,
+                temperature=temperature,
+                messages=messages,
+                stream=True
+            )
+
+            for chunk in stream:
+                if chunk.choices[0].delta.content is not None:
+                    yield chunk.choices[0].delta.content
+
+            logger.debug(f"Streaming response completed")
+
+        except Exception as e:
+            error_msg = f"OpenAI API streaming error: {str(e)}"
             logger.error(error_msg, exc_info=True)
             raise LLMError(error_msg, provider="openai", original_error=e)
 
