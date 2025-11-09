@@ -283,9 +283,9 @@ def api_send_message():
 @ai_dm_bp.route('/api/dm/chat_display/<entity_id>')
 def api_chat_display(entity_id: str):
     """
-    Get rendered chat display HTML for an entity.
+    Get rendered chat messages HTML for an entity.
 
-    Returns just the DM chat HTML without reloading the page.
+    Returns just the messages HTML fragment for AJAX updates.
     """
     try:
         ensure_modules_loaded()
@@ -296,27 +296,41 @@ def api_chat_display(entity_id: str):
         if not entity:
             return '<p>Error: Entity not found</p>', 404
 
-        # Get DMDisplay component
+        # Get DMDisplay component for settings
         dm_display = engine.get_component(entity_id, 'DMDisplay')
         if not dm_display:
-            return '<p>No DM display component found</p>', 404
+            dm_display_data = {
+                'show_suggested_actions': True,
+                'show_timestamps': True
+            }
+        else:
+            dm_display_data = dm_display.data
 
-        # Get component definition
-        comp_def = engine.component_validators.get('DMDisplay')
-        if not comp_def:
-            return '<p>Error: DMDisplay component definition not found</p>', 500
+        # Get conversation messages
+        conversation = engine.get_component(entity_id, 'Conversation')
+        messages = []
+        if conversation:
+            message_ids = conversation.data.get('message_ids', [])
+            for msg_id in message_ids:
+                msg_entity = engine.get_entity(msg_id)
+                if msg_entity and msg_entity.is_active():
+                    msg_comp = engine.get_component(msg_id, 'ChatMessage')
+                    if msg_comp:
+                        messages.append({
+                            'id': msg_id,
+                            'data': msg_comp.data
+                        })
 
-        # Render the chat display
-        html = comp_def.get_character_sheet_renderer(
-            dm_display.data,
-            engine,
-            entity_id
-        )
-
-        return html, 200, {'Content-Type': 'text/html; charset=utf-8'}
+        # Render messages partial
+        return render_template(
+            'dm_chat_messages.html',
+            entity=entity,
+            messages=messages,
+            dm_display_data=dm_display_data
+        ), 200, {'Content-Type': 'text/html; charset=utf-8'}
 
     except Exception as e:
-        logger.error(f"Error rendering DM chat for entity {entity_id}: {e}", exc_info=True)
+        logger.error(f"Error rendering DM chat messages for entity {entity_id}: {e}", exc_info=True)
         return f'<p>Error: {str(e)}</p>', 500
 
 

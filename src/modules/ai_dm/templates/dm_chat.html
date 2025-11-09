@@ -37,84 +37,7 @@
             border: 2px solid #3d2b4d;
             border-radius: 12px;
         ">
-            {% if messages %}
-                {% for msg in messages %}
-                    {% set msg_data = msg.data %}
-                    {% set speaker = msg_data.get('speaker', 'unknown') %}
-                    {% set speaker_name = msg_data.get('speaker_name', speaker|title) %}
-                    {% set message_text = msg_data.get('message', '') %}
-                    {% set timestamp = msg_data.get('timestamp', '') %}
-                    {% set suggested_actions = msg_data.get('suggested_actions', []) %}
-
-                    {% if speaker == 'dm' %}
-                        {% set speaker_color = '#d4af37' %}
-                        {% set bg_color = 'rgba(212, 175, 55, 0.1)' %}
-                    {% elif speaker == 'player' %}
-                        {% set speaker_color = '#4a9eff' %}
-                        {% set bg_color = 'rgba(74, 158, 255, 0.1)' %}
-                    {% else %}
-                        {% set speaker_color = '#9b59b6' %}
-                        {% set bg_color = 'rgba(155, 89, 182, 0.1)' %}
-                    {% endif %}
-
-                    <div class="dm-message" style="
-                        margin-bottom: 1rem;
-                        padding: 1rem;
-                        background: {{ bg_color }};
-                        border-left: 4px solid {{ speaker_color }};
-                        border-radius: 8px;
-                    ">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                            <strong style="color: {{ speaker_color }}; font-family: 'Cinzel', serif; font-size: 1.1rem;">
-                                {{ speaker_name }}
-                            </strong>
-                            {% if dm_display_data.get('show_timestamps') and timestamp %}
-                                <span style="font-size: 0.85rem; color: #6a5a7a;">
-                                    {{ timestamp.split('T')[1].split('.')[0] if 'T' in timestamp else timestamp }}
-                                </span>
-                            {% endif %}
-                        </div>
-                        <div style="color: #f0e6d6; line-height: 1.6; font-size: 1rem;">
-                            {{ message_text }}
-                        </div>
-
-                        {% if dm_display_data.get('show_suggested_actions') and suggested_actions %}
-                            <div style="margin-top: 1rem; display: flex; flex-wrap: wrap; gap: 0.75rem;">
-                                {% for action in suggested_actions %}
-                                    <button class="dm-suggested-action"
-                                            style="
-                                                padding: 0.6rem 1rem;
-                                                background: linear-gradient(135deg, #d4af37, #b8942b);
-                                                color: #1a1520;
-                                                border: none;
-                                                border-radius: 6px;
-                                                cursor: pointer;
-                                                font-size: 0.95rem;
-                                                font-weight: 600;
-                                                font-family: 'Cinzel', serif;
-                                                transition: all 0.2s;
-                                            "
-                                            onmouseover="this.style.background='linear-gradient(135deg, #ffd700, #d4af37)'"
-                                            onmouseout="this.style.background='linear-gradient(135deg, #d4af37, #b8942b)'"
-                                            onclick="executeSuggestedAction('{{ entity.id }}', '{{ action.get('action_type', 'custom') }}', {{ action.get('action_data', {})|tojson }})">
-                                        {{ action.get('label', 'Action') }}
-                                    </button>
-                                {% endfor %}
-                            </div>
-                        {% endif %}
-                    </div>
-                {% endfor %}
-            {% else %}
-                <p style="
-                    color: #6a5a7a;
-                    font-style: italic;
-                    text-align: center;
-                    padding: 4rem 2rem;
-                    font-size: 1.2rem;
-                ">
-                    No messages yet. Start a conversation with the Dungeon Master!
-                </p>
-            {% endif %}
+            {% include 'dm_chat_messages.html' %}
         </div>
 
         <!-- Input Area -->
@@ -167,6 +90,23 @@
 <script>
 const entityId = '{{ entity.id }}';
 
+function reloadMessages() {
+    // Fetch updated messages HTML without reloading the page
+    fetch('/api/dm/chat_display/' + entityId)
+    .then(response => response.text())
+    .then(html => {
+        const messagesDiv = document.getElementById('dm-messages');
+        if (messagesDiv) {
+            messagesDiv.innerHTML = html;
+            // Auto-scroll to bottom
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+    })
+    .catch(error => {
+        console.error('Failed to reload messages:', error);
+    });
+}
+
 function sendDMMessage() {
     const input = document.getElementById('dm-input');
     const message = input.value.trim();
@@ -185,8 +125,8 @@ function sendDMMessage() {
     .then(data => {
         if (data.success) {
             input.value = '';
-            // Reload the page to show new messages
-            location.reload();
+            // Reload just the messages, not the whole page
+            reloadMessages();
         } else {
             alert('Failed to send message: ' + (data.error || 'Unknown error'));
         }
@@ -210,11 +150,8 @@ function executeSuggestedAction(entityId, actionType, actionData) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            if (data.reload_sheet) {
-                location.reload();
-            }
-            // Optionally reload to show system message
-            location.reload();
+            // Reload messages to show system message
+            reloadMessages();
         } else {
             alert('Action failed: ' + (data.error || 'Unknown error'));
         }
