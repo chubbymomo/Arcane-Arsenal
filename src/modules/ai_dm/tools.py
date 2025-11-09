@@ -783,15 +783,24 @@ def _create_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> D
         'quantity': 1
     })
 
-    # Add Position if location specified
+    # Add Position if location specified (use entity-based positioning)
     if location:
-        engine.add_component(item_id, 'Position', {
-            'x': 0,
-            'y': 0,
-            'z': 0,
-            'region': 'Unknown',
-            'location': location
-        })
+        # Find location entity by name
+        locations = engine.query_entities(['Location'])
+        location_entity = next((e for e in locations if e.name.lower() == location.lower()), None)
+
+        if location_entity:
+            # Position item AT the location (entity-based positioning)
+            engine.add_component(item_id, 'Position', {
+                'region': location_entity.id  # Entity ID, not string!
+            })
+            logger.info(f"  → Positioned item at location: {location} ({location_entity.id})")
+        else:
+            # Fallback: location name as string (legacy)
+            engine.add_component(item_id, 'Position', {
+                'region': location
+            })
+            logger.warning(f"  → Location '{location}' not found as entity, using string region")
 
     logger.info(f"Created Item: {name} ({item_id})")
     return {
@@ -955,7 +964,25 @@ def _give_item_to_player(engine, player_entity_id: str, tool_input: Dict[str, An
     item = next((e for e in items if e.name.lower() == item_name.lower()), None)
 
     if not item:
-        return {"success": False, "message": f"Item '{item_name}' not found (create it first)"}
+        # Get player's current location to check for nearby items
+        player_position = engine.get_component(player_entity_id, 'Position')
+        player_region = player_position.data.get('region') if player_position else None
+
+        # Find items at the same location (nearby)
+        nearby_items = []
+        if player_region:
+            for item_entity in items:
+                item_pos = engine.get_component(item_entity.id, 'Position')
+                if item_pos and item_pos.data.get('region') == player_region:
+                    nearby_items.append(item_entity.name)
+
+        error_msg = f"Item '{item_name}' not found"
+        if nearby_items:
+            error_msg += f". Did you mean: {', '.join(nearby_items[:5])}?"
+        else:
+            error_msg += " (create it first or check the name)"
+
+        return {"success": False, "message": _format_error(error_msg)}
 
     # Update item position to player's inventory
     engine.update_component(item.id, 'Position', {
