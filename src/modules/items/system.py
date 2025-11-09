@@ -66,7 +66,7 @@ class EquipmentSystem:
         if not owns_item:
             return Result.fail("Character does not own this item", "NOT_OWNED")
 
-        # 3. Check requirements (optional - only if attributes exist)
+        # 3. Check requirements (optional - only if components exist)
         required_strength = equippable.data.get('required_strength')
         if required_strength:
             attributes = self.engine.get_component(character_id, 'Attributes')
@@ -74,6 +74,15 @@ class EquipmentSystem:
                 return Result.fail(
                     f"Requires {required_strength} strength",
                     "INSUFFICIENT_STRENGTH"
+                )
+
+        required_level = equippable.data.get('required_level')
+        if required_level:
+            char_details = self.engine.get_component(character_id, 'CharacterDetails')
+            if char_details and char_details.data.get('level', 1) < required_level:
+                return Result.fail(
+                    f"Requires level {required_level}",
+                    "INSUFFICIENT_LEVEL"
                 )
 
         # 4. Unequip any items in the same slot

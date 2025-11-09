@@ -15,13 +15,22 @@ via registries (add custom races, classes, skills, etc.).
 """
 
 from typing import List
+import logging
 from ..base import Module, ComponentTypeDefinition
+from src.core.event_bus import Event
 
 from .attributes import AttributesComponent
 from .character_details import CharacterDetailsComponent
 from .skills import SkillsComponent
 from .experience import ExperienceComponent
 from .magic import MagicComponent
+from .utils import (
+    calculate_proficiency_bonus,
+    get_spell_slots_for_level,
+    should_auto_add_magic
+)
+
+logger = logging.getLogger(__name__)
 
 
 class GenericFantasyModule(Module):
@@ -89,45 +98,73 @@ class GenericFantasyModule(Module):
 
         # === Classes Registry ===
         classes = engine.create_registry('classes', self.name)
+
+        # Non-spellcasters
         classes.register('fighter', 'Fighter - Master of martial combat', {
             'hit_die': 'd10',
             'primary_ability': 'strength',
-            'saves': ['strength', 'constitution']
-        })
-        classes.register('wizard', 'Wizard - Scholar of arcane magic', {
-            'hit_die': 'd6',
-            'primary_ability': 'intelligence',
-            'saves': ['intelligence', 'wisdom']
+            'saves': ['strength', 'constitution'],
+            'spellcaster': False
         })
         classes.register('rogue', 'Rogue - Expert in stealth and precision', {
             'hit_die': 'd8',
             'primary_ability': 'dexterity',
-            'saves': ['dexterity', 'intelligence']
-        })
-        classes.register('cleric', 'Cleric - Divine spellcaster and healer', {
-            'hit_die': 'd8',
-            'primary_ability': 'wisdom',
-            'saves': ['wisdom', 'charisma']
-        })
-        classes.register('ranger', 'Ranger - Wilderness warrior and tracker', {
-            'hit_die': 'd10',
-            'primary_ability': 'dexterity',
-            'saves': ['strength', 'dexterity']
+            'saves': ['dexterity', 'intelligence'],
+            'spellcaster': False
         })
         classes.register('barbarian', 'Barbarian - Primal warrior who rages in battle', {
             'hit_die': 'd12',
             'primary_ability': 'strength',
-            'saves': ['strength', 'constitution']
+            'saves': ['strength', 'constitution'],
+            'spellcaster': False
         })
+
+        # Full spellcasters (INT-based)
+        classes.register('wizard', 'Wizard - Scholar of arcane magic', {
+            'hit_die': 'd6',
+            'primary_ability': 'intelligence',
+            'saves': ['intelligence', 'wisdom'],
+            'spellcaster': True,
+            'spellcasting_ability': 'intelligence',
+            'spell_progression': 'full'
+        })
+
+        # Full spellcasters (WIS-based)
+        classes.register('cleric', 'Cleric - Divine spellcaster and healer', {
+            'hit_die': 'd8',
+            'primary_ability': 'wisdom',
+            'saves': ['wisdom', 'charisma'],
+            'spellcaster': True,
+            'spellcasting_ability': 'wisdom',
+            'spell_progression': 'full'
+        })
+
+        # Full spellcasters (CHA-based)
         classes.register('bard', 'Bard - Charismatic performer and magic user', {
             'hit_die': 'd8',
             'primary_ability': 'charisma',
-            'saves': ['dexterity', 'charisma']
+            'saves': ['dexterity', 'charisma'],
+            'spellcaster': True,
+            'spellcasting_ability': 'charisma',
+            'spell_progression': 'full'
         })
+
+        # Half-casters
         classes.register('paladin', 'Paladin - Holy warrior bound by oath', {
             'hit_die': 'd10',
             'primary_ability': 'strength',
-            'saves': ['wisdom', 'charisma']
+            'saves': ['wisdom', 'charisma'],
+            'spellcaster': True,
+            'spellcasting_ability': 'charisma',
+            'spell_progression': 'half'
+        })
+        classes.register('ranger', 'Ranger - Wilderness warrior and tracker', {
+            'hit_die': 'd10',
+            'primary_ability': 'dexterity',
+            'saves': ['strength', 'dexterity'],
+            'spellcaster': True,
+            'spellcasting_ability': 'wisdom',
+            'spell_progression': 'half'
         })
 
         # === Skills Registry ===
@@ -226,6 +263,128 @@ class GenericFantasyModule(Module):
         alignments.register('lawful_evil', 'Lawful Evil - Tyrannical and methodical')
         alignments.register('neutral_evil', 'Neutral Evil - Selfish and cruel')
         alignments.register('chaotic_evil', 'Chaotic Evil - Destructive and savage')
+
+        # Store engine reference for event handlers
+        self.engine = engine
+
+        # Subscribe to component events
+        engine.event_bus.subscribe('component.added', self.on_component_added)
+        engine.event_bus.subscribe('component.updated', self.on_component_updated)
+
+    def on_component_added(self, event: Event) -> None:
+        """
+        Auto-add Magic and Skills components when CharacterDetails is added.
+
+        If the character's class is a spellcaster, automatically adds Magic component
+        with appropriate spell slots. Also ensures Skills component has correct
+        proficiency bonus.
+        """
+        if not hasattr(self, 'engine'):
+            return
+
+        component_type = event.data.get('component_type')
+        entity_id = event.entity_id
+
+        # Auto-add Magic component for spellcasters
+        if component_type == 'CharacterDetails':
+            char_details = self.engine.get_component(entity_id, 'CharacterDetails')
+            if not char_details:
+                return
+
+            class_name = char_details.data.get('character_class')
+            level = char_details.data.get('level', 1)
+
+            # Get class metadata
+            try:
+                classes_registry = self.engine.create_registry('classes', self.name)
+                class_data = classes_registry.get(class_name)
+                if class_data and should_auto_add_magic(class_name, class_data.get('metadata', {})):
+                    # Check if Magic component already exists
+                    if not self.engine.get_component(entity_id, 'Magic'):
+                        # Get spellcasting info from class
+                        class_meta = class_data.get('metadata', {})
+                        spell_ability = class_meta.get('spellcasting_ability', 'intelligence')
+                        progression = class_meta.get('spell_progression', 'full')
+
+                        # Calculate spell slots
+                        spell_slots = get_spell_slots_for_level(level, progression)
+
+                        # Add Magic component
+                        self.engine.add_component(entity_id, 'Magic', {
+                            'spellcasting_ability': spell_ability,
+                            'spell_slots': spell_slots,
+                            'known_spells': [],
+                            'prepared_spells': [],
+                            'cantrips': []
+                        })
+                        logger.info(f"Auto-added Magic component to {entity_id} ({class_name}, level {level})")
+            except Exception as e:
+                logger.warning(f"Could not auto-add Magic component: {e}")
+
+            # Auto-add Skills component with correct proficiency bonus if missing
+            if not self.engine.get_component(entity_id, 'Skills'):
+                prof_bonus = calculate_proficiency_bonus(level)
+                try:
+                    self.engine.add_component(entity_id, 'Skills', {
+                        'proficient_skills': [],
+                        'proficiency_bonus': prof_bonus,
+                        'expertise_skills': []
+                    })
+                    logger.info(f"Auto-added Skills component to {entity_id} with +{prof_bonus} proficiency")
+                except Exception as e:
+                    logger.warning(f"Could not auto-add Skills component: {e}")
+
+    def on_component_updated(self, event: Event) -> None:
+        """
+        Update related components when CharacterDetails level changes.
+
+        Updates proficiency bonus in Skills and spell slots in Magic when level changes.
+        """
+        if not hasattr(self, 'engine'):
+            return
+
+        component_type = event.data.get('component_type')
+        entity_id = event.entity_id
+
+        if component_type == 'CharacterDetails':
+            char_details = self.engine.get_component(entity_id, 'CharacterDetails')
+            if not char_details:
+                return
+
+            level = char_details.data.get('level', 1)
+            class_name = char_details.data.get('character_class')
+
+            # Update Skills proficiency bonus
+            skills = self.engine.get_component(entity_id, 'Skills')
+            if skills:
+                new_prof_bonus = calculate_proficiency_bonus(level)
+                if skills.data.get('proficiency_bonus') != new_prof_bonus:
+                    try:
+                        updated_skills = skills.data.copy()
+                        updated_skills['proficiency_bonus'] = new_prof_bonus
+                        self.engine.update_component(entity_id, 'Skills', updated_skills)
+                        logger.info(f"Updated proficiency bonus to +{new_prof_bonus} for {entity_id}")
+                    except Exception as e:
+                        logger.warning(f"Could not update proficiency bonus: {e}")
+
+            # Update Magic spell slots
+            magic = self.engine.get_component(entity_id, 'Magic')
+            if magic and class_name:
+                try:
+                    classes_registry = self.engine.create_registry('classes', self.name)
+                    class_data = classes_registry.get(class_name)
+                    if class_data:
+                        class_meta = class_data.get('metadata', {})
+                        progression = class_meta.get('spell_progression', 'full')
+                        new_slots = get_spell_slots_for_level(level, progression)
+
+                        # Update spell slots while preserving current/prepared spells
+                        updated_magic = magic.data.copy()
+                        updated_magic['spell_slots'] = new_slots
+                        self.engine.update_component(entity_id, 'Magic', updated_magic)
+                        logger.info(f"Updated spell slots for {entity_id} (level {level}, {progression} caster)")
+                except Exception as e:
+                    logger.warning(f"Could not update spell slots: {e}")
 
     def register_component_types(self) -> List[ComponentTypeDefinition]:
         """Register fantasy character components."""
