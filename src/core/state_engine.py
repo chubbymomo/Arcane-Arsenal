@@ -67,6 +67,9 @@ class StateEngine:
         # request the same registry - they all get the same instance
         self._registry_instances: Dict[str, 'ModuleRegistry'] = {}
 
+        # Modules storage (for cross-module access)
+        self._modules: Dict[str, Any] = {}
+
         # Load modules (core + any configured modules)
         self._load_modules()
 
@@ -84,6 +87,10 @@ class StateEngine:
 
         # Load modules (tries config first, falls back to core_only)
         modules = loader.load_modules(strategy='config')
+
+        # Store modules for cross-module access
+        for module in modules:
+            self._modules[module.name] = module
 
         # Register all types from all modules
         for module in modules:
@@ -130,6 +137,25 @@ class StateEngine:
                 # Don't fail world loading if module initialization fails
                 import logging
                 logging.warning(f"Module '{module.name}' initialization failed: {e}")
+
+    def get_module(self, module_name: str) -> Optional[Any]:
+        """
+        Get a loaded module by name.
+
+        Enables cross-module access to module-specific functionality.
+        For example, AIContextBuilder can access items module's EquipmentSystem.
+
+        Args:
+            module_name: Name of the module (e.g., 'items', 'core_components')
+
+        Returns:
+            Module instance or None if not loaded
+
+        Example:
+            items_module = engine.get_module('items')
+            equipment_system = items_module.get_equipment_system()
+        """
+        return self._modules.get(module_name)
 
     # ========== World Initialization ==========
 

@@ -296,6 +296,11 @@ class AIContextBuilder:
         """
         Build inventory context for a character.
 
+        Uses the items module's EquipmentSystem to get inventory data,
+        then formats it for AI consumption. This follows Arcane Arsenal's
+        modular philosophy: modules own their domain logic, AI context
+        builder just formats the data.
+
         Args:
             entity_id: ID of the character entity
             limit: Maximum number of items to include
@@ -314,41 +319,46 @@ class AIContextBuilder:
                 ...
             ]
         """
-        # Find items via 'owns' relationships
-        relationships = self.engine.get_relationships(entity_id)
+        # Get the items module's equipment system
+        try:
+            items_module = self.engine.get_module('items')
+            if not items_module:
+                logger.warning("Items module not loaded, cannot build inventory context")
+                return []
 
+            equipment_system = items_module.get_equipment_system()
+        except Exception as e:
+            logger.warning(f"Could not access items module equipment system: {e}")
+            return []
+
+        # Use the items module's authoritative inventory query
+        inventory_data = equipment_system.get_inventory(entity_id)
+
+        # Format for AI consumption (extract just what AI needs)
         items = []
-        for rel in relationships:
-            if rel.relationship_type == 'owns' and rel.from_entity == entity_id:
-                item_id = rel.to_entity
-                item_entity = self.engine.get_entity(item_id)
+        for item_data in inventory_data[:limit]:
+            entity = item_data['entity']
+            components = item_data['components']
 
-                if item_entity:
-                    item_data = {
-                        'name': item_entity.name,
-                        'id': item_id
-                    }
+            formatted_item = {
+                'name': entity.name,
+                'id': entity.id,
+                'equipped': item_data['equipped']
+            }
 
-                    # Get Identity component for description
-                    identity = self.engine.get_component(item_id, 'Identity')
-                    if identity:
-                        item_data['description'] = identity.data.get('description', '')
+            # Extract description from Identity component
+            if 'Identity' in components:
+                formatted_item['description'] = components['Identity'].get('description', '')
 
-                    # Get Item component for type and other details
-                    item_comp = self.engine.get_component(item_id, 'Item')
-                    if item_comp:
-                        item_data['type'] = item_comp.data.get('item_type', 'misc')
-                        item_data['value'] = item_comp.data.get('value', 0)
-                        item_data['quantity'] = item_comp.data.get('quantity', 1)
+            # Extract item properties from Item component
+            if 'Item' in components:
+                formatted_item['type'] = components['Item'].get('item_type', 'misc')
+                formatted_item['value'] = components['Item'].get('value', 0)
+                formatted_item['quantity'] = components['Item'].get('quantity', 1)
 
-                    # Check if equipped
-                    equipped_rels = [r for r in relationships
-                                    if r.relationship_type == 'equipped' and r.to_entity == item_id]
-                    item_data['equipped'] = len(equipped_rels) > 0
+            items.append(formatted_item)
 
-                    items.append(item_data)
-
-        return items[:limit]
+        return items
 
     def build_conversation_history(
         self,
