@@ -2,11 +2,14 @@
 PlayerCharacter Component.
 
 A marker component that identifies an entity as a player-controlled character.
-This component has no data - its presence alone marks the entity as a PC.
+This component can optionally store AI intro state.
 
 Usage:
     # Mark entity as player character
     engine.add_component(char_id, 'PlayerCharacter', {})
+
+    # Mark entity as player character needing AI intro
+    engine.add_component(char_id, 'PlayerCharacter', {'needs_ai_intro': True})
 
     # Query for all player characters
     player_characters = engine.query_entities(['PlayerCharacter'])
@@ -48,10 +51,16 @@ class PlayerCharacterComponent(ComponentTypeDefinition):
         """
         Get JSON schema for PlayerCharacter component.
 
-        This is a marker component with no data - just an empty object.
+        This is a marker component that can optionally store AI intro state.
         """
         return {
             "type": "object",
-            "properties": {},
+            "properties": {
+                "needs_ai_intro": {
+                    "type": "boolean",
+                    "description": "Whether this character needs an AI-generated intro scene",
+                    "default": False
+                }
+            },
             "additionalProperties": False
         }
