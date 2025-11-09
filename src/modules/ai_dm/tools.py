@@ -445,17 +445,15 @@ def _create_npc(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Di
 
     npc_id = result.data['id']
 
-    # Add Identity component
+    # Add Identity component (description only)
     identity_data = {
-        'description': description,
-        'race': race,
-        'occupation': occupation
+        'description': description
     }
     result = engine.add_component(npc_id, 'Identity', identity_data)
     if not result.success:
         logger.error(f"  ✗ Failed to add Identity: {result.error}")
         return {"success": False, "message": f"Failed to add Identity component: {result.error}"}
-    logger.info(f"  → Added Identity: race={race}, occupation={occupation}, desc={description[:50]}...")
+    logger.info(f"  → Added Identity: desc={description[:50]}...")
 
     # Add CharacterDetails if class is provided (enables mechanics like spells, skills)
     if npc_class:
