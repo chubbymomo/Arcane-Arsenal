@@ -62,6 +62,47 @@ def get_tool_handler(tool_name: str) -> Callable:
     return _tool_registry.get(tool_name)
 
 
+def generate_tool_documentation() -> str:
+    """
+    Generate human-readable documentation for all registered tools.
+
+    This creates formatted documentation from the tool registry that can be
+    included in the AI's context, so tools are self-documenting.
+
+    Returns:
+        Formatted markdown documentation of all available tools
+    """
+    if not _tool_definitions:
+        return "No tools currently available."
+
+    doc_parts = ["## Available Tools\n"]
+    doc_parts.append("You have access to the following tools to interact with the game world:\n")
+
+    for tool in _tool_definitions:
+        name = tool['name']
+        description = tool['description']
+        schema = tool['input_schema']
+
+        # Tool header
+        doc_parts.append(f"\n### `{name}`")
+        doc_parts.append(f"{description}\n")
+
+        # Parameters
+        properties = schema.get('properties', {})
+        required = schema.get('required', [])
+
+        if properties:
+            doc_parts.append("**Parameters:**")
+            for param_name, param_info in properties.items():
+                param_desc = param_info.get('description', 'No description')
+                param_type = param_info.get('type', 'any')
+                req_marker = " *(required)*" if param_name in required else " *(optional)*"
+                doc_parts.append(f"- `{param_name}` ({param_type}){req_marker}: {param_desc}")
+            doc_parts.append("")  # Blank line
+
+    return "\n".join(doc_parts)
+
+
 # Core tool definitions for LLM function calling
 _CORE_TOOL_DEFINITIONS = [
     {
@@ -741,4 +782,4 @@ def _initialize_core_tools():
 _initialize_core_tools()
 
 
-__all__ = ['execute_tool', 'register_tool', 'get_tool_definitions', 'get_tool_handler']
+__all__ = ['execute_tool', 'register_tool', 'get_tool_definitions', 'get_tool_handler', 'generate_tool_documentation']
