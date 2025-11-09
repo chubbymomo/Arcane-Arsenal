@@ -435,13 +435,13 @@ def send_dm_message_stream():
                         "input_schema": tool["input_schema"]
                     })
 
-                # Accumulate full response and tool uses
+                # Accumulate full response and tool uses (TWO-TURN PATTERN)
                 full_response = ""
                 current_tool = None
                 tool_input_json = ""
-                tool_results = []
+                tool_uses = []
 
-                # Stream the response with tools
+                # TURN 1: Let AI use tools (accumulate, don't execute yet)
                 for chunk in llm.generate_response_stream(
                     messages=llm_messages,
                     system=full_system_prompt,
@@ -450,12 +450,24 @@ def send_dm_message_stream():
                     tools=anthropic_tools if anthropic_tools else None
                 ):
                     if chunk['type'] == 'text':
-                        # Stream text to user
+                        # Accumulate text from first turn (usually empty when tools used)
                         full_response += chunk['content']
+                        # Stream to user
                         yield f"data: {json.dumps({'type': 'token', 'content': chunk['content']})}\n\n"
 
                     elif chunk['type'] == 'tool_use_start':
-                        # AI wants to use a tool
+                        # Save previous tool if exists
+                        if current_tool and tool_input_json:
+                            try:
+                                tool_uses.append({
+                                    'id': current_tool['id'],
+                                    'name': current_tool['name'],
+                                    'input': json.loads(tool_input_json)
+                                })
+                            except json.JSONDecodeError:
+                                logger.error(f"Failed to parse tool input for {current_tool['name']}")
+
+                        # Start new tool
                         current_tool = {
                             'id': chunk['tool_use_id'],
                             'name': chunk['tool_name']
@@ -469,34 +481,84 @@ def send_dm_message_stream():
                         # Accumulate tool input JSON
                         tool_input_json += chunk['partial_json']
 
-                # Execute any tools that were called
+                # Save last tool
                 if current_tool and tool_input_json:
                     try:
-                        tool_input = json.loads(tool_input_json)
-                        logger.info(f"Executing tool {current_tool['name']} with input: {tool_input}")
-
-                        # Execute the tool
-                        result = execute_tool(
-                            current_tool['name'],
-                            tool_input,
-                            engine,
-                            entity_id
-                        )
-
-                        tool_results.append(result)
-
-                        # Notify frontend
-                        yield f"data: {json.dumps({'type': 'tool_result', 'tool_name': current_tool['name'], 'result': result})}\n\n"
-
-                        # Add tool result to narrative if successful
-                        if result['success']:
-                            full_response += f"\n\n{result['message']}"
-                        else:
-                            full_response += f"\n\n[Tool failed: {result['message']}]"
-
+                        tool_uses.append({
+                            'id': current_tool['id'],
+                            'name': current_tool['name'],
+                            'input': json.loads(tool_input_json)
+                        })
                     except json.JSONDecodeError as e:
-                        logger.error(f"Failed to parse tool input: {e}")
-                        yield f"data: {json.dumps({'type': 'error', 'error': 'Tool input parsing failed'})}\n\n"
+                        logger.error(f"Failed to parse final tool input: {e}")
+
+                # Execute all tools if any were used
+                if tool_uses:
+                    logger.info(f"Executing {len(tool_uses)} tools...")
+                    tool_results = []
+                    for tool_use in tool_uses:
+                        try:
+                            logger.info(f"Executing tool {tool_use['name']} with input: {tool_use['input']}")
+
+                            result = execute_tool(
+                                tool_use['name'],
+                                tool_use['input'],
+                                engine,
+                                entity_id
+                            )
+
+                            tool_results.append({
+                                'tool_use_id': tool_use['id'],
+                                'result': result
+                            })
+
+                            # Notify frontend
+                            yield f"data: {json.dumps({'type': 'tool_result', 'tool_name': tool_use['name'], 'result': result})}\n\n"
+
+                        except Exception as e:
+                            logger.error(f"Tool execution failed: {e}")
+                            yield f"data: {json.dumps({'type': 'error', 'error': f'Tool execution failed: {str(e)}'})}\n\n"
+
+                    # TURN 2: Give AI the tool results and get narrative
+                    logger.info("Second turn: Asking AI for narrative based on tool results...")
+
+                    # Build tool result content for second turn
+                    tool_result_content = []
+                    for tr in tool_results:
+                        result_text = tr['result']['message']
+                        tool_result_content.append({
+                            'type': 'tool_result',
+                            'tool_use_id': tr['tool_use_id'],
+                            'content': result_text
+                        })
+
+                    # Add assistant message with tool uses
+                    llm_messages.append({
+                        'role': 'assistant',
+                        'content': [{'type': 'tool_use', 'id': tu['id'], 'name': tu['name'], 'input': tu['input']} for tu in tool_uses]
+                    })
+
+                    # Add user message with tool results
+                    llm_messages.append({
+                        'role': 'user',
+                        'content': tool_result_content
+                    })
+
+                    # Get narrative response (stream it!)
+                    full_response = ""
+                    for chunk in llm.generate_response_stream(
+                        messages=llm_messages,
+                        system=full_system_prompt,
+                        max_tokens=config.ai_max_tokens,
+                        temperature=config.ai_temperature,
+                        tools=None  # No tools in second turn
+                    ):
+                        if chunk['type'] == 'text':
+                            full_response += chunk['content']
+                            # Stream narrative to user
+                            yield f"data: {json.dumps({'type': 'token', 'content': chunk['content']})}\n\n"
+
+                    logger.info(f"Second turn complete: {len(full_response)} chars narrative")
 
                 # Parse complete response for actions
                 narrative, suggested_actions = parse_dm_response(full_response)
