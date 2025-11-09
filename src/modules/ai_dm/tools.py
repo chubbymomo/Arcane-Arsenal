@@ -863,27 +863,47 @@ def _roll_dice(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dic
 
 
 def _move_player_to_location(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
-    """Move the player to a new location."""
+    """Move the player to a new location using entity-based positioning."""
     location_name = tool_input["location_name"]
-    region = tool_input.get("region")
+    region = tool_input.get("region")  # Legacy fallback
 
     position = engine.get_component(player_entity_id, 'Position')
     if not position:
-        return {"success": False, "message": "Player has no Position component"}
+        return {"success": False, "message": _format_error("Player has no Position component")}
 
-    # Update position
-    update_data = {'location': location_name}
-    if region:
-        update_data['region'] = region
+    # Find location entity by name (entity-based positioning)
+    locations = engine.query_entities(['Location'])
+    location_entity = next((e for e in locations if e.name.lower() == location_name.lower()), None)
 
-    engine.update_component(player_entity_id, 'Position', update_data)
-
-    logger.info(f"Moved player to: {location_name}")
-    return {
-        "success": True,
-        "message": f"Moved to {location_name}" + (f" in {region}" if region else ""),
-        "data": {"location": location_name, "region": region}
-    }
+    if location_entity:
+        # Entity-based positioning: set region to location entity ID
+        engine.update_component(player_entity_id, 'Position', {
+            'region': location_entity.id  # Entity reference!
+        })
+        logger.info(f"Moved player to location entity: {location_name} ({location_entity.id})")
+        return {
+            "success": True,
+            "message": f"Moved to {location_name}",
+            "data": {"location": location_name, "location_id": location_entity.id}
+        }
+    elif region:
+        # Fallback: Use region string (legacy or for abstract regions)
+        engine.update_component(player_entity_id, 'Position', {
+            'region': region
+        })
+        logger.info(f"Moved player to region: {region}")
+        return {
+            "success": True,
+            "message": f"Moved to {region}",
+            "data": {"region": region}
+        }
+    else:
+        # Location not found and no region specified
+        nearby_locations = [loc.name for loc in locations[:5]]
+        error_msg = f"Location '{location_name}' not found"
+        if nearby_locations:
+            error_msg += f". Available locations: {', '.join(nearby_locations)}"
+        return {"success": False, "message": _format_error(error_msg)}
 
 
 def _query_entities(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
@@ -902,18 +922,34 @@ def _query_entities(engine, player_entity_id: str, tool_input: Dict[str, Any]) -
 
     component_type = component_map.get(entity_type)
     if not component_type:
-        return {"success": False, "message": f"Unknown entity type: {entity_type}"}
+        return {"success": False, "message": _format_error(f"Unknown entity type: {entity_type}")}
 
     entities = engine.query_entities([component_type])
     results = []
+
+    # Find location entity ID if location filter specified
+    location_id = None
+    if location:
+        locations = engine.query_entities(['Location'])
+        location_entity = next((e for e in locations if e.name.lower() == location.lower()), None)
+        if location_entity:
+            location_id = location_entity.id
+        else:
+            # Location not found - return empty results
+            return {
+                "success": True,
+                "message": f"Found 0 {entity_type}(s) (location '{location}' not found)",
+                "data": {"entities": []}
+            }
 
     for entity in entities:
         if name_pattern and name_pattern not in entity.name.lower():
             continue
 
-        if location:
+        if location_id:
+            # Use entity-based positioning: check if region matches location entity ID
             pos = engine.get_component(entity.id, 'Position')
-            if not pos or pos.data.get('location') != location:
+            if not pos or pos.data.get('region') != location_id:
                 continue
 
         identity = engine.get_component(entity.id, 'Identity')
@@ -941,7 +977,23 @@ def _update_npc_disposition(engine, player_entity_id: str, tool_input: Dict[str,
     npc = next((e for e in npcs if e.name.lower() == npc_name.lower()), None)
 
     if not npc:
-        return {"success": False, "message": f"NPC '{npc_name}' not found"}
+        # Get player's current location to suggest nearby NPCs
+        player_position = engine.get_component(player_entity_id, 'Position')
+        player_region = player_position.data.get('region') if player_position else None
+
+        # Find NPCs at the same location (nearby)
+        nearby_npcs = []
+        if player_region:
+            for npc_entity in npcs:
+                npc_pos = engine.get_component(npc_entity.id, 'Position')
+                if npc_pos and npc_pos.data.get('region') == player_region:
+                    nearby_npcs.append(npc_entity.name)
+
+        error_msg = f"NPC '{npc_name}' not found"
+        if nearby_npcs:
+            error_msg += f". Nearby NPCs: {', '.join(nearby_npcs[:5])}"
+
+        return {"success": False, "message": _format_error(error_msg)}
 
     # Update disposition
     engine.update_component(npc.id, 'NPC', {'disposition': new_disposition})
@@ -984,12 +1036,22 @@ def _give_item_to_player(engine, player_entity_id: str, tool_input: Dict[str, An
 
         return {"success": False, "message": _format_error(error_msg)}
 
-    # Update item position to player's inventory
-    engine.update_component(item.id, 'Position', {
-        'location': 'player_inventory',
-        'owner_id': player_entity_id
-    })
+    # Use items module's ownership system (create 'owns' relationship)
+    # First check if ownership relationship already exists
+    owns_rels = engine.get_relationships(player_entity_id, rel_type='owns', direction='from')
+    already_owns = any(rel.to_entity == item.id for rel in owns_rels)
 
+    if not already_owns:
+        # Create ownership relationship
+        result = engine.create_relationship(
+            from_id=player_entity_id,
+            to_id=item.id,
+            rel_type='owns'
+        )
+        if not result.success:
+            return {"success": False, "message": _format_error(f"Failed to give item: {result.error}")}
+
+    # Update quantity if specified
     if quantity > 1:
         engine.update_component(item.id, 'Item', {'quantity': quantity})
 
@@ -1012,12 +1074,14 @@ def _remove_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> D
     item = next((e for e in items if e.name.lower() == item_name.lower()), None)
 
     if not item:
-        return {"success": False, "message": f"Item '{item_name}' not found in inventory"}
+        return {"success": False, "message": _format_error(f"Item '{item_name}' not found")}
 
-    # Check if item is actually in player's inventory
-    position = engine.get_component(item.id, 'Position')
-    if not position or position.data.get('location') != 'player_inventory':
-        return {"success": False, "message": f"'{item_name}' is not in your inventory"}
+    # Check if player owns this item (using items module's ownership system)
+    owns_rels = engine.get_relationships(player_entity_id, rel_type='owns', direction='from')
+    owns_item = any(rel.to_entity == item.id for rel in owns_rels)
+
+    if not owns_item:
+        return {"success": False, "message": _format_error(f"'{item_name}' is not in your inventory")}
 
     # Get current quantity
     item_comp = engine.get_component(item.id, 'Item')
