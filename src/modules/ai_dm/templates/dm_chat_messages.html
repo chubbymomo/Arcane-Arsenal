@@ -55,9 +55,12 @@
                                     font-family: 'Cinzel', serif;
                                     transition: all 0.2s;
                                 "
+                                data-entity-id="{{ entity.id }}"
+                                data-action-type="{{ action.get('action_type', 'custom') }}"
+                                data-action-data="{{ action.get('action_data', {})|tojson|forceescape }}"
                                 onmouseover="this.style.background='linear-gradient(135deg, #ffd700, #d4af37)'"
                                 onmouseout="this.style.background='linear-gradient(135deg, #d4af37, #b8942b)'"
-                                onclick="executeSuggestedAction('{{ entity.id }}', '{{ action.get('action_type', 'custom') }}', {{ action.get('action_data', {})|tojson }})">
+                                onclick="executeSuggestedActionFromData(this)">
                             {{ action.get('label', 'Action') }}
                         </button>
                     {% endfor %}

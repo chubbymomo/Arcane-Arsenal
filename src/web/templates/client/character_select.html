@@ -33,7 +33,17 @@
                         </div>
                     </div>
                     <div class="character-card-footer">
-                        <a href="{{ url_for('ai_dm.dm_chat_page', entity_id=char.entity.id) }}" class="btn btn-play">
+                        {% if char.needs_ai_intro %}
+                            <div class="ai-intro-notice">
+                                ✨ AI-Generated Start - Will be created when you play
+                            </div>
+                        {% endif %}
+                        <a href="{{ url_for('ai_dm.dm_chat_page', entity_id=char.entity.id) }}"
+                           class="btn btn-play"
+                           {% if char.needs_ai_intro %}
+                           onclick="showAIGenerationLoading(this); return true;"
+                           data-ai-generation="true"
+                           {% endif %}>
                             🎭 Play as {{ char.entity.name }}
                         </a>
                         <a href="{{ url_for('client.character_sheet', entity_id=char.entity.id) }}" class="btn btn-secondary">
@@ -140,6 +150,27 @@
     gap: 0.75rem;
 }
 
+.ai-intro-notice {
+    padding: 0.75rem;
+    background: linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(184, 148, 43, 0.15));
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    border-radius: 6px;
+    color: #d4af37;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-align: center;
+    animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+    0%, 100% {
+        box-shadow: 0 0 5px rgba(212, 175, 55, 0.3);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(212, 175, 55, 0.5);
+    }
+}
+
 .character-card-footer .btn {
     width: 100%;
     justify-content: center;
@@ -201,5 +232,22 @@
     padding: 1rem 2rem;
     font-size: 1.1rem;
 }
+
+.btn-play.loading {
+    pointer-events: none;
+    opacity: 0.7;
+    position: relative;
+}
+
+.btn-play.loading::after {
+    content: " ✨ Generating AI Start...";
+}
 </style>
+
+<script>
+function showAIGenerationLoading(button) {
+    button.classList.add('loading');
+    button.innerHTML = '✨ Generating AI Start...';
+}
+</script>
 {% endblock %}

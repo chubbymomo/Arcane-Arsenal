@@ -93,7 +93,7 @@ def parse_dm_response(raw_response: str) -> Tuple[str, List[Dict]]:
 
 def validate_action(action: Dict) -> bool:
     """
-    Validate that an action has required fields.
+    Validate that an action has required fields and safe data.
 
     Args:
         action: Action dict to validate
@@ -117,6 +117,20 @@ def validate_action(action: Dict) -> bool:
     # Validate action_data exists and is a dict
     if 'action_data' in action and not isinstance(action.get('action_data'), dict):
         logger.warning(f"action_data must be a dict: {action}")
+        return False
+
+    # Ensure action_data can be safely JSON-serialized
+    if 'action_data' in action:
+        try:
+            json.dumps(action['action_data'])
+        except (TypeError, ValueError) as e:
+            logger.warning(f"action_data cannot be JSON-serialized: {e}")
+            return False
+
+    # Validate string fields don't contain problematic characters for HTML/JS
+    label = action.get('label', '')
+    if not isinstance(label, str):
+        logger.warning(f"label must be a string: {action}")
         return False
 
     return True
