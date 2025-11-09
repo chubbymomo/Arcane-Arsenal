@@ -398,7 +398,7 @@ def execute_tool(tool_name: str, tool_input: Dict[str, Any], engine, player_enti
         }
 
 
-def _create_npc(engine, tool_input: Dict[str, Any], player_entity_id: str) -> Dict[str, Any]:
+def _create_npc(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
     """Create an NPC entity."""
     name = tool_input["name"]
     description = tool_input["description"]
