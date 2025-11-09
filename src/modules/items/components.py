@@ -488,7 +488,7 @@ class InventoryDisplayComponent(ComponentTypeDefinition):
         html.append('''
             <script>
             function equipItem(entityId, itemId) {
-                fetch(`/api/entities/${entityId}/equip`, {
+                fetch(`/client/api/entities/${entityId}/equip`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ item_id: itemId })
@@ -508,7 +508,7 @@ class InventoryDisplayComponent(ComponentTypeDefinition):
             }
 
             function unequipItem(entityId, itemId) {
-                fetch(`/api/entities/${entityId}/unequip`, {
+                fetch(`/client/api/entities/${entityId}/unequip`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ item_id: itemId })
@@ -528,7 +528,7 @@ class InventoryDisplayComponent(ComponentTypeDefinition):
             }
 
             function useItem(entityId, itemId) {
-                fetch(`/api/entities/${entityId}/use_item`, {
+                fetch(`/client/api/entities/${entityId}/use_item`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ item_id: itemId })
