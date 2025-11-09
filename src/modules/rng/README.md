@@ -71,7 +71,7 @@ Invalid roll types are **rejected**:
 ```python
 # This will be rejected - no event emitted
 engine.event_bus.publish(Event.create(
-    event_type='roll.requested',
+    event_type='roll.initiated',
     data={
         'roll_type': 'made_up_type',  # ❌ Not registered!
         ...
@@ -110,13 +110,13 @@ engine.add_component(entity_id, "RollModifier", {
 
 ## Events
 
-### roll.requested
+### roll.initiated
 
 Published when an entity wants to make a roll. The RNG module listens for this event and processes the roll.
 
 ```python
 engine.event_bus.publish(Event.create(
-    event_type='roll.requested',
+    event_type='roll.initiated',
     entity_id=player_id,
     actor_id=player_id,
     data={
@@ -154,7 +154,7 @@ engine.event_bus.subscribe('roll.completed', on_roll_completed)
 ```python
 # Via events (recommended - applies entity modifiers)
 engine.event_bus.publish(Event.create(
-    event_type='roll.requested',
+    event_type='roll.initiated',
     entity_id=player_id,
     actor_id=player_id,
     data={
@@ -186,7 +186,7 @@ engine.add_component(player_id, "Luck", {
 
 # Request attack roll (will automatically have advantage)
 engine.event_bus.publish(Event.create(
-    event_type='roll.requested',
+    event_type='roll.initiated',
     entity_id=player_id,
     actor_id=player_id,
     data={
@@ -231,7 +231,7 @@ def handle_attack(event):
         # Double damage dice on crit
         damage_notation = "4d6"  # Normally 2d6
         engine.event_bus.publish(Event.create(
-            event_type='roll.requested',
+            event_type='roll.initiated',
             entity_id=event.data['entity_id'],
             actor_id=event.data['entity_id'],
             data={
@@ -278,7 +278,7 @@ class CombatModule(Module):
 
         # Request attack roll
         engine.event_bus.publish(Event.create(
-            event_type='roll.requested',
+            event_type='roll.initiated',
             entity_id=attacker_id,
             actor_id=attacker_id,
             data={
@@ -307,7 +307,7 @@ def make_skill_check(entity_id, skill, dc):
 
     # Request roll
     engine.event_bus.publish(Event.create(
-        event_type='roll.requested',
+        event_type='roll.initiated',
         entity_id=entity_id,
         actor_id=entity_id,
         data={
@@ -351,7 +351,7 @@ src/modules/rng/
 ```
 
 **Key Classes:**
-- `RNGModule` - Main system, subscribes to roll.requested events
+- `RNGModule` - Main system, subscribes to roll.initiated events
 - `DiceParser` - Parses notation like "1d20+5" into structured format
 - `DiceRoller` - Performs actual rolls with advantage/disadvantage
 - `RollResult` - Complete result with breakdown and metadata

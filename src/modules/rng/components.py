@@ -165,3 +165,115 @@ class RollModifierComponent(ComponentTypeDefinition):
             },
             "required": ["modifier_type", "bonus"]
         }
+
+
+class RollHistoryComponent(ComponentTypeDefinition):
+    """
+    Roll History display component for character sheets.
+
+    Provides UI for viewing dice roll history and real-time roll toasts.
+    This component has no meaningful data - it's purely a UI container that
+    integrates with the client-side diceRoller Alpine.js component.
+    """
+
+    type = "RollHistory"
+    description = "Displays roll history and dice roll toasts on character sheet"
+    schema_version = "1.0.0"
+    module = "rng"
+
+    def get_schema(self) -> Dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "max_visible_rolls": {
+                    "type": "integer",
+                    "description": "Maximum number of rolls to show in history",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "default": 50
+                }
+            },
+            "required": []
+        }
+
+    def get_default_data(self) -> Dict[str, Any]:
+        return {
+            "max_visible_rolls": 50
+        }
+
+    def get_character_sheet_config(self) -> Dict[str, Any]:
+        """Roll History appears in the RESOURCES category (Combat & Actions column)."""
+        return {
+            "visible": True,
+            "category": "resources",
+            "priority": 10,
+            "display_mode": "full"
+        }
+
+    def get_character_sheet_renderer(self, data: Dict[str, Any], engine=None, entity_id=None) -> str:
+        """Custom renderer for Roll History with toasts."""
+
+        # Roll History content + Toasts (global floating)
+        # Note: The component card and title are added by the template
+        html = '''
+            <div x-data="{ historyOpen: true }">
+                <div class="roll-history-controls" style="margin-bottom: 0.5rem;">
+                    <button @click="historyOpen = !historyOpen"
+                            class="btn-toggle"
+                            style="padding: 0.25rem 0.5rem; background: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">
+                        <span x-text="historyOpen ? '▼ Hide' : '▶ Show'"></span>
+                    </button>
+                </div>
+
+                <div x-show="historyOpen" x-transition class="roll-history">
+                    <p x-show="history.length === 0" class="roll-history-empty">No rolls yet. Click any 🎲 button to roll!</p>
+
+                    <template x-for="(roll, index) in history" :key="index">
+                        <div class="roll-entry roll-success">
+                            <div class="roll-label" x-text="roll.purpose || 'Roll'"></div>
+                            <div class="roll-total"
+                                 :class="{
+                                     'critical-success': roll.critical_success,
+                                     'critical-failure': roll.critical_failure
+                                 }"
+                                 x-text="roll.total">
+                            </div>
+                            <div class="roll-breakdown" x-text="roll.breakdown"></div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Dice roll toasts (global floating UI) -->
+            <!-- Rolling indicator toast -->
+            <div x-show="rolling"
+                 x-transition.scale.90.opacity
+                 x-cloak
+                 class="roll-toast"
+                 style="position: fixed; bottom: 20px; right: 20px; z-index: 1000;">
+                <div class="roll-toast-content">
+                    <div class="roll-status">🎲 Rolling...</div>
+                </div>
+            </div>
+
+            <!-- Result toast (shows after rolling completes) -->
+            <div x-show="showResult"
+                 x-transition.scale.90.opacity.duration.500ms
+                 x-cloak
+                 class="roll-toast"
+                 style="position: fixed; bottom: 20px; right: 20px; z-index: 1000;">
+                <div class="roll-toast-content">
+                    <div class="roll-toast-label" x-text="result?.purpose || 'Roll'"></div>
+                    <div class="roll-toast-total"
+                         :class="{
+                             'critical-success': result?.critical_success,
+                             'critical-failure': result?.critical_failure
+                         }"
+                         x-text="result?.total">
+                    </div>
+                    <div class="roll-toast-breakdown" x-text="result?.breakdown"></div>
+                </div>
+            </div>
+        '''
+
+        return html

@@ -9,15 +9,15 @@ from ..base import EventTypeDefinition
 # Event type definitions for RNG module
 # These are factory functions that return EventTypeDefinition instances
 
-def roll_requested_event() -> EventTypeDefinition:
+def roll_initiated_event() -> EventTypeDefinition:
     """
-    Event published when an entity wants to make a roll.
+    Event published when a roll has been initiated for an entity.
 
     This triggers the RNG system to process the roll with all applicable modifiers.
     """
     return EventTypeDefinition(
-        type="roll.requested",
-        description="Request to roll dice for an entity",
+        type="roll.initiated",
+        description="Dice roll has been initiated for an entity",
         module="rng",
         data_schema={
             "type": "object",

@@ -12,7 +12,7 @@ Provides:
 Usage:
     # Request a roll via event
     engine.event_bus.publish(Event(
-        event_type='roll.requested',
+        event_type='roll.initiated',
         entity_id='player_123',
         data={
             'entity_id': 'player_123',
@@ -40,8 +40,8 @@ from ..base import (
 from src.core.event_bus import Event
 from src.core.state_engine import StateEngine
 
-from .components import LuckComponent, RollModifierComponent
-from .events import roll_requested_event, roll_completed_event
+from .components import LuckComponent, RollModifierComponent, RollHistoryComponent
+from .events import roll_initiated_event, roll_completed_event
 from .roller import DiceRoller, RollResult
 from .dice_parser import DiceParser, DiceNotationError
 from .roll_types import core_roll_types
@@ -98,12 +98,13 @@ class RNGModule(Module):
     def register_component_types(self) -> List[ComponentTypeDefinition]:
         return [
             LuckComponent(),
-            RollModifierComponent()
+            RollModifierComponent(),
+            RollHistoryComponent()
         ]
 
     def register_event_types(self) -> List[EventTypeDefinition]:
         return [
-            roll_requested_event(),
+            roll_initiated_event(),
             roll_completed_event()
         ]
 
@@ -112,18 +113,52 @@ class RNGModule(Module):
         return core_roll_types()
 
     def initialize(self, engine: StateEngine) -> None:
-        """Initialize module - subscribe to roll requests."""
+        """Initialize module - subscribe to roll requests and setup UI components."""
         self.engine = engine
 
         # Subscribe to roll requests
-        engine.event_bus.subscribe('roll.requested', self.on_roll_requested)
+        engine.event_bus.subscribe('roll.initiated', self.on_roll_initiated)
+
+        # Subscribe to component.added to auto-add RollHistory to new PlayerCharacter entities
+        engine.event_bus.subscribe('component.added', self.on_component_added)
+
+        # Auto-add RollHistory component to all existing PlayerCharacter entities
+        # This ensures player characters get the roll history UI automatically
+        try:
+            player_characters = engine.query_entities(['PlayerCharacter'])
+            for pc in player_characters:
+                # Check if RollHistory already exists
+                if not engine.get_component(pc.id, 'RollHistory'):
+                    # Add RollHistory component with default settings
+                    engine.add_component(pc.id, 'RollHistory', {'max_visible_rolls': 50})
+                    logger.info(f"Added RollHistory component to player character {pc.name} ({pc.id})")
+        except Exception as e:
+            logger.warning(f"Could not auto-add RollHistory components: {e}")
 
     def on_event(self, event: Event) -> None:
         """Handle events (called by engine)."""
-        if event.event_type == 'roll.requested':
-            self.on_roll_requested(event)
+        if event.event_type == 'roll.initiated':
+            self.on_roll_initiated(event)
+        elif event.event_type == 'component.added':
+            self.on_component_added(event)
 
-    def on_roll_requested(self, event: Event) -> None:
+    def on_component_added(self, event: Event) -> None:
+        """Auto-add RollHistory when PlayerCharacter component is added."""
+        if not self.engine:
+            return
+
+        # If PlayerCharacter component was added, add RollHistory too
+        if event.data.get('component_type') == 'PlayerCharacter':
+            entity_id = event.entity_id
+            # Check if RollHistory already exists
+            if not self.engine.get_component(entity_id, 'RollHistory'):
+                try:
+                    self.engine.add_component(entity_id, 'RollHistory', {'max_visible_rolls': 50})
+                    logger.info(f"Auto-added RollHistory component to new player character {entity_id}")
+                except Exception as e:
+                    logger.warning(f"Could not auto-add RollHistory to {entity_id}: {e}")
+
+    def on_roll_initiated(self, event: Event) -> None:
         """
         Process roll request.
 

@@ -71,69 +71,6 @@
                     {% endif %}
                 {% endif %}
             {% endfor %}
-
-            <!-- Collapsible Roll History (D&D Beyond style) - Only if RNG module loaded -->
-            {% if rng_enabled %}
-            <div class="component-card roll-history-card non-collapsible">
-                <h3 class="component-title" @click="historyOpen = !historyOpen" style="cursor: pointer;"
-                    :data-collapsed="!historyOpen">
-                    🎲 Roll History
-                </h3>
-                <div x-show="historyOpen" x-transition class="roll-history">
-                    <p x-show="history.length === 0" class="roll-history-empty">No rolls yet. Click any 🎲 button to roll!</p>
-
-                    <template x-for="(roll, index) in history" :key="index">
-                        <div class="roll-entry roll-success">
-                            <div class="roll-label" x-text="roll.purpose || 'Roll'"></div>
-                            <div class="roll-total"
-                                 :class="{
-                                     'critical-success': roll.critical_success,
-                                     'critical-failure': roll.critical_failure
-                                 }"
-                                 x-text="roll.total">
-                            </div>
-                            <div class="roll-breakdown" x-text="roll.breakdown"></div>
-                        </div>
-                    </template>
-                </div>
-                <p x-show="!historyOpen" class="help-text" style="margin-top: 0.5rem; color: var(--text-muted); font-size: 0.9rem;">
-                    Click to view roll history (stored in database)
-                </p>
-            </div>
-            {% endif %}
-
-            <!-- Dice roll toasts - Only if RNG module loaded -->
-            {% if rng_enabled %}
-            <!-- Rolling indicator toast -->
-            <div x-show="rolling"
-                 x-transition.scale.90.opacity
-                 x-cloak
-                 class="roll-toast"
-                 style="position: fixed; bottom: 20px; right: 20px; z-index: 1000;">
-                <div class="roll-toast-content">
-                    <div class="roll-status">🎲 Rolling...</div>
-                </div>
-            </div>
-
-            <!-- Result toast (shows after rolling completes) -->
-            <div x-show="showResult"
-                 x-transition.scale.90.opacity.duration.500ms
-                 x-cloak
-                 class="roll-toast"
-                 style="position: fixed; bottom: 20px; right: 20px; z-index: 1000;">
-                <div class="roll-toast-content">
-                    <div class="roll-toast-label" x-text="result?.purpose || 'Roll'"></div>
-                    <div class="roll-toast-total"
-                         :class="{
-                             'critical-success': result?.critical_success,
-                             'critical-failure': result?.critical_failure
-                         }"
-                         x-text="result?.total">
-                    </div>
-                    <div class="roll-toast-breakdown" x-text="result?.breakdown"></div>
-                </div>
-            </div>
-            {% endif %}
         </div>
 
         <!-- RIGHT COLUMN: Info & Inventory -->
