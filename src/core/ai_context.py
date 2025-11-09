@@ -206,48 +206,82 @@ class AIContextBuilder:
         }
 
         if include_nearby:
-            # Find entities in the same region
+            # Find entities in the same region (entity-based hierarchical positioning)
             nearby = []
-            region_name = position.data.get('region')
+            region_ref = position.data.get('region')
 
-            if region_name:
+            if region_ref:
                 # Query all entities with Position component
                 entities_with_position = self.engine.query_entities(['Position'])
 
-                for entity in entities_with_position:
-                    if entity.id == entity_id:
-                        continue  # Skip self
+                # Entity-based positioning: Find entities positioned AT this entity
+                # If current entity is a location, find entities with Position.region == entity_id
+                is_location = self.engine.get_component(entity_id, 'Location')
+                if is_location:
+                    # This entity is a location - find entities positioned AT it
+                    for entity in entities_with_position:
+                        if entity.id == entity_id:
+                            continue  # Skip self
 
-                    pos = self.engine.get_component(entity.id, 'Position')
-                    if pos and pos.data.get('region') == region_name:
-                        entity_type = 'unknown'
+                        pos = self.engine.get_component(entity.id, 'Position')
+                        # Match on entity ID (entity positioned AT this location)
+                        if pos and pos.data.get('region') == entity_id:
+                            entity_info = self._build_entity_info(entity)
+                            if entity_info:
+                                nearby.append(entity_info)
+                else:
+                    # This entity is not a location - find entities in the same region
+                    for entity in entities_with_position:
+                        if entity.id == entity_id:
+                            continue  # Skip self
 
-                        # Determine entity type
-                        if self.engine.get_component(entity.id, 'PlayerCharacter'):
-                            entity_type = 'player'
-                        elif self.engine.get_component(entity.id, 'NPC'):
-                            entity_type = 'npc'
-                        elif self.engine.get_component(entity.id, 'Item'):
-                            entity_type = 'item'
-
-                        entity_info = {
-                            'name': entity.name,
-                            'type': entity_type,
-                            'id': entity.id
-                        }
-
-                        # Include Identity component for richer context
-                        identity = self.engine.get_component(entity.id, 'Identity')
-                        if identity:
-                            entity_info['description'] = identity.data.get('description', '')
-                            entity_info['race'] = identity.data.get('race', '')
-                            entity_info['occupation'] = identity.data.get('occupation', '')
-
-                        nearby.append(entity_info)
+                        pos = self.engine.get_component(entity.id, 'Position')
+                        # Match on region reference (could be entity ID or string)
+                        if pos and pos.data.get('region') == region_ref:
+                            entity_info = self._build_entity_info(entity)
+                            if entity_info:
+                                nearby.append(entity_info)
 
             context['nearby_entities'] = nearby[:10]  # Limit to 10 nearest
 
         return context
+
+    def _build_entity_info(self, entity) -> Dict[str, Any]:
+        """
+        Build entity info dict for nearby entities.
+
+        Args:
+            entity: Entity to build info for
+
+        Returns:
+            Dict with entity info, or None if entity type is unknown
+        """
+        entity_type = 'unknown'
+
+        # Determine entity type
+        if self.engine.get_component(entity.id, 'PlayerCharacter'):
+            entity_type = 'player'
+        elif self.engine.get_component(entity.id, 'NPC'):
+            entity_type = 'npc'
+        elif self.engine.get_component(entity.id, 'Item'):
+            entity_type = 'item'
+        elif self.engine.get_component(entity.id, 'Location'):
+            entity_type = 'location'
+
+        entity_info = {
+            'name': entity.name,
+            'type': entity_type,
+            'id': entity.id
+        }
+
+        # Include Identity component for richer context
+        identity = self.engine.get_component(entity.id, 'Identity')
+        if identity:
+            entity_info['description'] = identity.data.get('description', '')
+            entity_info['race'] = identity.data.get('race', '')
+            entity_info['occupation'] = identity.data.get('occupation', '')
+
+        return entity_info
 
     def build_inventory_context(self, entity_id: str, limit: int = 10) -> List[Dict[str, Any]]:
         """

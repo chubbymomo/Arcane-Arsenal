@@ -107,7 +107,7 @@ def generate_tool_documentation() -> str:
 _CORE_TOOL_DEFINITIONS = [
     {
         "name": "create_npc",
-        "description": "Create a new NPC (non-player character) in the game world. Use this when an NPC first appears in the story.",
+        "description": "Create a new NPC (non-player character) in the game world. Use this when an NPC first appears in the story. NPCs can have classes and levels for mechanical depth (e.g., wizard innkeeper, cleric healer).",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -121,22 +121,30 @@ _CORE_TOOL_DEFINITIONS = [
                 },
                 "race": {
                     "type": "string",
-                    "description": "The NPC's race (e.g., 'human', 'elf', 'dwarf', 'orc')"
+                    "description": "The NPC's race (e.g., 'human', 'elf', 'dwarf', 'orc') - use values from Game System races list"
                 },
                 "occupation": {
                     "type": "string",
-                    "description": "The NPC's occupation or role (e.g., 'blacksmith', 'guard', 'merchant')"
+                    "description": "The NPC's occupation or role (e.g., 'blacksmith', 'guard', 'merchant', 'wizard')"
+                },
+                "npc_class": {
+                    "type": "string",
+                    "description": "Optional: NPC's class for mechanical abilities (e.g., 'wizard', 'cleric', 'fighter') - use values from Game System classes list. Omit for non-combatant NPCs."
+                },
+                "level": {
+                    "type": "integer",
+                    "description": "Optional: NPC's level if they have a class (default: 1). Determines their capabilities."
                 },
                 "disposition": {
                     "type": "string",
                     "description": "Initial attitude toward the player ('friendly', 'neutral', 'hostile', 'fearful')"
                 },
-                "location": {
+                "location_name": {
                     "type": "string",
-                    "description": "Where the NPC currently is (e.g., 'tavern', 'town_square', 'forest_path')"
+                    "description": "REQUIRED: Name of the location where the NPC is. MUST match an existing location entity created with create_location. Query first to check if location exists!"
                 }
             },
-            "required": ["name", "description", "disposition"]
+            "required": ["name", "description", "disposition", "location_name"]
         }
     },
     {
@@ -426,6 +434,8 @@ def _create_npc(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Di
     disposition = tool_input.get("disposition", "neutral")
     race = tool_input.get("race", "human")
     occupation = tool_input.get("occupation", "commoner")
+    npc_class = tool_input.get("npc_class")  # Optional class
+    level = tool_input.get("level", 1)  # Default level 1
     location = tool_input.get("location")
 
     # Create entity
@@ -444,6 +454,17 @@ def _create_npc(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Di
     engine.add_component(npc_id, 'Identity', identity_data)
     logger.info(f"  → Added Identity: race={race}, occupation={occupation}, desc={description[:50]}...")
 
+    # Add CharacterDetails if class is provided (enables mechanics like spells, skills)
+    if npc_class:
+        char_details = {
+            'character_class': npc_class,
+            'level': level,
+            'race': race  # Also in CharacterDetails for module compatibility
+        }
+        engine.add_component(npc_id, 'CharacterDetails', char_details)
+        logger.info(f"  → Added CharacterDetails: class={npc_class}, level={level}")
+        # Note: This will trigger auto-add of Magic/Skills components via events if applicable
+
     # Add NPC component
     engine.add_component(npc_id, 'NPC', {
         'disposition': disposition,
@@ -452,21 +473,34 @@ def _create_npc(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Di
     })
     logger.info(f"  → Added NPC component: disposition={disposition}")
 
-    # Add Position component if location specified
-    if location:
-        # Get player's current location for region
-        player_position = engine.get_component(player_entity_id, 'Position')
-        region = player_position.data.get('region', 'Unknown') if player_position else 'Unknown'
+    # Add Position component - entity-based hierarchical positioning
+    location_name = tool_input.get("location_name")
+    if location_name:
+        # Query for location entity by name (entity-based positioning)
+        location_entities = engine.query_entities(['Location'])
+        location_entity = None
+        for loc in location_entities:
+            if loc.name.lower() == location_name.lower():
+                location_entity = loc
+                break
 
-        position_data = {
-            'x': 0,
-            'y': 0,
-            'z': 0,
-            'region': region,
-            'location': location
-        }
-        engine.add_component(npc_id, 'Position', position_data)
-        logger.info(f"  → Added Position: region={region}, location={location}")
+        if location_entity:
+            # Position NPC AT the location entity (using entity ID)
+            position_data = {
+                'region': location_entity.id  # Entity reference! NPC is IN this location
+            }
+            engine.add_component(npc_id, 'Position', position_data)
+            logger.info(f"  → Added Position: region={location_entity.id} ({location_entity.name})")
+        else:
+            logger.warning(f"  ⚠ Location '{location_name}' not found! NPC created without position.")
+            # Fall back to player's location
+            player_position = engine.get_component(player_entity_id, 'Position')
+            if player_position:
+                position_data = {'region': player_position.data.get('region')}
+                engine.add_component(npc_id, 'Position', position_data)
+                logger.info(f"  → Fallback: Added Position at player's location: region={position_data['region']}")
+    else:
+        logger.warning(f"  ⚠ No location_name provided for NPC {name}")
 
     logger.info(f"Created NPC: {name} ({npc_id})")
     return {
@@ -477,7 +511,12 @@ def _create_npc(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Di
 
 
 def _create_location(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
-    """Create a location entity."""
+    """
+    Create a location entity with entity-based hierarchical positioning.
+
+    Locations are entities that other entities can be positioned within.
+    They need both Location (marker) and Position (where they are) components.
+    """
     name = tool_input["name"]
     description = tool_input["description"]
     location_type = tool_input["location_type"]
@@ -490,27 +529,34 @@ def _create_location(engine, player_entity_id: str, tool_input: Dict[str, Any]) 
         return {"success": False, "message": f"Failed to create location: {result.error}"}
 
     location_id = result.data['id']
+    logger.info(f"Creating location: {name} ({location_id})")
 
     # Add Identity component
     engine.add_component(location_id, 'Identity', {
-        'description': description,
-        'location_type': location_type
+        'description': description
     })
-    logger.info(f"  → Added Identity: type={location_type}, desc={description[:50]}...")
+    logger.info(f"  → Added Identity: desc={description[:50]}...")
 
-    # Add Location component
+    # Add Location component (marker with metadata)
     engine.add_component(location_id, 'Location', {
-        'region': region,
+        'location_type': location_type,
         'features': features,
         'visited': False
     })
-    logger.info(f"  → Added Location component: region={region}, features={len(features)}")
+    logger.info(f"  → Added Location component: type={location_type}, features={len(features)}")
+
+    # Add Position component (WHERE the location is - in a broader region)
+    # This allows hierarchical positioning - locations can be in regions or in other locations
+    engine.add_component(location_id, 'Position', {
+        'region': region  # Named region string for top-level locations
+    })
+    logger.info(f"  → Added Position: region={region}")
 
     logger.info(f"Created Location: {name} ({location_id}) in {region}")
     return {
         "success": True,
         "message": f"Created location '{name}' in {region}",
-        "data": {"entity_id": location_id, "name": name}
+        "data": {"entity_id": location_id, "name": name, "region": region}
     }
 
 
