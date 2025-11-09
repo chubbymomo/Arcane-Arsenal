@@ -69,7 +69,7 @@ class Config:
 
         # === AI Settings ===
         self.ai_provider = os.getenv('AI_PROVIDER', 'anthropic')  # anthropic or openai
-        self.ai_model = os.getenv('AI_MODEL', 'claude-3-5-sonnet-20241022')
+        self.ai_model = os.getenv('AI_MODEL', 'claude-3-5-sonnet-20240620')
         self.ai_max_tokens = int(os.getenv('AI_MAX_TOKENS', '4096'))
         self.ai_temperature = float(os.getenv('AI_TEMPERATURE', '0.7'))
 
