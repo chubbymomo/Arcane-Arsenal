@@ -369,7 +369,7 @@ class InventoryDisplayComponent(ComponentTypeDefinition):
                 total_value += item_comp.data.get('value', 0) * item_comp.data.get('quantity', 1)
 
         # Build HTML
-        html = ['<div class="inventory-display">']
+        html = [f'<div id="inventory-display-{escape(entity_id)}" class="inventory-display">']
 
         # Equipment section
         html.append('<div class="equipment-section" style="margin-bottom: 1rem;">')
@@ -487,6 +487,21 @@ class InventoryDisplayComponent(ComponentTypeDefinition):
         # JavaScript for item interactions
         html.append('''
             <script>
+            function reloadInventory(entityId) {
+                // Fetch updated inventory HTML without reloading the page
+                fetch('/api/inventory_display/' + entityId)
+                .then(response => response.text())
+                .then(html => {
+                    const container = document.getElementById('inventory-display-' + entityId);
+                    if (container) {
+                        container.outerHTML = html;
+                    }
+                })
+                .catch(error => {
+                    console.error('Failed to reload inventory:', error);
+                });
+            }
+
             function equipItem(entityId, itemId) {
                 fetch('/api/equip', {
                     method: 'POST',
@@ -496,7 +511,7 @@ class InventoryDisplayComponent(ComponentTypeDefinition):
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        location.reload();
+                        reloadInventory(entityId);
                     } else {
                         alert('Failed to equip item: ' + (data.error || 'Unknown error'));
                     }
@@ -516,7 +531,7 @@ class InventoryDisplayComponent(ComponentTypeDefinition):
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        location.reload();
+                        reloadInventory(entityId);
                     } else {
                         alert('Failed to unequip item: ' + (data.error || 'Unknown error'));
                     }
@@ -537,7 +552,7 @@ class InventoryDisplayComponent(ComponentTypeDefinition):
                 .then(data => {
                     if (data.success) {
                         alert(data.message || 'Item used successfully');
-                        location.reload();
+                        reloadInventory(entityId);
                     } else {
                         alert('Failed to use item: ' + (data.error || 'Unknown error'));
                     }
