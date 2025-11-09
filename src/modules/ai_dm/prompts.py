@@ -177,20 +177,22 @@ def build_context_prompt(ai_context: Dict[str, Any]) -> str:
     inventory = ai_context.get('inventory', [])
     if inventory:
         prompt_parts.append("## Inventory")
-        equipped = [item for item in inventory if item.get('equipped')]
-        carried = [item for item in inventory if not item.get('equipped')]
 
-        if equipped:
-            equipped_str = ', '.join([item['name'] for item in equipped])
-            prompt_parts.append(f"**Equipped:** {equipped_str}")
+        # List all items with quantities
+        items_list = []
+        for item in inventory:
+            name = item['name']
+            qty = item.get('quantity', 1)
+            if qty > 1:
+                items_list.append(f"{name} x{qty}")
+            else:
+                items_list.append(name)
 
-        if carried:
-            carried_names = [item['name'] for item in carried[:5]]  # Top 5
-            more = len(carried) - 5
-            carried_str = ', '.join(carried_names)
-            if more > 0:
-                carried_str += f", and {more} more items"
-            prompt_parts.append(f"**Carried:** {carried_str}")
+        if items_list:
+            # Show in comma-separated list
+            prompt_parts.append(', '.join(items_list))
+        else:
+            prompt_parts.append("Empty")
 
         prompt_parts.append("")  # Blank line
 
