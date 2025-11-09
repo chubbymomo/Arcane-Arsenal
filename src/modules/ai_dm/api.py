@@ -212,20 +212,64 @@ def api_send_message():
             'last_message_time': timestamp
         })
 
-        # Generate DM response (for now, placeholder - will add AI later)
-        dm_response_text = f"I see you said: '{message}'. (AI response coming soon!)"
-        dm_suggested_actions = [
-            {
-                'label': '🎲 Roll Perception',
-                'action_type': 'roll_dice',
-                'action_data': {'dice': '1d20+0', 'label': 'Perception Check'}
-            },
-            {
-                'label': '⚔️ Draw Weapon',
-                'action_type': 'custom',
-                'action_data': {'action': 'ready_weapon'}
-            }
-        ]
+        # ========== AI INTEGRATION ==========
+        # Generate DM response using LLM
+
+        try:
+            from .llm_client import get_llm_client, LLMError
+            from .prompts import build_full_prompt, build_message_history
+            from .response_parser import parse_dm_response, get_fallback_actions
+            from src.core.config import get_config
+
+            # Generate AI context from game state
+            logger.info(f"Generating AI context for entity {entity_id}")
+            ai_context = engine.generate_ai_context(entity_id)
+
+            # Get conversation history
+            conversation_messages = []
+            for msg_id in message_ids[:-1]:  # Exclude the message we just added
+                msg_entity = engine.get_entity(msg_id)
+                if msg_entity and msg_entity.is_active():
+                    msg_comp = engine.get_component(msg_id, 'ChatMessage')
+                    if msg_comp:
+                        conversation_messages.append(msg_comp.data)
+
+            # Build prompts
+            logger.info("Building prompts for LLM")
+            full_system_prompt = build_full_prompt(ai_context)
+            llm_messages = build_message_history(conversation_messages)
+
+            # Add current player message
+            llm_messages.append({'role': 'user', 'content': message})
+
+            # Get LLM client and generate response
+            logger.info("Calling LLM for DM response")
+            config = get_config()
+            llm = get_llm_client(config)
+
+            raw_response = llm.generate_response(
+                messages=llm_messages,
+                system=full_system_prompt,
+                max_tokens=config.ai_max_tokens,
+                temperature=config.ai_temperature
+            )
+
+            # Parse response
+            logger.info("Parsing LLM response")
+            dm_response_text, dm_suggested_actions = parse_dm_response(raw_response)
+
+            logger.info(f"AI response generated: {len(dm_response_text)} chars, "
+                       f"{len(dm_suggested_actions)} actions")
+
+        except LLMError as e:
+            logger.error(f"LLM error during DM response: {e}", exc_info=True)
+            dm_response_text = "The DM seems distracted for a moment... (AI temporarily unavailable)"
+            dm_suggested_actions = get_fallback_actions()
+
+        except Exception as e:
+            logger.error(f"Unexpected error during AI response generation: {e}", exc_info=True)
+            dm_response_text = "The DM pauses, gathering their thoughts... (An error occurred)"
+            dm_suggested_actions = get_fallback_actions()
 
         # Create DM message entity
         dm_msg_result = engine.create_entity(
