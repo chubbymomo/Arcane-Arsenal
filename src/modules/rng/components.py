@@ -213,24 +213,34 @@ class RollHistoryComponent(ComponentTypeDefinition):
     def get_character_sheet_renderer(self, data: Dict[str, Any], engine=None, entity_id=None) -> str:
         """Custom renderer for Roll History with toasts."""
 
-        # Roll History content
-        # Note: The component card and title are added by the template
-        html = '''
-            <p x-show="history.length === 0" class="roll-history-empty">No rolls yet. Click any 🎲 button to roll!</p>
+        # Get max visible rolls from component data
+        max_rolls = data.get('max_visible_rolls', 50)
 
-            <template x-for="(roll, index) in history" :key="index">
-                <div class="roll-entry roll-success">
-                    <div class="roll-label" x-text="roll.purpose || 'Roll'"></div>
-                    <div class="roll-total"
-                         :class="{
-                             'critical-success': roll.critical_success,
-                             'critical-failure': roll.critical_failure
-                         }"
-                         x-text="roll.total">
+        # Roll History content with scrolling
+        # Note: The component card and title are added by the template
+        html = f'''
+            <div class="roll-history-container" style="max-height: 400px; overflow-y: auto; overflow-x: hidden;">
+                <p x-show="history.length === 0" class="roll-history-empty">No rolls yet. Click any 🎲 button to roll!</p>
+
+                <template x-for="(roll, index) in history.slice(0, {max_rolls})" :key="index">
+                    <div class="roll-entry roll-success">
+                        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.25rem;">
+                            <div class="roll-label" x-text="roll.purpose || 'Roll'"></div>
+                            <div class="roll-entity"
+                                 style="font-size: 0.8rem; color: var(--text-muted, #888); font-style: italic;"
+                                 x-text="roll.entity_name"></div>
+                        </div>
+                        <div class="roll-total"
+                             :class="{{
+                                 'critical-success': roll.critical_success,
+                                 'critical-failure': roll.critical_failure
+                             }}"
+                             x-text="roll.total">
+                        </div>
+                        <div class="roll-breakdown" x-text="roll.breakdown"></div>
                     </div>
-                    <div class="roll-breakdown" x-text="roll.breakdown"></div>
-                </div>
-            </template>
+                </template>
+            </div>
 
             <!-- Dice roll toasts (global floating UI) -->
             <!-- Rolling indicator toast -->
@@ -253,10 +263,10 @@ class RollHistoryComponent(ComponentTypeDefinition):
                 <div class="roll-toast-content">
                     <div class="roll-toast-label" x-text="result?.purpose || 'Roll'"></div>
                     <div class="roll-toast-total"
-                         :class="{
+                         :class="{{
                              'critical-success': result?.critical_success,
                              'critical-failure': result?.critical_failure
-                         }"
+                         }}"
                          x-text="result?.total">
                     </div>
                     <div class="roll-toast-breakdown" x-text="result?.breakdown"></div>

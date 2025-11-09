@@ -503,8 +503,9 @@
                         console.log('[DICE] History updated, new length:', this.history.length);
                         console.log('[DICE] Full history:', this.history);
 
-                        if (this.history.length > 10) {
-                            this.history = this.history.slice(0, 10);
+                        // Keep last 100 rolls in memory (component will display max configured)
+                        if (this.history.length > 100) {
+                            this.history = this.history.slice(0, 100);
                         }
 
                         // Keep "Rolling..." visible for at least 800ms for better UX
