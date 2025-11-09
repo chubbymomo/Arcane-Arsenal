@@ -408,6 +408,15 @@ class ModuleRegistry:
         self.registry_name = registry_name
         self.module_name = module_name
         self.storage = storage
+        self._cache: Optional[Dict[str, Dict[str, Any]]] = None  # Lazy-loaded cache for O(1) lookups
+
+    def _ensure_cache(self) -> None:
+        """Lazy-load registry data into memory cache for fast lookups."""
+        if self._cache is None:
+            self._cache = {
+                entry['key']: entry
+                for entry in self.storage.get_registry_values(self.registry_name)
+            }
 
     def register(self, key: str, description: str,
                 metadata: Dict[str, Any] = None) -> None:
@@ -426,28 +435,32 @@ class ModuleRegistry:
             module=self.module_name,
             metadata=metadata
         )
+        # Invalidate cache when new entries are registered
+        self._cache = None
 
     def get_all(self) -> List[Dict[str, Any]]:
         """
-        Get all registered values in this registry.
+        Get all registered values in this registry (cached).
 
         Returns:
             List of dicts with keys: key, description, module, metadata
         """
-        return self.storage.get_registry_values(self.registry_name)
+        self._ensure_cache()
+        return list(self._cache.values())
 
     def get_keys(self) -> List[str]:
         """
-        Get all registered keys in this registry.
+        Get all registered keys in this registry (O(1) cached lookup).
 
         Returns:
             List of keys (e.g., ['evocation', 'necromancy', 'conjuration'])
         """
-        return [entry['key'] for entry in self.get_all()]
+        self._ensure_cache()
+        return list(self._cache.keys())
 
     def get(self, key: str) -> Optional[Dict[str, Any]]:
         """
-        Get a specific registered value by key.
+        Get a specific registered value by key (O(1) cached lookup).
 
         Args:
             key: Key to look up
@@ -459,14 +472,12 @@ class ModuleRegistry:
             class_data = classes_registry.get('wizard')
             # Returns: {'key': 'wizard', 'description': '...', 'module': 'generic_fantasy', 'metadata': {...}}
         """
-        for entry in self.get_all():
-            if entry['key'] == key:
-                return entry
-        return None
+        self._ensure_cache()
+        return self._cache.get(key)
 
     def is_valid(self, key: str) -> bool:
         """
-        Check if a key is registered in this registry.
+        Check if a key is registered in this registry (O(1) cached lookup).
 
         Args:
             key: Key to check
@@ -474,7 +485,8 @@ class ModuleRegistry:
         Returns:
             True if key is registered, False otherwise
         """
-        return key in self.get_keys()
+        self._ensure_cache()
+        return key in self._cache
 
     def validate(self, key: str, error_context: str = None) -> None:
         """
