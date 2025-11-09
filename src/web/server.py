@@ -22,7 +22,10 @@ from src.core.state_engine import StateEngine
 from src.core.module_loader import ModuleLoader
 from src.core.models import Event
 from src.web.blueprints import client_bp, host_bp
+from src.core.logging_config import setup_logging
 
+# Setup logging for the application
+setup_logging(level='INFO')
 logger = logging.getLogger(__name__)
 
 # Global SocketIO instance
