@@ -111,7 +111,26 @@ def dm_chat_page(entity_id: str):
         # Check if we need to generate an AI intro (empty conversation + needs_ai_intro flag)
         if len(messages) == 0:
             player_comp = engine.get_component(entity_id, 'PlayerCharacter')
-            logger.info(f"Checking AI intro for {entity_id}: player_comp={player_comp is not None}, needs_ai_intro={player_comp.data.get('needs_ai_intro', False) if player_comp else 'N/A'}")
+            has_player_comp = player_comp is not None
+            needs_intro = player_comp.data.get('needs_ai_intro', False) if player_comp else False
+
+            logger.info(f"Checking AI intro for {entity_id}: player_comp={has_player_comp}, needs_ai_intro={needs_intro}")
+
+            # Debug message to user
+            if not has_player_comp:
+                logger.warning(f"No PlayerCharacter component found for {entity_id}")
+                messages.append({
+                    'id': 'debug-no-player',
+                    'data': {
+                        'speaker': 'system',
+                        'speaker_name': 'Debug',
+                        'message': '⚠️ Debug: This entity does not have a PlayerCharacter component. AI intro cannot be generated.',
+                        'timestamp': '',
+                        'suggested_actions': []
+                    }
+                })
+            elif not needs_intro:
+                logger.info(f"Character {entity_id} does not need AI intro (needs_ai_intro={needs_intro})")
 
             if player_comp and player_comp.data.get('needs_ai_intro', False):
                 # Generate AI opening scene
@@ -199,9 +218,50 @@ def dm_chat_page(entity_id: str):
 
                 except LLMError as e:
                     logger.error(f"LLM error during AI intro generation: {e}")
-                    # Continue without intro - user can start conversation manually
+                    # Add error message as a system message
+                    error_msg = (
+                        "⚠️ Unable to generate AI opening scene. This could be due to:\n\n"
+                        "• Missing or invalid AI API key\n"
+                        "• Network connectivity issues\n"
+                        "• AI service temporarily unavailable\n\n"
+                        "Please check your configuration and try starting a conversation manually below."
+                    )
+                    messages.append({
+                        'id': 'error',
+                        'data': {
+                            'speaker': 'system',
+                            'speaker_name': 'System',
+                            'message': error_msg,
+                            'timestamp': '',
+                            'suggested_actions': []
+                        }
+                    })
+                    # Clear the flag so we don't retry every time
+                    engine.update_component(entity_id, 'PlayerCharacter', {
+                        'needs_ai_intro': False
+                    })
                 except Exception as e:
                     logger.error(f"Unexpected error generating AI intro: {e}", exc_info=True)
+                    # Add error message as a system message
+                    error_msg = (
+                        "⚠️ An unexpected error occurred while generating your AI opening scene.\n\n"
+                        "Please try starting a conversation manually below. "
+                        "If this issue persists, contact your game administrator."
+                    )
+                    messages.append({
+                        'id': 'error',
+                        'data': {
+                            'speaker': 'system',
+                            'speaker_name': 'System',
+                            'message': error_msg,
+                            'timestamp': '',
+                            'suggested_actions': []
+                        }
+                    })
+                    # Clear the flag so we don't retry every time
+                    engine.update_component(entity_id, 'PlayerCharacter', {
+                        'needs_ai_intro': False
+                    })
 
         # Hardcoded UI preferences (no component needed)
         ui_settings = {
