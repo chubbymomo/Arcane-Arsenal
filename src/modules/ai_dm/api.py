@@ -637,10 +637,7 @@ def api_execute_action():
             # Create a system message about the roll
             conversation = engine.get_component(entity_id, 'Conversation')
             if conversation:
-                roll_msg = engine.create_entity(
-                    f"Roll: {label}",
-                    entity_type='message'
-                )
+                roll_msg = engine.create_entity(f"Roll: {label}")
 
                 if roll_msg.success:
                     engine.add_component(roll_msg.data['id'], 'ChatMessage', {

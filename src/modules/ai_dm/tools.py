@@ -408,7 +408,7 @@ def _create_npc(engine, tool_input: Dict[str, Any], player_entity_id: str) -> Di
     location = tool_input.get("location")
 
     # Create entity
-    result = engine.create_entity(name, entity_type="npc")
+    result = engine.create_entity(name)
     if not result.success:
         return {"success": False, "message": f"Failed to create NPC: {result.error}"}
 
@@ -459,7 +459,7 @@ def _create_location(engine, tool_input: Dict[str, Any]) -> Dict[str, Any]:
     features = tool_input.get("features", [])
 
     # Create entity
-    result = engine.create_entity(name, entity_type="location")
+    result = engine.create_entity(name)
     if not result.success:
         return {"success": False, "message": f"Failed to create location: {result.error}"}
 
@@ -495,7 +495,7 @@ def _create_item(engine, tool_input: Dict[str, Any]) -> Dict[str, Any]:
     value = tool_input.get("value", 0)
 
     # Create entity
-    result = engine.create_entity(name, entity_type="item")
+    result = engine.create_entity(name)
     if not result.success:
         return {"success": False, "message": f"Failed to create item: {result.error}"}
 

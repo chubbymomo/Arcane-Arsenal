@@ -203,9 +203,11 @@ def character_builder():
             if scenario_type == 'ai_generated':
                 try:
                     from datetime import datetime
+                    import json
                     from src.modules.ai_dm.llm_client import get_llm_client, LLMError
                     from src.modules.ai_dm.prompts import build_full_prompt
                     from src.modules.ai_dm.response_parser import parse_dm_response
+                    from src.modules.ai_dm.tools import get_tool_definitions, execute_tool
                     from src.core.config import get_config
 
                     # Create Conversation component
@@ -221,19 +223,70 @@ def character_builder():
                         "This is the very beginning of the adventure. "
                         "Create an engaging opening scene that introduces the character to their starting location. "
                         "Set the mood, describe the environment, and present an initial situation that draws them in. "
+                        "Use your available tools to create NPCs, locations, and items as needed to make the world come alive. "
                         "Remember: no meta-gaming, just vivid narrative."
                     )
 
                     config = get_config()
                     llm = get_llm_client(config)
-                    raw_response = llm.generate_response(
+                    tools = get_tool_definitions()
+
+                    # Convert tools to Anthropic format
+                    anthropic_tools = []
+                    for tool in tools:
+                        anthropic_tools.append({
+                            "name": tool["name"],
+                            "description": tool["description"],
+                            "input_schema": tool["input_schema"]
+                        })
+
+                    # Accumulate response and execute tools
+                    full_response = ""
+                    current_tool = None
+                    tool_input_json = ""
+
+                    # Stream the response with tools
+                    for chunk in llm.generate_response_stream(
                         messages=[{'role': 'user', 'content': intro_prompt}],
                         system=full_system_prompt,
                         max_tokens=config.ai_max_tokens,
-                        temperature=config.ai_temperature
-                    )
+                        temperature=config.ai_temperature,
+                        tools=anthropic_tools if anthropic_tools else None
+                    ):
+                        if chunk['type'] == 'text':
+                            full_response += chunk['content']
+                        elif chunk['type'] == 'tool_use_start':
+                            current_tool = {
+                                'id': chunk['tool_use_id'],
+                                'name': chunk['tool_name']
+                            }
+                            tool_input_json = ""
+                            logger.info(f"AI intro using tool: {chunk['tool_name']}")
+                        elif chunk['type'] == 'tool_input_delta':
+                            tool_input_json += chunk['partial_json']
 
-                    intro_text, intro_actions = parse_dm_response(raw_response)
+                    # Execute any tools that were called
+                    if current_tool and tool_input_json:
+                        try:
+                            tool_input = json.loads(tool_input_json)
+                            logger.info(f"Executing tool {current_tool['name']} with input: {tool_input}")
+
+                            result = execute_tool(
+                                current_tool['name'],
+                                tool_input,
+                                engine,
+                                entity_id
+                            )
+
+                            if result['success']:
+                                full_response += f"\n\n{result['message']}"
+                            else:
+                                full_response += f"\n\n[Tool failed: {result['message']}]"
+
+                        except json.JSONDecodeError as e:
+                            logger.error(f"Failed to parse tool input: {e}")
+
+                    intro_text, intro_actions = parse_dm_response(full_response)
 
                     # Create intro message entity
                     dm_msg_result = engine.create_entity("DM intro message")

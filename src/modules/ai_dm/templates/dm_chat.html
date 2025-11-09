@@ -107,12 +107,6 @@ function reloadMessages() {
     .then(html => {
         const messagesDiv = document.getElementById('dm-messages');
         if (messagesDiv) {
-            // Remove thinking indicator if present
-            const thinkingIndicator = messagesDiv.querySelector('.dm-thinking-indicator');
-            if (thinkingIndicator) {
-                thinkingIndicator.remove();
-            }
-
             messagesDiv.innerHTML = html;
             // Auto-scroll to bottom
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
@@ -121,36 +115,6 @@ function reloadMessages() {
     .catch(error => {
         console.error('Failed to reload messages:', error);
     });
-}
-
-function showThinkingIndicator() {
-    const messagesDiv = document.getElementById('dm-messages');
-    if (!messagesDiv) return;
-
-    const thinkingDiv = document.createElement('div');
-    thinkingDiv.className = 'dm-thinking-indicator';
-    thinkingDiv.innerHTML = `
-        <div style="
-            margin-bottom: 1rem;
-            padding: 1rem;
-            background: rgba(212, 175, 55, 0.1);
-            border-left: 4px solid #d4af37;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        ">
-            <div class="thinking-dots" style="display: flex; gap: 0.5rem;">
-                <span style="width: 8px; height: 8px; background: #d4af37; border-radius: 50%; animation: bounce 1.4s infinite ease-in-out both;"></span>
-                <span style="width: 8px; height: 8px; background: #d4af37; border-radius: 50%; animation: bounce 1.4s infinite ease-in-out both; animation-delay: 0.16s;"></span>
-                <span style="width: 8px; height: 8px; background: #d4af37; border-radius: 50%; animation: bounce 1.4s infinite ease-in-out both; animation-delay: 0.32s;"></span>
-            </div>
-            <span style="color: #d4af37; font-family: 'Cinzel', serif; font-style: italic;">The DM is thinking...</span>
-        </div>
-    `;
-
-    messagesDiv.appendChild(thinkingDiv);
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
 
 function setLoadingState(loading) {
@@ -167,7 +131,6 @@ function setLoadingState(loading) {
         button.style.cursor = 'not-allowed';
         buttonText.style.display = 'none';
         buttonSpinner.style.display = 'inline-block';
-        showThinkingIndicator();
     } else {
         input.disabled = false;
         button.disabled = false;
@@ -596,17 +559,6 @@ document.addEventListener('DOMContentLoaded', function() {
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
-}
-
-@keyframes bounce {
-    0%, 80%, 100% {
-        transform: scale(0);
-        opacity: 0.5;
-    }
-    40% {
-        transform: scale(1);
-        opacity: 1;
-    }
 }
 </style>
 {% endblock %}
