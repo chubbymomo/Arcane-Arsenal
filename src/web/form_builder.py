@@ -426,6 +426,7 @@ class FormBuilder:
         - features: Class/race features
         - info: Background, notes, description
         - misc: Everything else
+        - HIDDEN: Components with visible=False (not displayed on character sheet)
 
         Args:
             component_type: Name of component type
@@ -438,6 +439,9 @@ class FormBuilder:
         comp_def = self._get_component_definition(component_type)
         if comp_def:
             config = comp_def.get_character_sheet_config()
+            # Check if component should be hidden from character sheet
+            if not config.get('visible', True):
+                return 'HIDDEN'
             category = config.get('category', 'misc')
             # Normalize to uppercase for backward compatibility with templates
             return category.upper()
