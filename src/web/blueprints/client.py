@@ -221,8 +221,17 @@ def character_builder():
 
                     intro_prompt = (
                         "This is the very beginning of the adventure. "
-                        "Create an engaging opening scene that introduces the character to their starting location. "
+                        "Create an engaging, UNIQUE opening scene that introduces the character to their starting location. "
                         "Set the mood, describe the environment, and present an initial situation that draws them in. "
+                        "\n\n"
+                        "IMPORTANT - CREATE VARIETY:\n"
+                        "- Avoid generic taverns unless the character's class/background specifically suggests it\n"
+                        "- Consider diverse starting locations: festivals, caravans, wilderness camps, merchant shops, "
+                        "noble courts, guild halls, temples, city gates, docks, markets, ruins, etc.\n"
+                        "- Create NPCs with distinct, memorable names and personalities (avoid common fantasy names)\n"
+                        "- Match the starting scenario to the character's class and background when possible\n"
+                        "- Add unexpected twists or unique situations that immediately engage the player\n"
+                        "\n"
                         "Use your available tools to create NPCs, locations, and items as needed to make the world come alive. "
                         "Remember: no meta-gaming, just vivid narrative."
                     )
