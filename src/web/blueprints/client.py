@@ -244,6 +244,13 @@ def character_builder():
                     full_response = ""
                     current_tool = None
                     tool_input_json = ""
+                    chunk_count = 0
+                    text_chunks = 0
+                    tool_chunks = 0
+
+                    logger.info("=== Starting AI intro generation ===")
+                    logger.info(f"Prompt: {intro_prompt}")
+                    logger.info(f"Tools available: {len(anthropic_tools)}")
 
                     # Stream the response with tools
                     for chunk in llm.generate_response_stream(
@@ -253,23 +260,35 @@ def character_builder():
                         temperature=config.ai_temperature,
                         tools=anthropic_tools if anthropic_tools else None
                     ):
+                        chunk_count += 1
+                        logger.info(f"Chunk {chunk_count}: type={chunk['type']}, keys={chunk.keys()}")
+
                         if chunk['type'] == 'text':
+                            text_chunks += 1
+                            logger.info(f"Text chunk {text_chunks}: '{chunk['content'][:100]}...'")
                             full_response += chunk['content']
                         elif chunk['type'] == 'tool_use_start':
+                            tool_chunks += 1
                             current_tool = {
                                 'id': chunk['tool_use_id'],
                                 'name': chunk['tool_name']
                             }
                             tool_input_json = ""
-                            logger.info(f"AI intro using tool: {chunk['tool_name']}")
+                            logger.info(f"Tool use {tool_chunks} START: {chunk['tool_name']} (id: {chunk['tool_use_id']})")
                         elif chunk['type'] == 'tool_input_delta':
+                            logger.info(f"Tool input delta: {chunk['partial_json'][:100]}...")
                             tool_input_json += chunk['partial_json']
+
+                    logger.info(f"=== Streaming complete: {chunk_count} chunks, {text_chunks} text, {tool_chunks} tools ===")
+                    logger.info(f"Full response length: {len(full_response)} chars")
+                    logger.info(f"Full response preview: {full_response[:300]}...")
 
                     # Execute any tools that were called
                     if current_tool and tool_input_json:
                         try:
                             tool_input = json.loads(tool_input_json)
-                            logger.info(f"Executing tool {current_tool['name']} with input: {tool_input}")
+                            logger.info(f"=== Executing tool: {current_tool['name']} ===")
+                            logger.info(f"Tool input: {tool_input}")
 
                             result = execute_tool(
                                 current_tool['name'],
@@ -278,15 +297,27 @@ def character_builder():
                                 entity_id
                             )
 
+                            logger.info(f"Tool result: success={result['success']}, message={result['message']}")
+
                             if result['success']:
                                 full_response += f"\n\n{result['message']}"
                             else:
                                 full_response += f"\n\n[Tool failed: {result['message']}]"
 
                         except json.JSONDecodeError as e:
-                            logger.error(f"Failed to parse tool input: {e}")
+                            logger.error(f"Failed to parse tool input JSON: {e}")
+                            logger.error(f"Tool input JSON was: {tool_input_json}")
+                    else:
+                        logger.info(f"No tool execution needed. current_tool={current_tool}, tool_input_json length={len(tool_input_json)}")
+
+                    logger.info(f"=== Final full response length: {len(full_response)} chars ===")
+                    logger.info(f"Final full response: {full_response}")
 
                     intro_text, intro_actions = parse_dm_response(full_response)
+                    logger.info(f"=== Parsed intro ===")
+                    logger.info(f"Intro text length: {len(intro_text)} chars")
+                    logger.info(f"Intro text: {intro_text}")
+                    logger.info(f"Intro actions: {intro_actions}")
 
                     # Create intro message entity
                     dm_msg_result = engine.create_entity("DM intro message")
