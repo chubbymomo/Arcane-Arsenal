@@ -295,22 +295,38 @@ class GenericFantasyModule(Module):
         if component_type == 'CharacterDetails':
             char_details = self.engine.get_component(entity_id, 'CharacterDetails')
             if not char_details:
+                logger.warning(f"CharacterDetails component not found for {entity_id} during auto-add")
                 return
 
             class_name = char_details.data.get('character_class')
             level = char_details.data.get('level', 1)
+            logger.info(f"Processing CharacterDetails for {entity_id}: class={class_name}, level={level}")
 
             # Get class metadata
             try:
                 classes_registry = self.engine.create_registry('classes', self.name)
                 class_data = classes_registry.get(class_name)
-                if class_data and should_auto_add_magic(class_name, class_data.get('metadata', {})):
+
+                logger.info(f"Registry lookup for '{class_name}': {class_data}")
+
+                if not class_data:
+                    logger.warning(f"No class data found for '{class_name}' in registry")
+                    return
+
+                # class_data is a dict with 'key', 'description', 'module', 'metadata' keys
+                class_meta = class_data.get('metadata', {})
+                logger.info(f"Class metadata for '{class_name}': {class_meta}")
+
+                if should_auto_add_magic(class_name, class_meta):
+                    logger.info(f"Class '{class_name}' is a spellcaster - checking if Magic component exists")
+
                     # Check if Magic component already exists
                     if not self.engine.get_component(entity_id, 'Magic'):
                         # Get spellcasting info from class
-                        class_meta = class_data.get('metadata', {})
                         spell_ability = class_meta.get('spellcasting_ability', 'intelligence')
                         progression = class_meta.get('spell_progression', 'full')
+
+                        logger.info(f"Adding Magic component: ability={spell_ability}, progression={progression}")
 
                         # Calculate spell slots
                         spell_slots = get_spell_slots_for_level(level, progression)
@@ -323,9 +339,13 @@ class GenericFantasyModule(Module):
                             'prepared_spells': [],
                             'cantrips': []
                         })
-                        logger.info(f"Auto-added Magic component to {entity_id} ({class_name}, level {level})")
+                        logger.info(f"✓ Auto-added Magic component to {entity_id} ({class_name}, level {level})")
+                    else:
+                        logger.info(f"Magic component already exists for {entity_id}, skipping auto-add")
+                else:
+                    logger.info(f"Class '{class_name}' is not a spellcaster (spellcaster={class_meta.get('spellcaster', False)})")
             except Exception as e:
-                logger.warning(f"Could not auto-add Magic component: {e}")
+                logger.error(f"Error during Magic auto-add for {entity_id}: {e}", exc_info=True)
 
             # Auto-add Skills component with correct proficiency bonus if missing
             if not self.engine.get_component(entity_id, 'Skills'):
