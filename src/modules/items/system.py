@@ -97,9 +97,9 @@ class EquipmentSystem:
 
         # 5. Create equipped relationship
         result = self.engine.create_relationship(
-            from_entity=character_id,
-            to_entity=item_id,
-            relationship_type='equipped'
+            from_id=character_id,
+            to_id=item_id,
+            rel_type='equipped'
         )
 
         if result.success:
@@ -288,9 +288,9 @@ class EquipmentSystem:
 
         # 4. Create new ownership
         result = self.engine.create_relationship(
-            from_entity=to_id,
-            to_entity=item_id,
-            relationship_type='owns'
+            from_id=to_id,
+            to_id=item_id,
+            rel_type='owns'
         )
 
         if result.success:
