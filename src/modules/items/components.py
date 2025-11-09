@@ -285,8 +285,275 @@ class ConsumableComponent(ComponentTypeDefinition):
         }
 
 
+class InventoryDisplayComponent(ComponentTypeDefinition):
+    """
+    Inventory display component for character sheets.
+
+    Provides UI for viewing owned and equipped items.
+    This component has no meaningful data - it's purely a UI container that
+    displays items from 'owns' and 'equipped' relationships.
+    """
+
+    type = "InventoryDisplay"
+    description = "Displays inventory and equipped items on character sheet"
+    schema_version = "1.0.0"
+    module = "items"
+
+    def get_schema(self) -> Dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "show_weight": {
+                    "type": "boolean",
+                    "description": "Display total weight carried",
+                    "default": True
+                },
+                "show_value": {
+                    "type": "boolean",
+                    "description": "Display total value of inventory",
+                    "default": True
+                }
+            },
+            "required": []
+        }
+
+    def get_default_data(self) -> Dict[str, Any]:
+        return {
+            "show_weight": True,
+            "show_value": True
+        }
+
+    def get_character_sheet_config(self) -> Dict[str, Any]:
+        """Inventory appears in the INVENTORY category (right column)."""
+        return {
+            "visible": True,
+            "category": "inventory",
+            "priority": 1,
+            "display_mode": "full"
+        }
+
+    def get_character_sheet_renderer(self, data: Dict[str, Any], engine=None, entity_id=None) -> str:
+        """Custom renderer for inventory and equipment display."""
+        from markupsafe import escape
+
+        if not engine or not entity_id:
+            return '<p>No inventory data available</p>'
+
+        # Get owned and equipped items via relationships
+        relationships = engine.get_relationships(entity_id)
+        owned_items = []
+        equipped_items = {}
+
+        for rel in relationships:
+            if rel.from_entity == entity_id:
+                if rel.relationship_type == 'owns':
+                    item_entity = engine.get_entity(rel.to_entity)
+                    if item_entity and item_entity.is_active():
+                        owned_items.append(item_entity)
+                elif rel.relationship_type == 'equipped':
+                    item_entity = engine.get_entity(rel.to_entity)
+                    if item_entity and item_entity.is_active():
+                        equippable = engine.get_component(item_entity.id, 'Equippable')
+                        if equippable:
+                            slot = equippable.data.get('slot', 'unknown')
+                            equipped_items[slot] = item_entity
+
+        # Calculate total weight and value
+        total_weight = 0
+        total_value = 0
+
+        for item in owned_items:
+            item_comp = engine.get_component(item.id, 'Item')
+            if item_comp:
+                total_weight += item_comp.data.get('weight', 0) * item_comp.data.get('quantity', 1)
+                total_value += item_comp.data.get('value', 0) * item_comp.data.get('quantity', 1)
+
+        # Build HTML
+        html = ['<div class="inventory-display">']
+
+        # Equipment section
+        html.append('<div class="equipment-section" style="margin-bottom: 1rem;">')
+        html.append('<h4 style="font-weight: bold; margin-bottom: 0.5rem;">⚔️ Equipped</h4>')
+
+        if equipped_items:
+            html.append('<div class="equipment-slots" style="display: grid; gap: 0.5rem;">')
+            for slot, item in equipped_items.items():
+                item_comp = engine.get_component(item.id, 'Item')
+                if item_comp:
+                    rarity = item_comp.data.get('rarity', 'common')
+                    html.append(f'''
+                        <div class="equipped-item" style="padding: 0.5rem; background: var(--bg-secondary, #f5f5f5); border-radius: 4px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <strong>{escape(item.name)}</strong>
+                                    <div style="font-size: 0.85rem; color: var(--text-muted, #666);">
+                                        {escape(slot.replace('_', ' ').title())}
+                                        {' • ' + escape(rarity) if rarity else ''}
+                                    </div>
+                                </div>
+                                <button class="btn-unequip"
+                                        style="padding: 0.25rem 0.5rem; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem;"
+                                        onclick="unequipItem('{escape(entity_id)}', '{escape(item.id)}')">
+                                    Unequip
+                                </button>
+                            </div>
+                        </div>
+                    ''')
+            html.append('</div>')
+        else:
+            html.append('<p style="color: var(--text-muted, #888); font-style: italic;">No items equipped</p>')
+
+        html.append('</div>')
+
+        # Inventory section
+        html.append('<div class="inventory-section">')
+        html.append('<h4 style="font-weight: bold; margin-bottom: 0.5rem;">🎒 Inventory</h4>')
+
+        # Stats
+        if data.get('show_weight') or data.get('show_value'):
+            html.append('<div style="display: flex; gap: 1rem; margin-bottom: 0.5rem; font-size: 0.9rem; color: var(--text-muted, #666);">')
+            if data.get('show_weight'):
+                html.append(f'<span>⚖️ {total_weight:.1f} lbs</span>')
+            if data.get('show_value'):
+                html.append(f'<span>💰 {total_value:.2f} gp</span>')
+            html.append('</div>')
+
+        if owned_items:
+            unequipped_items = [item for item in owned_items if item.id not in [e.id for e in equipped_items.values()]]
+
+            html.append('<div class="inventory-items" style="max-height: 300px; overflow-y: auto; display: grid; gap: 0.5rem;">')
+            for item in unequipped_items:
+                item_comp = engine.get_component(item.id, 'Item')
+                equippable = engine.get_component(item.id, 'Equippable')
+                consumable = engine.get_component(item.id, 'Consumable')
+
+                if item_comp:
+                    quantity = item_comp.data.get('quantity', 1)
+                    weight = item_comp.data.get('weight', 0)
+                    value = item_comp.data.get('value', 0)
+                    rarity = item_comp.data.get('rarity', 'common')
+
+                    # Build buttons separately to avoid f-string nesting issues
+                    buttons_html = ''
+                    if equippable:
+                        buttons_html += f'<button class="btn-equip" style="padding: 0.25rem 0.5rem; background: var(--primary, #007bff); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem;" onclick="equipItem(\'{escape(entity_id)}\', \'{escape(item.id)}\')">Equip</button>'
+                    if consumable:
+                        charges = consumable.data.get('charges', 0)
+                        buttons_html += f'<button class="btn-use" style="padding: 0.25rem 0.5rem; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem;" onclick="useItem(\'{escape(entity_id)}\', \'{escape(item.id)}\')">Use ({charges})</button>'
+
+                    # Build item stats line
+                    stats_parts = []
+                    if rarity:
+                        stats_parts.append(escape(rarity))
+                    if weight:
+                        stats_parts.append(f'{weight:.1f} lbs')
+                    if value:
+                        stats_parts.append(f'{value:.2f} gp')
+                    stats_line = ' • '.join(stats_parts) if stats_parts else ''
+
+                    # Build consumable effect line
+                    effect_line = ''
+                    if consumable:
+                        effect_desc = consumable.data.get('effect_description', '')
+                        if effect_desc:
+                            effect_line = f'<div style="font-size: 0.85rem; color: var(--text-muted, #666);">{escape(effect_desc)}</div>'
+
+                    html.append(f'''
+                        <div class="inventory-item" style="padding: 0.5rem; background: var(--bg-secondary, #f5f5f5); border-radius: 4px;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                <div style="flex: 1;">
+                                    <strong>{escape(item.name)}</strong>
+                                    {f' x{quantity}' if quantity > 1 else ''}
+                                    <div style="font-size: 0.85rem; color: var(--text-muted, #666);">
+                                        {stats_line}
+                                    </div>
+                                    {effect_line}
+                                </div>
+                                <div style="display: flex; gap: 0.25rem;">
+                                    {buttons_html}
+                                </div>
+                            </div>
+                        </div>
+                    ''')
+            html.append('</div>')
+        else:
+            html.append('<p style="color: var(--text-muted, #888); font-style: italic;">No items in inventory</p>')
+
+        html.append('</div>')
+        html.append('</div>')
+
+        # JavaScript for item interactions
+        html.append('''
+            <script>
+            function equipItem(entityId, itemId) {
+                fetch(`/api/entities/${entityId}/equip`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ item_id: itemId })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert('Failed to equip item: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Equip error:', error);
+                    alert('Failed to equip item');
+                });
+            }
+
+            function unequipItem(entityId, itemId) {
+                fetch(`/api/entities/${entityId}/unequip`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ item_id: itemId })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert('Failed to unequip item: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Unequip error:', error);
+                    alert('Failed to unequip item');
+                });
+            }
+
+            function useItem(entityId, itemId) {
+                fetch(`/api/entities/${entityId}/use_item`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ item_id: itemId })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message || 'Item used successfully');
+                        location.reload();
+                    } else {
+                        alert('Failed to use item: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Use item error:', error);
+                    alert('Failed to use item');
+                });
+            }
+            </script>
+        ''')
+
+        return ''.join(html)
+
+
 __all__ = [
     'ItemComponent',
     'EquippableComponent',
-    'ConsumableComponent'
+    'ConsumableComponent',
+    'InventoryDisplayComponent'
 ]

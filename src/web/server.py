@@ -62,6 +62,8 @@ def create_app(worlds_dir: str = 'worlds'):
         # Handle special cases first
         if name == 'RollHistory':
             return '🎲 Roll History'
+        elif name == 'InventoryDisplay':
+            return '🎒 Inventory & Equipment'
         # Split on capital letters and join with spaces
         formatted = re.sub(r'(?<!^)(?=[A-Z])', ' ', name)
         return formatted

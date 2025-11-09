@@ -386,3 +386,165 @@ def character_sheet(entity_id: str):
         other_relationships=other_relationships,
         form_builder=form_builder
     )
+
+
+# ==================== Inventory Management API ====================
+
+@client_bp.route('/api/entities/<entity_id>/equip', methods=['POST'])
+def equip_item(entity_id):
+    """Equip an item on an entity."""
+    from flask import request, jsonify, session, current_app
+
+    world_name = session.get('world_name')
+    if not world_name:
+        return jsonify({'success': False, 'error': 'No world selected'}), 400
+
+    engine = current_app.engine_instances.get(world_name)
+    if not engine:
+        return jsonify({'success': False, 'error': 'World engine not found'}), 404
+
+    data = request.get_json()
+    item_id = data.get('item_id')
+
+    if not item_id:
+        return jsonify({'success': False, 'error': 'item_id required'}), 400
+
+    # Get the equipment system from the items module
+    try:
+        items_module = None
+        for module in engine.modules:
+            if module.name == 'items':
+                items_module = module
+                break
+
+        if not items_module:
+            return jsonify({'success': False, 'error': 'Items module not loaded'}), 400
+
+        equipment_system = items_module.get_equipment_system()
+
+        # Equip the item
+        result = equipment_system.equip(entity_id, item_id)
+
+        if result.is_ok():
+            return jsonify({'success': True, 'message': 'Item equipped successfully'})
+        else:
+            return jsonify({'success': False, 'error': result.error}), 400
+
+    except Exception as e:
+        logger.error(f"Error equipping item: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@client_bp.route('/api/entities/<entity_id>/unequip', methods=['POST'])
+def unequip_item(entity_id):
+    """Unequip an item from an entity."""
+    from flask import request, jsonify, session, current_app
+
+    world_name = session.get('world_name')
+    if not world_name:
+        return jsonify({'success': False, 'error': 'No world selected'}), 400
+
+    engine = current_app.engine_instances.get(world_name)
+    if not engine:
+        return jsonify({'success': False, 'error': 'World engine not found'}), 404
+
+    data = request.get_json()
+    item_id = data.get('item_id')
+
+    if not item_id:
+        return jsonify({'success': False, 'error': 'item_id required'}), 400
+
+    # Get the equipment system from the items module
+    try:
+        items_module = None
+        for module in engine.modules:
+            if module.name == 'items':
+                items_module = module
+                break
+
+        if not items_module:
+            return jsonify({'success': False, 'error': 'Items module not loaded'}), 400
+
+        equipment_system = items_module.get_equipment_system()
+
+        # Unequip the item
+        result = equipment_system.unequip(entity_id, item_id)
+
+        if result.is_ok():
+            return jsonify({'success': True, 'message': 'Item unequipped successfully'})
+        else:
+            return jsonify({'success': False, 'error': result.error}), 400
+
+    except Exception as e:
+        logger.error(f"Error unequipping item: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@client_bp.route('/api/entities/<entity_id>/use_item', methods=['POST'])
+def use_item(entity_id):
+    """Use a consumable item."""
+    from flask import request, jsonify, session, current_app
+
+    world_name = session.get('world_name')
+    if not world_name:
+        return jsonify({'success': False, 'error': 'No world selected'}), 400
+
+    engine = current_app.engine_instances.get(world_name)
+    if not engine:
+        return jsonify({'success': False, 'error': 'World engine not found'}), 404
+
+    data = request.get_json()
+    item_id = data.get('item_id')
+
+    if not item_id:
+        return jsonify({'success': False, 'error': 'item_id required'}), 400
+
+    # Get the item
+    item = engine.get_entity(item_id)
+    if not item:
+        return jsonify({'success': False, 'error': 'Item not found'}), 404
+
+    # Check if item is consumable
+    consumable = engine.get_component(item_id, 'Consumable')
+    if not consumable:
+        return jsonify({'success': False, 'error': 'Item is not consumable'}), 400
+
+    # Check if item has charges
+    charges = consumable.data.get('charges', 0)
+    if charges <= 0:
+        return jsonify({'success': False, 'error': 'Item has no charges remaining'}), 400
+
+    try:
+        # Decrease charges
+        new_charges = charges - 1
+        engine.update_component(item_id, 'Consumable', {
+            **consumable.data,
+            'charges': new_charges
+        })
+
+        # If charges reach 0, delete the item (unless rechargeable)
+        if new_charges == 0 and not consumable.data.get('rechargeable', False):
+            engine.delete_entity(item_id)
+            message = f"Used {item.name}. Item consumed (no charges remaining)."
+        else:
+            message = f"Used {item.name}. {new_charges} charges remaining."
+
+        # Emit event
+        from src.core.event_bus import Event
+        engine.event_bus.publish(Event.create(
+            event_type='item.used',
+            entity_id=entity_id,
+            actor_id=entity_id,
+            data={
+                'item_id': item_id,
+                'item_name': item.name,
+                'effect': consumable.data.get('effect_description', ''),
+                'charges_remaining': new_charges
+            }
+        ))
+
+        return jsonify({'success': True, 'message': message, 'charges_remaining': new_charges})
+
+    except Exception as e:
+        logger.error(f"Error using item: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
