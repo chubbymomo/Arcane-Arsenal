@@ -188,8 +188,7 @@ def api_send_message():
         player_name = entity.name if entity else "Player"
 
         player_msg_result = engine.create_entity(
-            f"Player message from {player_name}",
-            entity_type='message'
+            f"Player message from {player_name}"
         )
 
         if not player_msg_result.success:
@@ -235,8 +234,7 @@ def api_send_message():
 
         # Create DM message entity
         dm_msg_result = engine.create_entity(
-            "DM response",
-            entity_type='message'
+            "DM response"
         )
 
         if dm_msg_result.success:

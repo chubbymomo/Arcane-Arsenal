@@ -306,15 +306,37 @@ class CharacterQuickView {
 
 // Initialize quick view when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
-    // Check if we're on a character sheet page
+    // Check if we're on a character sheet page or DM chat page
     const characterName = document.querySelector('.character-name');
+
+    let entityId = null;
+    let displayName = '';
+
     if (characterName) {
-        // Extract entity ID from the page URL
-        // Pattern matches: /character/entity_XXXX or /character/entity_XXXX-XXXX-XXXX
+        // Character sheet page: /character/entity_XXXX
         const entityIdMatch = window.location.pathname.match(/\/character\/(entity_[a-z0-9_\-]+)/);
         if (entityIdMatch) {
-            const entityId = entityIdMatch[1];
-            window.characterQuickView = new CharacterQuickView(entityId, characterName.textContent);
+            entityId = entityIdMatch[1];
+            displayName = characterName.textContent;
         }
+    } else {
+        // DM chat page: /dm/chat/entity_XXXX
+        const dmChatMatch = window.location.pathname.match(/\/dm\/chat\/(entity_[a-z0-9_\-]+)/);
+        if (dmChatMatch) {
+            entityId = dmChatMatch[1];
+            // Get character name from the conversation header
+            const conversationHeader = document.querySelector('.dm-chat-header p');
+            if (conversationHeader) {
+                // Extract "Character Name" from "Conversation with Character Name"
+                const match = conversationHeader.textContent.match(/Conversation with (.+)/);
+                displayName = match ? match[1] : 'Character';
+            } else {
+                displayName = 'Character';
+            }
+        }
+    }
+
+    if (entityId) {
+        window.characterQuickView = new CharacterQuickView(entityId, displayName);
     }
 });
