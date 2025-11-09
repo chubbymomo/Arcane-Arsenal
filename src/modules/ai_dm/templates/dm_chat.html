@@ -395,40 +395,161 @@ function executeSuggestedAction(entityId, actionType, actionData, callback) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Show feedback message
-            const messagesDiv = document.getElementById('dm-messages');
-            const feedbackDiv = document.createElement('div');
-            feedbackDiv.className = 'dm-message';
-            feedbackDiv.style.cssText = `
-                margin-bottom: 1rem;
-                padding: 0.75rem 1rem;
-                background: rgba(155, 89, 182, 0.1);
-                border-left: 4px solid #9b59b6;
-                border-radius: 8px;
-                font-size: 0.9rem;
-                font-style: italic;
-                color: #c09bd8;
-            `;
+            // Reload messages to show the player's action message
+            reloadMessages();
 
-            let actionDesc = 'Action executed';
-            if (actionType === 'roll_dice') {
-                actionDesc = `🎲 ${actionData.label || 'Roll'}: ${actionData.dice || '1d20'}`;
-            } else if (actionType === 'custom') {
-                const actionName = actionData.action || 'action';
-                actionDesc = `Attempting to ${actionName.replace(/_/g, ' ')}...`;
+            // Check if we should trigger an AI response
+            if (data.result && data.result.trigger_ai_response) {
+                // For custom actions, automatically trigger AI DM response
+                console.log('Triggering AI response for custom action');
+
+                // Wait a moment for messages to reload, then trigger AI
+                setTimeout(() => {
+                    setLoadingState(true);
+
+                    // Create DM message div for streaming response
+                    const messagesDiv = document.getElementById('dm-messages');
+                    const dmMsgDiv = document.createElement('div');
+                    dmMsgDiv.className = 'dm-message';
+                    dmMsgDiv.style.cssText = `
+                        margin-bottom: 1rem;
+                        padding: 1rem;
+                        background: rgba(212, 175, 55, 0.1);
+                        border-left: 4px solid #d4af37;
+                        border-radius: 8px;
+                    `;
+                    dmMsgDiv.innerHTML = `
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <strong style="color: #d4af37; font-family: 'Cinzel', serif; font-size: 1.1rem;">
+                                Dungeon Master
+                            </strong>
+                        </div>
+                        <div class="dm-streaming-text" style="color: #f0e6d6; line-height: 1.6; font-size: 1rem;">
+                            <span class="cursor-blink">▊</span>
+                        </div>
+                    `;
+                    messagesDiv.appendChild(dmMsgDiv);
+                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+                    const streamingTextDiv = dmMsgDiv.querySelector('.dm-streaming-text');
+
+                    // Stream AI response using the message endpoint
+                    fetch('/api/dm/message_stream', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            entity_id: entityId,
+                            message: data.result.message || 'Continue the story'
+                        })
+                    })
+                    .then(response => {
+                        const reader = response.body.getReader();
+                        const decoder = new TextDecoder();
+                        let buffer = '';
+
+                        function readStream() {
+                            reader.read().then(({ done, value }) => {
+                                if (done) {
+                                    setLoadingState(false);
+                                    if (callback) callback();
+                                    return;
+                                }
+
+                                buffer += decoder.decode(value, { stream: true });
+                                const lines = buffer.split('\n');
+                                buffer = lines.pop();
+
+                                for (const line of lines) {
+                                    if (line.startsWith('data: ')) {
+                                        try {
+                                            const eventData = JSON.parse(line.substring(6));
+
+                                            if (eventData.type === 'token') {
+                                                const cursor = streamingTextDiv.querySelector('.cursor-blink');
+                                                if (cursor) cursor.remove();
+
+                                                const textNode = document.createTextNode(eventData.content);
+                                                streamingTextDiv.appendChild(textNode);
+
+                                                const newCursor = document.createElement('span');
+                                                newCursor.className = 'cursor-blink';
+                                                newCursor.textContent = '▊';
+                                                streamingTextDiv.appendChild(newCursor);
+
+                                                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                                            } else if (eventData.type === 'done') {
+                                                const cursor = streamingTextDiv.querySelector('.cursor-blink');
+                                                if (cursor) cursor.remove();
+
+                                                // Add suggested actions if any
+                                                if (eventData.suggested_actions && eventData.suggested_actions.length > 0) {
+                                                    const actionsDiv = document.createElement('div');
+                                                    actionsDiv.style.cssText = 'margin-top: 1rem; display: flex; flex-wrap: wrap; gap: 0.75rem;';
+
+                                                    for (const action of eventData.suggested_actions) {
+                                                        const button = document.createElement('button');
+                                                        button.className = 'dm-suggested-action';
+                                                        button.style.cssText = `
+                                                            padding: 0.6rem 1rem;
+                                                            background: linear-gradient(135deg, #d4af37, #b8942b);
+                                                            color: #1a1520;
+                                                            border: none;
+                                                            border-radius: 6px;
+                                                            cursor: pointer;
+                                                            font-size: 0.95rem;
+                                                            font-weight: 600;
+                                                            font-family: 'Cinzel', serif;
+                                                            transition: all 0.2s;
+                                                        `;
+                                                        button.setAttribute('data-entity-id', entityId);
+                                                        button.setAttribute('data-action-type', action.action_type || 'custom');
+                                                        button.setAttribute('data-action-data', JSON.stringify(action.action_data || {}));
+                                                        button.textContent = action.label || 'Action';
+                                                        button.onmouseover = () => button.style.background = 'linear-gradient(135deg, #ffd700, #d4af37)';
+                                                        button.onmouseout = () => button.style.background = 'linear-gradient(135deg, #d4af37, #b8942b)';
+                                                        button.onclick = () => executeSuggestedActionFromData(button);
+
+                                                        actionsDiv.appendChild(button);
+                                                    }
+
+                                                    dmMsgDiv.appendChild(actionsDiv);
+                                                }
+
+                                                setLoadingState(false);
+                                                if (callback) callback();
+                                            }
+                                        } catch (e) {
+                                            console.error('Error parsing SSE data:', e);
+                                        }
+                                    }
+                                }
+
+                                readStream();
+                            }).catch(error => {
+                                console.error('Stream read error:', error);
+                                setLoadingState(false);
+                                if (callback) callback();
+                            });
+                        }
+
+                        readStream();
+                    })
+                    .catch(error => {
+                        console.error('AI response error:', error);
+                        setLoadingState(false);
+                        if (callback) callback();
+                    });
+                }, 500);
+            } else {
+                // For non-AI-triggering actions (like dice rolls), just reload
+                setTimeout(() => {
+                    if (callback) callback();
+                }, 500);
             }
-
-            feedbackDiv.textContent = actionDesc;
-            messagesDiv.appendChild(feedbackDiv);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-
-            // Reload messages to show any system responses
-            setTimeout(() => reloadMessages(), 500);
         } else {
             alert('Action failed: ' + (data.error || 'Unknown error'));
+            if (callback) callback();
         }
-
-        if (callback) callback();
     })
     .catch(error => {
         console.error('Action execution error:', error);

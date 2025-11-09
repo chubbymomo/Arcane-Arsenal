@@ -660,12 +660,45 @@ def api_execute_action():
             }
 
         elif action_type == 'custom':
-            # Generic custom action
+            # Generic custom action - convert to a message to the DM
             action_name = action_data.get('action', 'unknown')
+
+            # Create a user message describing the action
+            conversation = engine.get_component(entity_id, 'Conversation')
+            if conversation:
+                # Convert action name to readable text
+                action_text = action_name.replace('_', ' ').title()
+                message_text = f"I want to {action_text.lower()}"
+
+                logger.info(f"Custom action '{action_name}' converted to message: {message_text}")
+
+                # Get entity name for the message
+                entity = engine.get_entity(entity_id)
+                player_name = entity.name if entity else "Player"
+
+                # Create player message entity
+                player_msg_result = engine.create_entity(f"Player message from {player_name}")
+                if player_msg_result.success:
+                    player_msg_id = player_msg_result.data['id']
+
+                    engine.add_component(player_msg_id, 'ChatMessage', {
+                        'speaker': 'player',
+                        'speaker_name': player_name,
+                        'message': message_text,
+                        'timestamp': datetime.utcnow().isoformat()
+                    })
+
+                    message_ids = conversation.data.get('message_ids', [])
+                    message_ids.append(player_msg_id)
+                    engine.update_component(entity_id, 'Conversation', {
+                        'message_ids': message_ids
+                    })
 
             result_data = {
                 'type': 'custom',
-                'action': action_name
+                'action': action_name,
+                'message': message_text,
+                'trigger_ai_response': True  # Signal frontend to trigger AI response
             }
 
         else:

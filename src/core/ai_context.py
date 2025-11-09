@@ -196,11 +196,20 @@ class AIContextBuilder:
                         elif self.engine.get_component(entity.id, 'Item'):
                             entity_type = 'item'
 
-                        nearby.append({
+                        entity_info = {
                             'name': entity.name,
                             'type': entity_type,
                             'id': entity.id
-                        })
+                        }
+
+                        # Include Identity component for richer context
+                        identity = self.engine.get_component(entity.id, 'Identity')
+                        if identity:
+                            entity_info['description'] = identity.data.get('description', '')
+                            entity_info['race'] = identity.data.get('race', '')
+                            entity_info['occupation'] = identity.data.get('occupation', '')
+
+                        nearby.append(entity_info)
 
             context['nearby_entities'] = nearby[:10]  # Limit to 10 nearest
 
@@ -243,11 +252,17 @@ class AIContextBuilder:
                         'id': item_id
                     }
 
-                    # Get item component for details
+                    # Get Identity component for description
+                    identity = self.engine.get_component(item_id, 'Identity')
+                    if identity:
+                        item_data['description'] = identity.data.get('description', '')
+
+                    # Get Item component for type and other details
                     item_comp = self.engine.get_component(item_id, 'Item')
                     if item_comp:
-                        item_data['description'] = item_comp.data.get('description', '')
                         item_data['type'] = item_comp.data.get('item_type', 'misc')
+                        item_data['value'] = item_comp.data.get('value', 0)
+                        item_data['quantity'] = item_comp.data.get('quantity', 1)
 
                     # Check if equipped
                     equipped_rels = [r for r in relationships
