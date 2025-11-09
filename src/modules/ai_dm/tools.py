@@ -155,7 +155,7 @@ _CORE_TOOL_DEFINITIONS = [
                 },
                 "region": {
                     "type": "string",
-                    "description": "The broader region this location is in"
+                    "description": "The broader region this location is in (e.g., 'The Borderlands', 'Shadowmere Valley', 'The Iron Coast'). Create a unique, evocative region name - do NOT use generic names like 'The Realm'."
                 },
                 "location_type": {
                     "type": "string",
@@ -167,7 +167,7 @@ _CORE_TOOL_DEFINITIONS = [
                     "description": "Notable features (e.g., ['fireplace', 'bar', 'stage'])"
                 }
             },
-            "required": ["name", "description", "location_type"]
+            "required": ["name", "description", "region", "location_type"]
         }
     },
     {
@@ -400,11 +400,13 @@ def _create_npc(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Di
     npc_id = result.data['id']
 
     # Add Identity component
-    engine.add_component(npc_id, 'Identity', {
+    identity_data = {
         'description': description,
         'race': race,
         'occupation': occupation
-    })
+    }
+    engine.add_component(npc_id, 'Identity', identity_data)
+    logger.info(f"  → Added Identity: race={race}, occupation={occupation}, desc={description[:50]}...")
 
     # Add NPC component
     engine.add_component(npc_id, 'NPC', {
@@ -412,6 +414,7 @@ def _create_npc(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Di
         'dialogue_state': 'initial',
         'met_player': False
     })
+    logger.info(f"  → Added NPC component: disposition={disposition}")
 
     # Add Position component if location specified
     if location:
@@ -419,13 +422,15 @@ def _create_npc(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Di
         player_position = engine.get_component(player_entity_id, 'Position')
         region = player_position.data.get('region', 'Unknown') if player_position else 'Unknown'
 
-        engine.add_component(npc_id, 'Position', {
+        position_data = {
             'x': 0,
             'y': 0,
             'z': 0,
             'region': region,
             'location': location
-        })
+        }
+        engine.add_component(npc_id, 'Position', position_data)
+        logger.info(f"  → Added Position: region={region}, location={location}")
 
     logger.info(f"Created NPC: {name} ({npc_id})")
     return {
@@ -440,7 +445,7 @@ def _create_location(engine, player_entity_id: str, tool_input: Dict[str, Any]) 
     name = tool_input["name"]
     description = tool_input["description"]
     location_type = tool_input["location_type"]
-    region = tool_input.get("region", "The Realm")
+    region = tool_input["region"]  # Now required - AI must provide creative region name
     features = tool_input.get("features", [])
 
     # Create entity
@@ -455,6 +460,7 @@ def _create_location(engine, player_entity_id: str, tool_input: Dict[str, Any]) 
         'description': description,
         'location_type': location_type
     })
+    logger.info(f"  → Added Identity: type={location_type}, desc={description[:50]}...")
 
     # Add Location component
     engine.add_component(location_id, 'Location', {
@@ -462,8 +468,9 @@ def _create_location(engine, player_entity_id: str, tool_input: Dict[str, Any]) 
         'features': features,
         'visited': False
     })
+    logger.info(f"  → Added Location component: region={region}, features={len(features)}")
 
-    logger.info(f"Created Location: {name} ({location_id})")
+    logger.info(f"Created Location: {name} ({location_id}) in {region}")
     return {
         "success": True,
         "message": f"Created location '{name}' in {region}",
