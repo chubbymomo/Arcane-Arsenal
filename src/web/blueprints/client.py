@@ -242,76 +242,118 @@ def character_builder():
 
                     # Accumulate response and execute tools
                     full_response = ""
+                    tool_uses = []  # Collect all tool uses
                     current_tool = None
                     tool_input_json = ""
-                    chunk_count = 0
-                    text_chunks = 0
-                    tool_chunks = 0
 
                     logger.info("=== Starting AI intro generation ===")
                     logger.info(f"Prompt: {intro_prompt}")
                     logger.info(f"Tools available: {len(anthropic_tools)}")
 
-                    # Stream the response with tools
+                    # First turn: Let Claude use tools
+                    llm_messages = [{'role': 'user', 'content': intro_prompt}]
+
                     for chunk in llm.generate_response_stream(
-                        messages=[{'role': 'user', 'content': intro_prompt}],
+                        messages=llm_messages,
                         system=full_system_prompt,
                         max_tokens=config.ai_max_tokens,
                         temperature=config.ai_temperature,
                         tools=anthropic_tools if anthropic_tools else None
                     ):
-                        chunk_count += 1
-                        logger.info(f"Chunk {chunk_count}: type={chunk['type']}, keys={chunk.keys()}")
-
                         if chunk['type'] == 'text':
-                            text_chunks += 1
-                            logger.info(f"Text chunk {text_chunks}: '{chunk['content'][:100]}...'")
                             full_response += chunk['content']
                         elif chunk['type'] == 'tool_use_start':
-                            tool_chunks += 1
+                            # Save previous tool if exists
+                            if current_tool and tool_input_json:
+                                try:
+                                    tool_uses.append({
+                                        'id': current_tool['id'],
+                                        'name': current_tool['name'],
+                                        'input': json.loads(tool_input_json)
+                                    })
+                                except json.JSONDecodeError:
+                                    logger.error(f"Failed to parse tool input for {current_tool['name']}")
+
                             current_tool = {
                                 'id': chunk['tool_use_id'],
                                 'name': chunk['tool_name']
                             }
                             tool_input_json = ""
-                            logger.info(f"Tool use {tool_chunks} START: {chunk['tool_name']} (id: {chunk['tool_use_id']})")
+                            logger.info(f"Tool use START: {chunk['tool_name']} (id: {chunk['tool_use_id']})")
                         elif chunk['type'] == 'tool_input_delta':
-                            logger.info(f"Tool input delta: {chunk['partial_json'][:100]}...")
                             tool_input_json += chunk['partial_json']
 
-                    logger.info(f"=== Streaming complete: {chunk_count} chunks, {text_chunks} text, {tool_chunks} tools ===")
-                    logger.info(f"Full response length: {len(full_response)} chars")
-                    logger.info(f"Full response preview: {full_response[:300]}...")
-
-                    # Execute any tools that were called
+                    # Save last tool
                     if current_tool and tool_input_json:
                         try:
-                            tool_input = json.loads(tool_input_json)
-                            logger.info(f"=== Executing tool: {current_tool['name']} ===")
-                            logger.info(f"Tool input: {tool_input}")
+                            tool_uses.append({
+                                'id': current_tool['id'],
+                                'name': current_tool['name'],
+                                'input': json.loads(tool_input_json)
+                            })
+                        except json.JSONDecodeError as e:
+                            logger.error(f"Failed to parse final tool input: {e}")
 
+                    logger.info(f"=== First turn complete: {len(tool_uses)} tools, {len(full_response)} chars text ===")
+
+                    # Execute all tools
+                    tool_results = []
+                    if tool_uses:
+                        logger.info(f"=== Executing {len(tool_uses)} tools ===")
+                        for tool_use in tool_uses:
+                            logger.info(f"Executing: {tool_use['name']}")
                             result = execute_tool(
-                                current_tool['name'],
-                                tool_input,
+                                tool_use['name'],
+                                tool_use['input'],
                                 engine,
                                 entity_id
                             )
+                            tool_results.append({
+                                'tool_use_id': tool_use['id'],
+                                'result': result
+                            })
+                            logger.info(f"  Result: {result['success']} - {result['message']}")
 
-                            logger.info(f"Tool result: success={result['success']}, message={result['message']}")
+                        # Second turn: Give Claude the tool results and ask for narrative
+                        logger.info("=== Second turn: Asking Claude for narrative ===")
 
-                            if result['success']:
-                                full_response += f"\n\n{result['message']}"
-                            else:
-                                full_response += f"\n\n[Tool failed: {result['message']}]"
+                        # Build tool result content
+                        tool_result_content = []
+                        for tr in tool_results:
+                            result_text = tr['result']['message']
+                            tool_result_content.append({
+                                'type': 'tool_result',
+                                'tool_use_id': tr['tool_use_id'],
+                                'content': result_text
+                            })
 
-                        except json.JSONDecodeError as e:
-                            logger.error(f"Failed to parse tool input JSON: {e}")
-                            logger.error(f"Tool input JSON was: {tool_input_json}")
-                    else:
-                        logger.info(f"No tool execution needed. current_tool={current_tool}, tool_input_json length={len(tool_input_json)}")
+                        # Add assistant message with tool uses
+                        llm_messages.append({
+                            'role': 'assistant',
+                            'content': [{'type': 'tool_use', 'id': tu['id'], 'name': tu['name'], 'input': tu['input']} for tu in tool_uses]
+                        })
 
-                    logger.info(f"=== Final full response length: {len(full_response)} chars ===")
-                    logger.info(f"Final full response: {full_response}")
+                        # Add user message with tool results
+                        llm_messages.append({
+                            'role': 'user',
+                            'content': tool_result_content
+                        })
+
+                        # Get narrative response
+                        full_response = ""
+                        for chunk in llm.generate_response_stream(
+                            messages=llm_messages,
+                            system=full_system_prompt,
+                            max_tokens=config.ai_max_tokens,
+                            temperature=config.ai_temperature,
+                            tools=None  # No tools in second turn
+                        ):
+                            if chunk['type'] == 'text':
+                                full_response += chunk['content']
+
+                        logger.info(f"=== Second turn complete: {len(full_response)} chars narrative ===")
+
+                    logger.info(f"=== Final response: {full_response[:300]}... ===")
 
                     intro_text, intro_actions = parse_dm_response(full_response)
                     logger.info(f"=== Parsed intro ===")
