@@ -18,6 +18,10 @@ from typing import List
 from ..base import Module, ComponentTypeDefinition
 
 from .attributes import AttributesComponent
+from .character_details import CharacterDetailsComponent
+from .skills import SkillsComponent
+from .experience import ExperienceComponent
+from .magic import MagicComponent
 
 
 class GenericFantasyModule(Module):
@@ -227,17 +231,21 @@ class GenericFantasyModule(Module):
         """Register fantasy character components."""
         return [
             AttributesComponent(),
-            # TODO: Add other components as they're implemented
-            # CharacterDetailsComponent(),
-            # SkillsComponent(),
-            # ExperienceComponent(),
-            # InventoryComponent(),
-            # MagicComponent()
+            CharacterDetailsComponent(),
+            SkillsComponent(),
+            ExperienceComponent(),
+            MagicComponent()
+            # Note: Inventory is handled by the 'items' module through
+            # entity relationships (owns, equipped), which is the proper ECS way
         ]
 
 
 # Export
 __all__ = [
     'GenericFantasyModule',
-    'AttributesComponent'
+    'AttributesComponent',
+    'CharacterDetailsComponent',
+    'SkillsComponent',
+    'ExperienceComponent',
+    'MagicComponent'
 ]
