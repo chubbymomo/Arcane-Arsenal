@@ -51,16 +51,10 @@ class PlayerCharacterComponent(ComponentTypeDefinition):
         """
         Get JSON schema for PlayerCharacter component.
 
-        This is a marker component that can optionally store AI intro state.
+        This is a pure marker component with no properties.
         """
         return {
             "type": "object",
-            "properties": {
-                "needs_ai_intro": {
-                    "type": "boolean",
-                    "description": "Whether this character needs an AI-generated intro scene",
-                    "default": False
-                }
-            },
+            "properties": {},
             "additionalProperties": False
         }
