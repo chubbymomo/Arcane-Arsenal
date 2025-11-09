@@ -1,0 +1,212 @@
+{
+  "spells": [
+    {
+      "key": "fire_bolt",
+      "description": "Fire Bolt - Ranged fire damage cantrip",
+      "metadata": {
+        "level": 0,
+        "school": "evocation",
+        "damage": "1d10",
+        "damage_type": "fire",
+        "range": "120 feet",
+        "components": ["V", "S"]
+      }
+    },
+    {
+      "key": "mage_hand",
+      "description": "Mage Hand - Conjure spectral hand",
+      "metadata": {
+        "level": 0,
+        "school": "conjuration",
+        "range": "30 feet",
+        "components": ["V", "S"],
+        "utility": true
+      }
+    },
+    {
+      "key": "prestidigitation",
+      "description": "Prestidigitation - Minor magical trick",
+      "metadata": {
+        "level": 0,
+        "school": "transmutation",
+        "components": ["V", "S"],
+        "utility": true
+      }
+    },
+    {
+      "key": "sacred_flame",
+      "description": "Sacred Flame - Radiant damage cantrip",
+      "metadata": {
+        "level": 0,
+        "school": "evocation",
+        "damage": "1d8",
+        "damage_type": "radiant",
+        "range": "60 feet",
+        "components": ["V", "S"]
+      }
+    },
+    {
+      "key": "magic_missile",
+      "description": "Magic Missile - Auto-hit force damage",
+      "metadata": {
+        "level": 1,
+        "school": "evocation",
+        "damage": "1d4+1",
+        "damage_type": "force",
+        "range": "120 feet",
+        "components": ["V", "S"]
+      }
+    },
+    {
+      "key": "shield",
+      "description": "Shield - +5 AC reaction spell",
+      "metadata": {
+        "level": 1,
+        "school": "abjuration",
+        "ac_bonus": 5,
+        "components": ["V", "S"],
+        "reaction": true
+      }
+    },
+    {
+      "key": "cure_wounds",
+      "description": "Cure Wounds - Heal HP",
+      "metadata": {
+        "level": 1,
+        "school": "evocation",
+        "healing": "1d8",
+        "range": "Touch",
+        "components": ["V", "S"]
+      }
+    },
+    {
+      "key": "detect_magic",
+      "description": "Detect Magic - Sense magic auras",
+      "metadata": {
+        "level": 1,
+        "school": "divination",
+        "ritual": true,
+        "components": ["V", "S"],
+        "utility": true
+      }
+    },
+    {
+      "key": "scorching_ray",
+      "description": "Scorching Ray - 3 fire rays",
+      "metadata": {
+        "level": 2,
+        "school": "evocation",
+        "damage": "2d6",
+        "damage_type": "fire",
+        "range": "120 feet",
+        "components": ["V", "S"]
+      }
+    },
+    {
+      "key": "misty_step",
+      "description": "Misty Step - Teleport 30 feet",
+      "metadata": {
+        "level": 2,
+        "school": "conjuration",
+        "range": "30 feet",
+        "components": ["V"],
+        "utility": true,
+        "bonus_action": true
+      }
+    },
+    {
+      "key": "hold_person",
+      "description": "Hold Person - Paralyze humanoid",
+      "metadata": {
+        "level": 2,
+        "school": "enchantment",
+        "range": "60 feet",
+        "components": ["V", "S", "M"],
+        "control": true
+      }
+    },
+    {
+      "key": "fireball",
+      "description": "Fireball - 8d6 fire damage in 20ft radius",
+      "metadata": {
+        "level": 3,
+        "school": "evocation",
+        "damage": "8d6",
+        "damage_type": "fire",
+        "range": "150 feet",
+        "area": "20ft radius",
+        "components": ["V", "S", "M"]
+      }
+    },
+    {
+      "key": "counterspell",
+      "description": "Counterspell - Negate enemy spell",
+      "metadata": {
+        "level": 3,
+        "school": "abjuration",
+        "range": "60 feet",
+        "components": ["S"],
+        "reaction": true
+      }
+    },
+    {
+      "key": "lightning_bolt",
+      "description": "Lightning Bolt - 8d6 lightning in line",
+      "metadata": {
+        "level": 3,
+        "school": "evocation",
+        "damage": "8d6",
+        "damage_type": "lightning",
+        "range": "100 feet",
+        "area": "100ft line",
+        "components": ["V", "S", "M"]
+      }
+    },
+    {
+      "key": "polymorph",
+      "description": "Polymorph - Transform creature",
+      "metadata": {
+        "level": 4,
+        "school": "transmutation",
+        "range": "60 feet",
+        "components": ["V", "S", "M"],
+        "control": true
+      }
+    },
+    {
+      "key": "dimension_door",
+      "description": "Dimension Door - Teleport 500 feet",
+      "metadata": {
+        "level": 4,
+        "school": "conjuration",
+        "range": "500 feet",
+        "components": ["V"],
+        "utility": true
+      }
+    },
+    {
+      "key": "cone_of_cold",
+      "description": "Cone of Cold - 8d8 cold damage in cone",
+      "metadata": {
+        "level": 5,
+        "school": "evocation",
+        "damage": "8d8",
+        "damage_type": "cold",
+        "range": "60 feet",
+        "area": "60ft cone",
+        "components": ["V", "S", "M"]
+      }
+    },
+    {
+      "key": "wall_of_force",
+      "description": "Wall of Force - Invisible force barrier",
+      "metadata": {
+        "level": 5,
+        "school": "evocation",
+        "range": "120 feet",
+        "components": ["V", "S", "M"],
+        "utility": true
+      }
+    }
+  ]
+}
