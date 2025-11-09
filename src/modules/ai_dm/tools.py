@@ -307,6 +307,28 @@ _CORE_TOOL_DEFINITIONS = [
         }
     },
     {
+        "name": "remove_item",
+        "description": "Remove an item from the player's inventory. Use this when items are consumed, dropped, destroyed, or given away.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "item_name": {
+                    "type": "string",
+                    "description": "Name of the item to remove"
+                },
+                "quantity": {
+                    "type": "integer",
+                    "description": "How many to remove (default: all)"
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Why the item was removed (e.g., 'consumed potion', 'dropped in river', 'given to guard')"
+                }
+            },
+            "required": ["item_name", "reason"]
+        }
+    },
+    {
         "name": "deal_damage",
         "description": "Apply damage to the player character. Use this when they take damage from combat, traps, or hazards.",
         "input_schema": {
@@ -344,6 +366,20 @@ _CORE_TOOL_DEFINITIONS = [
                 }
             },
             "required": ["amount", "source"]
+        }
+    },
+    {
+        "name": "long_rest",
+        "description": "The player takes a long rest (8+ hours). Restores HP to max, recovers all spell slots, and resets daily abilities. Use when player sleeps at an inn, camps overnight, etc.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "location": {
+                    "type": "string",
+                    "description": "Where the rest occurred (e.g., 'inn room', 'forest camp', 'cave')"
+                }
+            },
+            "required": ["location"]
         }
     }
 ]
@@ -696,6 +732,55 @@ def _give_item_to_player(engine, player_entity_id: str, tool_input: Dict[str, An
     }
 
 
+def _remove_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+    """Remove an item from the player's inventory."""
+    item_name = tool_input["item_name"]
+    quantity = tool_input.get("quantity")
+    reason = tool_input["reason"]
+
+    # Find the item in player's inventory
+    items = engine.query_entities(['Item'])
+    item = next((e for e in items if e.name.lower() == item_name.lower()), None)
+
+    if not item:
+        return {"success": False, "message": f"Item '{item_name}' not found in inventory"}
+
+    # Check if item is actually in player's inventory
+    position = engine.get_component(item.id, 'Position')
+    if not position or position.data.get('location') != 'player_inventory':
+        return {"success": False, "message": f"'{item_name}' is not in your inventory"}
+
+    # Get current quantity
+    item_comp = engine.get_component(item.id, 'Item')
+    current_quantity = item_comp.data.get('quantity', 1) if item_comp else 1
+
+    # Determine how many to remove
+    if quantity is None:
+        quantity = current_quantity  # Remove all
+    else:
+        quantity = min(quantity, current_quantity)  # Can't remove more than we have
+
+    if quantity >= current_quantity:
+        # Remove entire item entity
+        engine.delete_entity(item.id)
+        logger.info(f"Removed all {current_quantity}x {item_name} from player ({reason})")
+        return {
+            "success": True,
+            "message": f"Removed {item_name} ({reason})",
+            "data": {"item_id": item.id, "quantity": current_quantity, "reason": reason}
+        }
+    else:
+        # Reduce quantity
+        new_quantity = current_quantity - quantity
+        engine.update_component(item.id, 'Item', {'quantity': new_quantity})
+        logger.info(f"Reduced {item_name} from {current_quantity} to {new_quantity} ({reason})")
+        return {
+            "success": True,
+            "message": f"Removed {quantity}x {item_name} ({reason})",
+            "data": {"item_id": item.id, "quantity": quantity, "remaining": new_quantity, "reason": reason}
+        }
+
+
 def _deal_damage(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
     """Deal damage to the player."""
     amount = tool_input["amount"]
@@ -745,6 +830,51 @@ def _heal_player(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> D
     }
 
 
+def _long_rest(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+    """Player takes a long rest - restore all resources."""
+    location = tool_input["location"]
+
+    recovery_log = []
+
+    # Restore HP to max
+    health = engine.get_component(player_entity_id, 'Health')
+    if health:
+        max_hp = health.data.get('max', 1)
+        current_hp = health.data.get('current', 0)
+        if current_hp < max_hp:
+            engine.update_component(player_entity_id, 'Health', {'current': max_hp})
+            hp_restored = max_hp - current_hp
+            recovery_log.append(f"Restored {hp_restored} HP to maximum ({max_hp})")
+            logger.info(f"Long rest: Restored HP to {max_hp}")
+
+    # Restore spell slots to max
+    magic = engine.get_component(player_entity_id, 'Magic')
+    if magic:
+        max_slots = magic.data.get('max_spell_slots', {})
+        if max_slots:
+            engine.update_component(player_entity_id, 'Magic', {
+                'available_spell_slots': max_slots.copy()
+            })
+            total_slots = sum(max_slots.values())
+            recovery_log.append(f"Recovered all {total_slots} spell slots")
+            logger.info(f"Long rest: Restored {total_slots} spell slots")
+
+    # Could also restore other daily resources here (rage uses, ki points, etc.)
+    # For now, just HP and spell slots
+
+    if not recovery_log:
+        recovery_log.append("Rested peacefully")
+
+    message = f"After a long rest at {location}: {', '.join(recovery_log)}"
+    logger.info(f"Player long rest at {location}")
+
+    return {
+        "success": True,
+        "message": message,
+        "data": {"location": location, "recovery": recovery_log}
+    }
+
+
 # Initialize core tools on module load
 def _initialize_core_tools():
     """Register all core DM tools."""
@@ -757,8 +887,10 @@ def _initialize_core_tools():
         'query_entities': _query_entities,
         'update_npc_disposition': _update_npc_disposition,
         'give_item_to_player': _give_item_to_player,
+        'remove_item': _remove_item,
         'deal_damage': _deal_damage,
-        'heal_player': _heal_player
+        'heal_player': _heal_player,
+        'long_rest': _long_rest
     }
 
     for tool_def in _CORE_TOOL_DEFINITIONS:
