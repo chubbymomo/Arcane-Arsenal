@@ -203,6 +203,24 @@ def build_context_prompt(ai_context: Dict[str, Any]) -> str:
             prompt_parts.append(f"- {summary}")
         prompt_parts.append("")  # Blank line
 
+    # === Game System (Registries) ===
+    game_system = ai_context.get('game_system', {})
+    if game_system:
+        prompt_parts.append("## Game System")
+        prompt_parts.append("Available options in this game world:")
+        prompt_parts.append("")
+
+        for registry_name, items in game_system.items():
+            if items:
+                # Format registry name nicely (e.g., "skill_types" -> "Skill Types")
+                display_name = registry_name.replace('_', ' ').title()
+                prompt_parts.append(f"**{display_name}:**")
+
+                # Show items in a compact list
+                item_list = ', '.join([f"{item['key']}" for item in items])
+                prompt_parts.append(f"  {item_list}")
+                prompt_parts.append("")  # Blank line between registries
+
     return "\n".join(prompt_parts)
 
 
