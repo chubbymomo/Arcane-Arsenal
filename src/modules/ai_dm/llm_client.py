@@ -66,13 +66,13 @@ class AnthropicProvider(LLMProvider):
     Uses the Anthropic API to generate responses with Claude models.
     """
 
-    def __init__(self, api_key: str, model: str = 'claude-3-5-sonnet-20241022'):
+    def __init__(self, api_key: str, model: str = 'claude-sonnet-4-5-20250929'):
         """
         Initialize Anthropic provider.
 
         Args:
             api_key: Anthropic API key
-            model: Model to use (default: claude-3-5-sonnet-20241022)
+            model: Model to use (default: claude-sonnet-4-5-20250929)
 
         Raises:
             ImportError: If anthropic package not installed

@@ -94,7 +94,38 @@ def character_builder():
         # Get all form data
         name = request.form.get('name')
         description = request.form.get('description', '')
-        region = request.form.get('region', 'The Realm')
+
+        # Handle starting scenario selection
+        scenario_type = request.form.get('scenario_type', 'default')
+        region = 'The Realm'  # Default
+        needs_ai_intro = False
+
+        if scenario_type == 'join_players':
+            # Join existing players at their location
+            target_player = request.form.get('join_player_id')
+            if target_player:
+                target_entity = engine.get_entity(target_player)
+                if target_entity:
+                    target_pos = engine.get_component(target_player, 'Position')
+                    if target_pos:
+                        region = target_pos.data.get('region', 'The Realm')
+        elif scenario_type == 'prewritten':
+            # Use pre-written starting scenario
+            scenario_key = request.form.get('prewritten_scenario', 'default')
+            scenario_regions = {
+                'tavern': 'The Golden Tankard',
+                'city_gates': 'Gates of Waterdeep',
+                'forest': 'Whispering Woods',
+                'dungeon_entrance': 'The Shadowed Crypt Entrance',
+                'roadside': 'The King\'s Road',
+                'default': 'The Realm'
+            }
+            region = scenario_regions.get(scenario_key, 'The Realm')
+        elif scenario_type == 'ai_generated':
+            # AI will generate a custom starting scenario
+            region = 'The Realm'  # Placeholder - AI will describe the real location
+            needs_ai_intro = True
+        # else: scenario_type == 'default', region already set to 'The Realm'
 
         # Fantasy-specific fields (only present if generic_fantasy module loaded)
         race = request.form.get('race')
@@ -140,8 +171,10 @@ def character_builder():
                 'region': region
             })
 
-            # Add PlayerCharacter component
-            engine.add_component(entity_id, 'PlayerCharacter', {})
+            # Add PlayerCharacter component with AI intro flag
+            engine.add_component(entity_id, 'PlayerCharacter', {
+                'needs_ai_intro': needs_ai_intro
+            })
 
             # Add Attributes component (only if generic_fantasy module loaded)
             if has_attributes:
@@ -212,26 +245,54 @@ def character_builder():
         logger.warning(f"Failed to load alignments registry: {e}")
         alignments = []
 
-    # Get available regions
-    positioned_entities = engine.query_entities(['Position'])
-    regions = set(['The Realm'])
+    # Get existing players for "join players" option
+    existing_players = []
+    player_entities = engine.query_entities(['PlayerCharacter', 'Position'])
+    for player in player_entities:
+        pos = engine.get_component(player.id, 'Position')
+        if pos:
+            existing_players.append({
+                'id': player.id,
+                'name': player.name,
+                'region': pos.data.get('region', 'Unknown')
+            })
 
-    for entity in positioned_entities:
-        pos = engine.get_component(entity.id, 'Position')
-        if pos and pos.data.get('region'):
-            region_name = pos.data['region']
-            # Only add named regions (not entity IDs)
-            # Check if region is an entity by attempting to get it
-            if not engine.get_entity(region_name):
-                # Region is a named area, not an entity ID
-                regions.add(region_name)
+    # Pre-written starting scenarios
+    prewritten_scenarios = [
+        {
+            'key': 'tavern',
+            'name': 'The Golden Tankard',
+            'description': 'A bustling tavern filled with adventurers and travelers'
+        },
+        {
+            'key': 'city_gates',
+            'name': 'Gates of Waterdeep',
+            'description': 'The grand entrance to a magnificent walled city'
+        },
+        {
+            'key': 'forest',
+            'name': 'Whispering Woods',
+            'description': 'A mysterious forest at the edge of civilization'
+        },
+        {
+            'key': 'dungeon_entrance',
+            'name': 'The Shadowed Crypt',
+            'description': 'Ancient stone steps leading down into darkness'
+        },
+        {
+            'key': 'roadside',
+            'name': 'The King\'s Road',
+            'description': 'A well-traveled road between major settlements'
+        }
+    ]
 
     return render_template(
         'character_builder.html',
         races=races,
         classes=classes,
         alignments=alignments,
-        regions=sorted(list(regions)),
+        existing_players=existing_players,
+        prewritten_scenarios=prewritten_scenarios,
         form_builder=form_builder
     )
 

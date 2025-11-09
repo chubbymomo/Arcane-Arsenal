@@ -30,14 +30,66 @@
                     <small class="form-text">Optional: A brief description of your character</small>
                 </div>
 
-                <div class="form-group">
-                    <label for="region">Starting Region</label>
-                    <select id="region" name="region" class="form-control">
-                        {% for region in regions %}
-                            <option value="{{ region }}">{{ region }}</option>
-                        {% endfor %}
-                    </select>
-                    <small class="form-text">Where your adventure begins</small>
+                <div class="form-group full-width">
+                    <label>Starting Scenario</label>
+                    <div class="scenario-options" x-data="{ scenarioType: 'default' }">
+                        <!-- Default Start -->
+                        <label class="scenario-option">
+                            <input type="radio" name="scenario_type" value="default"
+                                   x-model="scenarioType" checked>
+                            <div class="scenario-card">
+                                <div class="scenario-title">🌍 Default Start</div>
+                                <div class="scenario-desc">Begin in The Realm, a generic starting location</div>
+                            </div>
+                        </label>
+
+                        <!-- Join Existing Players -->
+                        {% if existing_players %}
+                        <label class="scenario-option">
+                            <input type="radio" name="scenario_type" value="join_players"
+                                   x-model="scenarioType">
+                            <div class="scenario-card">
+                                <div class="scenario-title">🤝 Join Players</div>
+                                <div class="scenario-desc">Join an existing character's location</div>
+                            </div>
+                        </label>
+                        <div x-show="scenarioType === 'join_players'" class="scenario-details">
+                            <select name="join_player_id" class="form-control">
+                                {% for player in existing_players %}
+                                <option value="{{ player.id }}">{{ player.name }} ({{ player.region }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        {% endif %}
+
+                        <!-- Pre-written Scenario -->
+                        <label class="scenario-option">
+                            <input type="radio" name="scenario_type" value="prewritten"
+                                   x-model="scenarioType">
+                            <div class="scenario-card">
+                                <div class="scenario-title">📜 Pre-written Start</div>
+                                <div class="scenario-desc">Choose from classic starting locations</div>
+                            </div>
+                        </label>
+                        <div x-show="scenarioType === 'prewritten'" class="scenario-details">
+                            <select name="prewritten_scenario" class="form-control">
+                                {% for scenario in prewritten_scenarios %}
+                                <option value="{{ scenario.key }}">{{ scenario.name }} - {{ scenario.description }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- AI Generated -->
+                        <label class="scenario-option">
+                            <input type="radio" name="scenario_type" value="ai_generated"
+                                   x-model="scenarioType">
+                            <div class="scenario-card">
+                                <div class="scenario-title">✨ AI Generated</div>
+                                <div class="scenario-desc">Let the AI create a unique opening scene for you</div>
+                            </div>
+                        </label>
+                    </div>
+                    <small class="form-text">Choose how your adventure begins</small>
                 </div>
             </div>
         </div>
@@ -244,6 +296,67 @@
 }
 
 .form-group.full-width {
+    grid-column: 1 / -1;
+}
+
+/* Starting Scenario Styles */
+.scenario-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.scenario-option {
+    position: relative;
+    cursor: pointer;
+    display: block;
+}
+
+.scenario-option input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+}
+
+.scenario-card {
+    background: rgba(0, 0, 0, 0.2);
+    border: 2px solid var(--card-border);
+    border-radius: 8px;
+    padding: 1rem;
+    transition: all 0.3s;
+    height: 100%;
+}
+
+.scenario-option:hover .scenario-card {
+    border-color: var(--primary);
+    background: rgba(212, 175, 55, 0.05);
+}
+
+.scenario-option input[type="radio"]:checked ~ .scenario-card {
+    border-color: var(--primary);
+    background: linear-gradient(145deg, rgba(212, 175, 55, 0.1), rgba(155, 89, 182, 0.05));
+    box-shadow: 0 0 12px rgba(212, 175, 55, 0.3);
+}
+
+.scenario-title {
+    font-weight: bold;
+    color: var(--primary);
+    margin-bottom: 0.5rem;
+    font-size: 1rem;
+}
+
+.scenario-desc {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+.scenario-details {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
     grid-column: 1 / -1;
 }
 
