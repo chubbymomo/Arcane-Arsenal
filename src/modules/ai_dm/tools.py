@@ -451,7 +451,10 @@ def _create_npc(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Di
         'race': race,
         'occupation': occupation
     }
-    engine.add_component(npc_id, 'Identity', identity_data)
+    result = engine.add_component(npc_id, 'Identity', identity_data)
+    if not result.success:
+        logger.error(f"  ✗ Failed to add Identity: {result.error}")
+        return {"success": False, "message": f"Failed to add Identity component: {result.error}"}
     logger.info(f"  → Added Identity: race={race}, occupation={occupation}, desc={description[:50]}...")
 
     # Add CharacterDetails if class is provided (enables mechanics like spells, skills)
@@ -461,16 +464,22 @@ def _create_npc(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Di
             'level': level,
             'race': race  # Also in CharacterDetails for module compatibility
         }
-        engine.add_component(npc_id, 'CharacterDetails', char_details)
-        logger.info(f"  → Added CharacterDetails: class={npc_class}, level={level}")
+        result = engine.add_component(npc_id, 'CharacterDetails', char_details)
+        if not result.success:
+            logger.error(f"  ✗ Failed to add CharacterDetails: {result.error}")
+        else:
+            logger.info(f"  → Added CharacterDetails: class={npc_class}, level={level}")
         # Note: This will trigger auto-add of Magic/Skills components via events if applicable
 
     # Add NPC component
-    engine.add_component(npc_id, 'NPC', {
+    result = engine.add_component(npc_id, 'NPC', {
         'disposition': disposition,
         'dialogue_state': 'initial',
         'met_player': False
     })
+    if not result.success:
+        logger.error(f"  ✗ Failed to add NPC component: {result.error}")
+        return {"success": False, "message": f"Failed to add NPC component: {result.error}"}
     logger.info(f"  → Added NPC component: disposition={disposition}")
 
     # Add Position component - entity-based hierarchical positioning
@@ -489,16 +498,22 @@ def _create_npc(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Di
             position_data = {
                 'region': location_entity.id  # Entity reference! NPC is IN this location
             }
-            engine.add_component(npc_id, 'Position', position_data)
-            logger.info(f"  → Added Position: region={location_entity.id} ({location_entity.name})")
+            result = engine.add_component(npc_id, 'Position', position_data)
+            if not result.success:
+                logger.error(f"  ✗ Failed to add Position: {result.error}")
+            else:
+                logger.info(f"  → Added Position: region={location_entity.id} ({location_entity.name})")
         else:
             logger.warning(f"  ⚠ Location '{location_name}' not found! NPC created without position.")
             # Fall back to player's location
             player_position = engine.get_component(player_entity_id, 'Position')
             if player_position:
                 position_data = {'region': player_position.data.get('region')}
-                engine.add_component(npc_id, 'Position', position_data)
-                logger.info(f"  → Fallback: Added Position at player's location: region={position_data['region']}")
+                result = engine.add_component(npc_id, 'Position', position_data)
+                if not result.success:
+                    logger.error(f"  ✗ Failed to add fallback Position: {result.error}")
+                else:
+                    logger.info(f"  → Fallback: Added Position at player's location: region={position_data['region']}")
     else:
         logger.warning(f"  ⚠ No location_name provided for NPC {name}")
 
