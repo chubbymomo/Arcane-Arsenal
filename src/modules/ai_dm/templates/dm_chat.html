@@ -360,7 +360,7 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-function executeSuggestedAction(entityId, actionType, actionData) {
+function executeSuggestedAction(entityId, actionType, actionData, callback) {
     fetch('/api/dm/execute_action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -373,15 +373,45 @@ function executeSuggestedAction(entityId, actionType, actionData) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Reload messages to show system message
-            reloadMessages();
+            // Show feedback message
+            const messagesDiv = document.getElementById('dm-messages');
+            const feedbackDiv = document.createElement('div');
+            feedbackDiv.className = 'dm-message';
+            feedbackDiv.style.cssText = `
+                margin-bottom: 1rem;
+                padding: 0.75rem 1rem;
+                background: rgba(155, 89, 182, 0.1);
+                border-left: 4px solid #9b59b6;
+                border-radius: 8px;
+                font-size: 0.9rem;
+                font-style: italic;
+                color: #c09bd8;
+            `;
+
+            let actionDesc = 'Action executed';
+            if (actionType === 'roll_dice') {
+                actionDesc = `🎲 ${actionData.label || 'Roll'}: ${actionData.dice || '1d20'}`;
+            } else if (actionType === 'custom') {
+                const actionName = actionData.action || 'action';
+                actionDesc = `Attempting to ${actionName.replace(/_/g, ' ')}...`;
+            }
+
+            feedbackDiv.textContent = actionDesc;
+            messagesDiv.appendChild(feedbackDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+            // Reload messages to show any system responses
+            setTimeout(() => reloadMessages(), 500);
         } else {
             alert('Action failed: ' + (data.error || 'Unknown error'));
         }
+
+        if (callback) callback();
     })
     .catch(error => {
         console.error('Action execution error:', error);
         alert('Failed to execute action');
+        if (callback) callback();
     });
 }
 
@@ -404,7 +434,18 @@ function executeSuggestedActionFromData(button) {
             }
         }
 
-        executeSuggestedAction(entityId, actionType, actionData);
+        // Show visual feedback
+        button.disabled = true;
+        button.style.opacity = '0.5';
+        const originalText = button.textContent;
+        button.textContent = '⏳ ' + originalText;
+
+        executeSuggestedAction(entityId, actionType, actionData, () => {
+            // Re-enable after completion
+            button.disabled = false;
+            button.style.opacity = '1';
+            button.textContent = originalText;
+        });
     } catch (error) {
         console.error('Error reading action data from button:', error);
         alert('Failed to execute action due to a technical error.');
