@@ -58,7 +58,7 @@ class GenericFantasyModule(Module):
 
     def dependencies(self) -> List[str]:
         """Generic fantasy depends on core components and combat systems."""
-        return ['core_components', 'fantasy_combat', 'rng']
+        return ['core_components', 'generic_combat', 'rng']
 
     def initialize(self, engine) -> None:
         """Initialize registries for character options."""
