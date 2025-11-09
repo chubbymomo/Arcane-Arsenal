@@ -79,81 +79,8 @@ def index():
 @client_bp.route('/character/create', methods=['GET', 'POST'])
 @require_world
 def character_create():
-    """Character creation form."""
-    engine = get_engine()
-
-    if request.method == 'POST':
-        # Get form data
-        name = request.form.get('name')
-        description = request.form.get('description')
-        region = request.form.get('region', 'The Realm')
-
-        if not name or not description:
-            flash('Character name and description are required', 'error')
-            return redirect(url_for('client.character_create'))
-
-        # Create character entity
-        result = engine.create_entity(name)
-
-        if not result.success:
-            flash(f'Error creating character: {result.error}', 'error')
-            return redirect(url_for('client.character_create'))
-
-        entity_id = result.data['id']
-
-        # Add Identity component
-        identity_result = engine.add_component(entity_id, 'Identity', {
-            'description': description
-        })
-
-        if not identity_result.success:
-            flash(f'Error adding identity: {identity_result.error}', 'error')
-            engine.delete_entity(entity_id)  # Clean up
-            return redirect(url_for('client.character_create'))
-
-        # Add Position component (default to 0, 0, 0 in specified region)
-        position_result = engine.add_component(entity_id, 'Position', {
-            'x': 0,
-            'y': 0,
-            'z': 0,
-            'region': region
-        })
-
-        if not position_result.success:
-            flash(f'Error adding position: {position_result.error}', 'error')
-            engine.delete_entity(entity_id)  # Clean up
-            return redirect(url_for('client.character_create'))
-
-        # Add PlayerCharacter component (marks this as a player character)
-        player_result = engine.add_component(entity_id, 'PlayerCharacter', {})
-
-        if not player_result.success:
-            flash(f'Error marking as player character: {player_result.error}', 'error')
-            engine.delete_entity(entity_id)  # Clean up
-            return redirect(url_for('client.character_create'))
-
-        flash(f'Character "{name}" created successfully!', 'success')
-        return redirect(url_for('client.character_sheet', entity_id=entity_id))
-
-    # GET request - show form
-    # Get available regions for dropdown
-    positioned_entities = engine.query_entities(['Position'])
-    regions = set(['The Realm'])  # Default starting region
-
-    for entity in positioned_entities:
-        pos = engine.get_component(entity.id, 'Position')
-        if pos and pos.data.get('region'):
-            region = pos.data['region']
-            # Only add named regions (not entity IDs)
-            # Check if region is an entity by attempting to get it
-            if not engine.get_entity(region):
-                # Region is a named area, not an entity ID
-                regions.add(region)
-
-    return render_template(
-        'character_create.html',
-        regions=sorted(list(regions))
-    )
+    """Redirect to character builder (legacy route for compatibility)."""
+    return redirect(url_for('client.character_builder'))
 
 
 @client_bp.route('/character/build', methods=['GET', 'POST'])
@@ -227,19 +154,19 @@ def character_builder():
                     'charisma': charisma
                 })
 
-            # Add CharacterDetails if provided
+            # Add CharacterDetails if provided (triggers auto-add of Magic/Skills via events)
             if race or char_class or alignment:
-                char_details = {}
+                char_details = {
+                    'level': 1  # Default starting level
+                }
                 if race:
                     char_details['race'] = race
                 if char_class:
-                    char_details['class'] = char_class
+                    char_details['character_class'] = char_class
                 if alignment:
                     char_details['alignment'] = alignment
 
-                # Note: CharacterDetails component not implemented yet,
-                # so this will fail gracefully
-                # engine.add_component(entity_id, 'CharacterDetails', char_details)
+                engine.add_component(entity_id, 'CharacterDetails', char_details)
 
             flash(f'Character "{name}" created successfully!', 'success')
             return redirect(url_for('client.character_sheet', entity_id=entity_id))
