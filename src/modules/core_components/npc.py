@@ -76,6 +76,8 @@ class NPCComponent(ComponentTypeDefinition):
         Get JSON schema for NPC component.
 
         Properties:
+            race: NPC's race (human, elf, dwarf, etc.)
+            occupation: NPC's occupation or role
             disposition: How the NPC feels toward the player
             dialogue_state: Current state in dialogue tree (default: 'initial')
             met_player: Whether the NPC has met the player (default: False)
@@ -83,6 +85,14 @@ class NPCComponent(ComponentTypeDefinition):
         return {
             "type": "object",
             "properties": {
+                "race": {
+                    "type": "string",
+                    "description": "NPC's race (human, elf, dwarf, etc.)"
+                },
+                "occupation": {
+                    "type": "string",
+                    "description": "NPC's occupation or role (blacksmith, guard, merchant, etc.)"
+                },
                 "disposition": {
                     "type": "string",
                     "enum": ["friendly", "neutral", "hostile", "fearful", "admiring"],
