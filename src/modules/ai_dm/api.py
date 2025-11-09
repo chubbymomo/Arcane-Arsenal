@@ -350,6 +350,7 @@ def send_dm_message_stream():
             data = request.get_json()
             entity_id = data.get('entity_id')
             message = data.get('message')
+            skip_player_message = data.get('skip_player_message', False)  # New flag
 
             if not entity_id or not message:
                 yield f"data: {json.dumps({'type': 'error', 'error': 'Missing required fields'})}\n\n"
@@ -367,35 +368,36 @@ def send_dm_message_stream():
                     return
                 conversation = engine.get_component(entity_id, 'Conversation')
 
-            # Create player message entity
-            entity = engine.get_entity(entity_id)
-            player_name = entity.name if entity else "Player"
+            # Create player message entity (unless skip_player_message is true)
+            if not skip_player_message:
+                entity = engine.get_entity(entity_id)
+                player_name = entity.name if entity else "Player"
 
-            player_msg_result = engine.create_entity(f"Player message from {player_name}")
+                player_msg_result = engine.create_entity(f"Player message from {player_name}")
 
-            if not player_msg_result.success:
-                yield f"data: {json.dumps({'type': 'error', 'error': 'Failed to create message entity'})}\n\n"
-                return
+                if not player_msg_result.success:
+                    yield f"data: {json.dumps({'type': 'error', 'error': 'Failed to create message entity'})}\n\n"
+                    return
 
-            player_msg_id = player_msg_result.data['id']
+                player_msg_id = player_msg_result.data['id']
 
-            # Add ChatMessage component to player message
-            timestamp = datetime.utcnow().isoformat()
-            engine.add_component(player_msg_id, 'ChatMessage', {
-                'speaker': 'player',
-                'speaker_name': player_name,
-                'message': message,
-                'timestamp': timestamp
-            })
+                # Add ChatMessage component to player message
+                timestamp = datetime.utcnow().isoformat()
+                engine.add_component(player_msg_id, 'ChatMessage', {
+                    'speaker': 'player',
+                    'speaker_name': player_name,
+                    'message': message,
+                    'timestamp': timestamp
+                })
 
-            # Add message to conversation history
-            message_ids = conversation.data.get('message_ids', [])
-            message_ids.append(player_msg_id)
+                # Add message to conversation history
+                message_ids = conversation.data.get('message_ids', [])
+                message_ids.append(player_msg_id)
 
-            engine.update_component(entity_id, 'Conversation', {
-                'message_ids': message_ids,
-                'last_message_time': timestamp
-            })
+                engine.update_component(entity_id, 'Conversation', {
+                    'message_ids': message_ids,
+                    'last_message_time': timestamp
+                })
 
             # Generate DM response using streaming LLM with tools
             try:
@@ -410,7 +412,10 @@ def send_dm_message_stream():
 
                 # Get conversation history
                 conversation_messages = []
-                for msg_id in message_ids[:-1]:  # Exclude the message we just added
+                # If we created a player message, exclude it from history (it'll be added via player_message param)
+                # If we skipped creating it, include all messages
+                msg_list = message_ids[:-1] if not skip_player_message else message_ids
+                for msg_id in msg_list:
                     msg_entity = engine.get_entity(msg_id)
                     if msg_entity and msg_entity.is_active():
                         msg_comp = engine.get_component(msg_id, 'ChatMessage')

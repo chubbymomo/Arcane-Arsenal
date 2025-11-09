@@ -439,7 +439,8 @@ function executeSuggestedAction(entityId, actionType, actionData, callback) {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             entity_id: entityId,
-                            message: data.result.message || 'Continue the story'
+                            message: data.result.message || 'Continue the story',
+                            skip_player_message: true  // Don't create duplicate player message
                         })
                     })
                     .then(response => {
