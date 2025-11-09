@@ -62,6 +62,11 @@ class StateEngine:
         self.component_validators: Dict[str, Any] = {}
         self.relationship_validators: Dict[str, Any] = {}
 
+        # Cache for ModuleRegistry instances (ensures singleton per registry)
+        # This prevents cache synchronization issues when multiple callers
+        # request the same registry - they all get the same instance
+        self._registry_instances: Dict[str, 'ModuleRegistry'] = {}
+
         # Load modules (core + any configured modules)
         self._load_modules()
 
@@ -899,17 +904,21 @@ class StateEngine:
 
     def create_registry(self, registry_name: str, module_name: str) -> 'ModuleRegistry':
         """
-        Create a generic registry for module-defined enumerated values.
+        Create or retrieve a cached registry for module-defined enumerated values.
 
         This allows modules to define custom registries without modifying core schema.
         Examples: magic_schools, damage_types, armor_types, condition_types
+
+        **Important:** Returns the same ModuleRegistry instance for each unique
+        registry_name + module_name combination. This ensures cache consistency -
+        all callers share the same cache, preventing synchronization issues.
 
         Args:
             registry_name: Name of the registry (e.g., 'magic_schools')
             module_name: Which module owns this registry
 
         Returns:
-            ModuleRegistry instance for registering values
+            Cached ModuleRegistry instance for registering/querying values
 
         Example:
             # In a module's initialize() method:
@@ -917,11 +926,26 @@ class StateEngine:
             magic_registry.register('evocation', 'Evocation magic', {'category': 'arcane'})
             magic_registry.register('necromancy', 'Necromancy magic', {'category': 'dark'})
 
-            # Later, validate against registry:
+            # Later, same instance is returned (cache is shared):
+            magic_registry2 = engine.create_registry('magic_schools', self.name)
+            # magic_registry2 is magic_registry  # True!
+
+            # Validate against registry:
             magic_registry.validate(spell_data['school'], 'spell school')
         """
         from src.modules.base import ModuleRegistry
-        return ModuleRegistry(registry_name, module_name, self.storage)
+
+        # Create unique key for this registry
+        cache_key = f"{registry_name}:{module_name}"
+
+        # Return cached instance if it exists
+        if cache_key not in self._registry_instances:
+            # Create new instance and cache it
+            self._registry_instances[cache_key] = ModuleRegistry(
+                registry_name, module_name, self.storage
+            )
+
+        return self._registry_instances[cache_key]
 
     # ========== Transaction Support ==========
 
