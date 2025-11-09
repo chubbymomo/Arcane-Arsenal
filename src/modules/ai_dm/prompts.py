@@ -137,19 +137,39 @@ def build_context_prompt(ai_context: Dict[str, Any]) -> str:
         region = location.get('region', 'Unknown')
         prompt_parts.append(f"**Region:** {region}")
 
-        # Nearby entities
+        # Nearby entities - show full details so AI knows what exists
         nearby = location.get('nearby_entities', [])
         if nearby:
-            npc_names = [e['name'] for e in nearby if e.get('type') == 'npc']
-            player_names = [e['name'] for e in nearby if e.get('type') == 'player']
-            item_names = [e['name'] for e in nearby if e.get('type') == 'item']
+            npcs = [e for e in nearby if e.get('type') == 'npc']
+            players = [e for e in nearby if e.get('type') == 'player']
+            items = [e for e in nearby if e.get('type') == 'item']
 
-            if npc_names:
-                prompt_parts.append(f"**Nearby NPCs:** {', '.join(npc_names)}")
-            if player_names:
-                prompt_parts.append(f"**Other Players:** {', '.join(player_names)}")
-            if item_names:
-                prompt_parts.append(f"**Nearby Items:** {', '.join(item_names)}")
+            if npcs:
+                prompt_parts.append(f"**Nearby NPCs ({len(npcs)}):**")
+                for npc in npcs:
+                    desc_parts = [f"  • **{npc['name']}**"]
+                    if npc.get('race'):
+                        desc_parts.append(f"({npc['race']}")
+                        if npc.get('occupation'):
+                            desc_parts[-1] += f" {npc['occupation']}"
+                        desc_parts[-1] += ")"
+                    elif npc.get('occupation'):
+                        desc_parts.append(f"({npc['occupation']})")
+                    if npc.get('description'):
+                        desc_parts.append(f"- {npc['description']}")
+                    prompt_parts.append(' '.join(desc_parts))
+
+            if players:
+                player_list = ', '.join([p['name'] for p in players])
+                prompt_parts.append(f"**Other Players:** {player_list}")
+
+            if items:
+                prompt_parts.append(f"**Nearby Items ({len(items)}):**")
+                for item in items:
+                    desc = f"  • **{item['name']}**"
+                    if item.get('description'):
+                        desc += f" - {item['description']}"
+                    prompt_parts.append(desc)
 
         prompt_parts.append("")  # Blank line
 
