@@ -185,8 +185,59 @@ function sendDMMessage() {
     if (!message || isLoading) return;
 
     setLoadingState(true);
+    input.value = '';  // Clear input immediately
 
-    fetch('/api/dm/message', {
+    // Add player message to UI immediately
+    const messagesDiv = document.getElementById('dm-messages');
+    const playerMsgDiv = document.createElement('div');
+    playerMsgDiv.className = 'dm-message';
+    playerMsgDiv.style.cssText = `
+        margin-bottom: 1rem;
+        padding: 1rem;
+        background: rgba(74, 158, 255, 0.1);
+        border-left: 4px solid #4a9eff;
+        border-radius: 8px;
+    `;
+    playerMsgDiv.innerHTML = `
+        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+            <strong style="color: #4a9eff; font-family: 'Cinzel', serif; font-size: 1.1rem;">
+                You
+            </strong>
+        </div>
+        <div style="color: #f0e6d6; line-height: 1.6; font-size: 1rem;">
+            ${escapeHtml(message)}
+        </div>
+    `;
+    messagesDiv.appendChild(playerMsgDiv);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+    // Create DM message div that will be populated via streaming
+    const dmMsgDiv = document.createElement('div');
+    dmMsgDiv.className = 'dm-message';
+    dmMsgDiv.style.cssText = `
+        margin-bottom: 1rem;
+        padding: 1rem;
+        background: rgba(212, 175, 55, 0.1);
+        border-left: 4px solid #d4af37;
+        border-radius: 8px;
+    `;
+    dmMsgDiv.innerHTML = `
+        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+            <strong style="color: #d4af37; font-family: 'Cinzel', serif; font-size: 1.1rem;">
+                Dungeon Master
+            </strong>
+        </div>
+        <div class="dm-streaming-text" style="color: #f0e6d6; line-height: 1.6; font-size: 1rem;">
+            <span class="cursor-blink">▊</span>
+        </div>
+    `;
+    messagesDiv.appendChild(dmMsgDiv);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+    const streamingTextDiv = dmMsgDiv.querySelector('.dm-streaming-text');
+
+    // Use fetch with streaming
+    fetch('/api/dm/message_stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -194,26 +245,122 @@ function sendDMMessage() {
             message: message
         })
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            input.value = '';
-            // Reload just the messages, not the whole page
-            reloadMessages();
-        } else {
-            alert('Failed to send message: ' + (data.error || 'Unknown error'));
+    .then(response => {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        function readStream() {
+            reader.read().then(({ done, value }) => {
+                if (done) {
+                    setLoadingState(false);
+                    return;
+                }
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop(); // Keep incomplete line in buffer
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.substring(6));
+
+                            if (data.type === 'token') {
+                                // Remove cursor if present
+                                const cursor = streamingTextDiv.querySelector('.cursor-blink');
+                                if (cursor) cursor.remove();
+
+                                // Add new text
+                                const textNode = document.createTextNode(data.content);
+                                streamingTextDiv.appendChild(textNode);
+
+                                // Add cursor back at end
+                                const newCursor = document.createElement('span');
+                                newCursor.className = 'cursor-blink';
+                                newCursor.textContent = '▊';
+                                streamingTextDiv.appendChild(newCursor);
+
+                                // Auto-scroll
+                                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                            } else if (data.type === 'done') {
+                                // Remove cursor
+                                const cursor = streamingTextDiv.querySelector('.cursor-blink');
+                                if (cursor) cursor.remove();
+
+                                // Add suggested actions if any
+                                if (data.suggested_actions && data.suggested_actions.length > 0) {
+                                    const actionsDiv = document.createElement('div');
+                                    actionsDiv.style.cssText = 'margin-top: 1rem; display: flex; flex-wrap: wrap; gap: 0.75rem;';
+
+                                    for (const action of data.suggested_actions) {
+                                        const button = document.createElement('button');
+                                        button.className = 'dm-suggested-action';
+                                        button.style.cssText = `
+                                            padding: 0.6rem 1rem;
+                                            background: linear-gradient(135deg, #d4af37, #b8942b);
+                                            color: #1a1520;
+                                            border: none;
+                                            border-radius: 6px;
+                                            cursor: pointer;
+                                            font-size: 0.95rem;
+                                            font-weight: 600;
+                                            font-family: 'Cinzel', serif;
+                                            transition: all 0.2s;
+                                        `;
+                                        button.setAttribute('data-entity-id', entityId);
+                                        button.setAttribute('data-action-type', action.action_type || 'custom');
+                                        button.setAttribute('data-action-data', JSON.stringify(action.action_data || {}));
+                                        button.textContent = action.label || 'Action';
+                                        button.onmouseover = () => button.style.background = 'linear-gradient(135deg, #ffd700, #d4af37)';
+                                        button.onmouseout = () => button.style.background = 'linear-gradient(135deg, #d4af37, #b8942b)';
+                                        button.onclick = () => executeSuggestedActionFromData(button);
+
+                                        actionsDiv.appendChild(button);
+                                    }
+
+                                    dmMsgDiv.appendChild(actionsDiv);
+                                }
+
+                                setLoadingState(false);
+                            } else if (data.type === 'error') {
+                                // Remove cursor
+                                const cursor = streamingTextDiv.querySelector('.cursor-blink');
+                                if (cursor) cursor.remove();
+
+                                streamingTextDiv.innerHTML = `<span style="color: #e74c3c;">⚠️ Error: ${escapeHtml(data.error)}</span>`;
+                                setLoadingState(false);
+                            }
+                        } catch (e) {
+                            console.error('Error parsing SSE data:', e);
+                        }
+                    }
+                }
+
+                readStream(); // Continue reading
+            }).catch(error => {
+                console.error('Stream read error:', error);
+                setLoadingState(false);
+                alert('Connection error during streaming');
+            });
         }
+
+        readStream();
     })
     .catch(error => {
         console.error('DM message error:', error);
         alert('Failed to send message');
-    })
-    .finally(() => {
         setLoadingState(false);
     });
 }
 
-function executeSuggestedAction(entityId, actionType, actionData) {
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function executeSuggestedAction(entityId, actionType, actionData, callback) {
     fetch('/api/dm/execute_action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -226,15 +373,45 @@ function executeSuggestedAction(entityId, actionType, actionData) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Reload messages to show system message
-            reloadMessages();
+            // Show feedback message
+            const messagesDiv = document.getElementById('dm-messages');
+            const feedbackDiv = document.createElement('div');
+            feedbackDiv.className = 'dm-message';
+            feedbackDiv.style.cssText = `
+                margin-bottom: 1rem;
+                padding: 0.75rem 1rem;
+                background: rgba(155, 89, 182, 0.1);
+                border-left: 4px solid #9b59b6;
+                border-radius: 8px;
+                font-size: 0.9rem;
+                font-style: italic;
+                color: #c09bd8;
+            `;
+
+            let actionDesc = 'Action executed';
+            if (actionType === 'roll_dice') {
+                actionDesc = `🎲 ${actionData.label || 'Roll'}: ${actionData.dice || '1d20'}`;
+            } else if (actionType === 'custom') {
+                const actionName = actionData.action || 'action';
+                actionDesc = `Attempting to ${actionName.replace(/_/g, ' ')}...`;
+            }
+
+            feedbackDiv.textContent = actionDesc;
+            messagesDiv.appendChild(feedbackDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+            // Reload messages to show any system responses
+            setTimeout(() => reloadMessages(), 500);
         } else {
             alert('Action failed: ' + (data.error || 'Unknown error'));
         }
+
+        if (callback) callback();
     })
     .catch(error => {
         console.error('Action execution error:', error);
         alert('Failed to execute action');
+        if (callback) callback();
     });
 }
 
@@ -257,7 +434,18 @@ function executeSuggestedActionFromData(button) {
             }
         }
 
-        executeSuggestedAction(entityId, actionType, actionData);
+        // Show visual feedback
+        button.disabled = true;
+        button.style.opacity = '0.5';
+        const originalText = button.textContent;
+        button.textContent = '⏳ ' + originalText;
+
+        executeSuggestedAction(entityId, actionType, actionData, () => {
+            // Re-enable after completion
+            button.disabled = false;
+            button.style.opacity = '1';
+            button.textContent = originalText;
+        });
     } catch (error) {
         console.error('Error reading action data from button:', error);
         alert('Failed to execute action due to a technical error.');
@@ -310,6 +498,21 @@ document.addEventListener('DOMContentLoaded', function() {
     outline: none;
     border-color: var(--primary-color);
     box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.2);
+}
+
+.cursor-blink {
+    animation: blink 1s step-end infinite;
+    color: #d4af37;
+    font-weight: bold;
+}
+
+@keyframes blink {
+    0%, 50% {
+        opacity: 1;
+    }
+    50.1%, 100% {
+        opacity: 0;
+    }
 }
 
 .dm-messages::-webkit-scrollbar {

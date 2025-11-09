@@ -111,7 +111,26 @@ def dm_chat_page(entity_id: str):
         # Check if we need to generate an AI intro (empty conversation + needs_ai_intro flag)
         if len(messages) == 0:
             player_comp = engine.get_component(entity_id, 'PlayerCharacter')
-            logger.info(f"Checking AI intro for {entity_id}: player_comp={player_comp is not None}, needs_ai_intro={player_comp.data.get('needs_ai_intro', False) if player_comp else 'N/A'}")
+            has_player_comp = player_comp is not None
+            needs_intro = player_comp.data.get('needs_ai_intro', False) if player_comp else False
+
+            logger.info(f"Checking AI intro for {entity_id}: player_comp={has_player_comp}, needs_ai_intro={needs_intro}")
+
+            # Debug message to user
+            if not has_player_comp:
+                logger.warning(f"No PlayerCharacter component found for {entity_id}")
+                messages.append({
+                    'id': 'debug-no-player',
+                    'data': {
+                        'speaker': 'system',
+                        'speaker_name': 'Debug',
+                        'message': '⚠️ Debug: This entity does not have a PlayerCharacter component. AI intro cannot be generated.',
+                        'timestamp': '',
+                        'suggested_actions': []
+                    }
+                })
+            elif not needs_intro:
+                logger.info(f"Character {entity_id} does not need AI intro (needs_ai_intro={needs_intro})")
 
             if player_comp and player_comp.data.get('needs_ai_intro', False):
                 # Generate AI opening scene
@@ -199,9 +218,50 @@ def dm_chat_page(entity_id: str):
 
                 except LLMError as e:
                     logger.error(f"LLM error during AI intro generation: {e}")
-                    # Continue without intro - user can start conversation manually
+                    # Add error message as a system message
+                    error_msg = (
+                        "⚠️ Unable to generate AI opening scene. This could be due to:\n\n"
+                        "• Missing or invalid AI API key\n"
+                        "• Network connectivity issues\n"
+                        "• AI service temporarily unavailable\n\n"
+                        "Please check your configuration and try starting a conversation manually below."
+                    )
+                    messages.append({
+                        'id': 'error',
+                        'data': {
+                            'speaker': 'system',
+                            'speaker_name': 'System',
+                            'message': error_msg,
+                            'timestamp': '',
+                            'suggested_actions': []
+                        }
+                    })
+                    # Clear the flag so we don't retry every time
+                    engine.update_component(entity_id, 'PlayerCharacter', {
+                        'needs_ai_intro': False
+                    })
                 except Exception as e:
                     logger.error(f"Unexpected error generating AI intro: {e}", exc_info=True)
+                    # Add error message as a system message
+                    error_msg = (
+                        "⚠️ An unexpected error occurred while generating your AI opening scene.\n\n"
+                        "Please try starting a conversation manually below. "
+                        "If this issue persists, contact your game administrator."
+                    )
+                    messages.append({
+                        'id': 'error',
+                        'data': {
+                            'speaker': 'system',
+                            'speaker_name': 'System',
+                            'message': error_msg,
+                            'timestamp': '',
+                            'suggested_actions': []
+                        }
+                    })
+                    # Clear the flag so we don't retry every time
+                    engine.update_component(entity_id, 'PlayerCharacter', {
+                        'needs_ai_intro': False
+                    })
 
         # Hardcoded UI preferences (no component needed)
         ui_settings = {
@@ -412,6 +472,168 @@ def api_send_message():
             'success': False,
             'error': str(e)
         }), 500
+
+
+@ai_dm_bp.route('/api/dm/message_stream', methods=['POST'])
+def send_dm_message_stream():
+    """
+    Send a message to the DM and stream the response.
+
+    Uses Server-Sent Events (SSE) to stream the AI response as it's generated.
+
+    Request JSON:
+        {
+            "entity_id": "player_entity_123",
+            "message": "I want to search the room"
+        }
+
+    Streams:
+        data: {"type": "token", "content": "You"}
+        data: {"type": "token", "content": " search"}
+        data: {"type": "token", "content": " the"}
+        ...
+        data: {"type": "done", "message_id": "msg_456", "suggested_actions": [...]}
+    """
+    import json
+    from flask import Response, stream_with_context
+
+    def generate():
+        try:
+            ensure_modules_loaded()
+            engine = get_engine()
+
+            data = request.get_json()
+            entity_id = data.get('entity_id')
+            message = data.get('message')
+
+            if not entity_id or not message:
+                yield f"data: {json.dumps({'type': 'error', 'error': 'Missing required fields'})}\n\n"
+                return
+
+            # Get or create Conversation component
+            conversation = engine.get_component(entity_id, 'Conversation')
+            if not conversation:
+                result = engine.add_component(entity_id, 'Conversation', {
+                    'message_ids': [],
+                    'active': True
+                })
+                if not result.success:
+                    yield f"data: {json.dumps({'type': 'error', 'error': f'Failed to create conversation'})}\n\n"
+                    return
+                conversation = engine.get_component(entity_id, 'Conversation')
+
+            # Create player message entity
+            entity = engine.get_entity(entity_id)
+            player_name = entity.name if entity else "Player"
+
+            player_msg_result = engine.create_entity(f"Player message from {player_name}")
+
+            if not player_msg_result.success:
+                yield f"data: {json.dumps({'type': 'error', 'error': 'Failed to create message entity'})}\n\n"
+                return
+
+            player_msg_id = player_msg_result.data['id']
+
+            # Add ChatMessage component to player message
+            timestamp = datetime.utcnow().isoformat()
+            engine.add_component(player_msg_id, 'ChatMessage', {
+                'speaker': 'player',
+                'speaker_name': player_name,
+                'message': message,
+                'timestamp': timestamp
+            })
+
+            # Add message to conversation history
+            message_ids = conversation.data.get('message_ids', [])
+            message_ids.append(player_msg_id)
+
+            engine.update_component(entity_id, 'Conversation', {
+                'message_ids': message_ids,
+                'last_message_time': timestamp
+            })
+
+            # Generate DM response using streaming LLM
+            try:
+                from .llm_client import get_llm_client, LLMError
+                from .prompts import build_full_prompt, build_message_history
+                from .response_parser import parse_dm_response, get_fallback_actions
+                from src.core.config import get_config
+
+                logger.info(f"Generating streaming AI response for entity {entity_id}")
+                ai_context = engine.generate_ai_context(entity_id)
+
+                # Get conversation history
+                conversation_messages = []
+                for msg_id in message_ids[:-1]:  # Exclude the message we just added
+                    msg_entity = engine.get_entity(msg_id)
+                    if msg_entity and msg_entity.is_active():
+                        msg_comp = engine.get_component(msg_id, 'ChatMessage')
+                        if msg_comp:
+                            conversation_messages.append(msg_comp.data)
+
+                # Build prompts
+                full_system_prompt = build_full_prompt(ai_context)
+                llm_messages = build_message_history(conversation_messages, player_message=message)
+
+                # Get LLM client and stream response
+                config = get_config()
+                llm = get_llm_client(config)
+
+                # Accumulate full response for parsing
+                full_response = ""
+
+                # Stream the response
+                for chunk in llm.generate_response_stream(
+                    messages=llm_messages,
+                    system=full_system_prompt,
+                    max_tokens=config.ai_max_tokens,
+                    temperature=config.ai_temperature
+                ):
+                    full_response += chunk
+                    yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
+
+                # Parse complete response for actions
+                narrative, suggested_actions = parse_dm_response(full_response)
+
+                # Create DM message entity
+                dm_msg_result = engine.create_entity("DM response")
+                if dm_msg_result.success:
+                    dm_msg_id = dm_msg_result.data['id']
+                    dm_timestamp = datetime.utcnow().isoformat()
+
+                    engine.add_component(dm_msg_id, 'ChatMessage', {
+                        'speaker': 'dm',
+                        'speaker_name': 'Dungeon Master',
+                        'message': narrative,
+                        'timestamp': dm_timestamp,
+                        'suggested_actions': suggested_actions
+                    })
+
+                    # Add to conversation
+                    message_ids.append(dm_msg_id)
+                    engine.update_component(entity_id, 'Conversation', {
+                        'message_ids': message_ids
+                    })
+
+                    # Send completion event with actions
+                    yield f"data: {json.dumps({'type': 'done', 'message_id': dm_msg_id, 'suggested_actions': suggested_actions})}\n\n"
+                else:
+                    yield f"data: {json.dumps({'type': 'error', 'error': 'Failed to save DM response'})}\n\n"
+
+            except LLMError as e:
+                logger.error(f"LLM error during streaming: {e}")
+                fallback_actions = get_fallback_actions()
+                yield f"data: {json.dumps({'type': 'error', 'error': str(e), 'fallback_actions': fallback_actions})}\n\n"
+
+            except Exception as e:
+                logger.error(f"Error during streaming response: {e}", exc_info=True)
+                yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+
+        except Exception as e:
+            logger.error(f"Error in stream generator: {e}", exc_info=True)
+            yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+
+    return Response(stream_with_context(generate()), mimetype='text/event-stream')
 
 
 @ai_dm_bp.route('/api/dm/chat_display/<entity_id>')
