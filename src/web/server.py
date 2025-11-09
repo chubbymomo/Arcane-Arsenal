@@ -288,12 +288,17 @@ def create_app(worlds_dir: str = 'worlds'):
             elif 'core_components' not in selected_modules:
                 selected_modules.insert(0, 'core_components')
 
-            # Create the world
+            # Create the world (this returns a fully initialized engine with modules loaded)
+            logger.info(f"Creating new world: {world_name} ({realm_name})")
             engine = StateEngine.initialize_world(
                 world_path=world_path,
                 world_name=realm_name,
                 modules=selected_modules
             )
+
+            # Cache the engine for this world
+            app.engine_instances[world_name] = engine
+            logger.info(f"✓ Cached StateEngine for new world: {world_name}")
 
             flash(f'Realm "{realm_name}" created successfully with {len(selected_modules)} arcane module(s)', 'success')
 
@@ -340,6 +345,11 @@ def create_app(worlds_dir: str = 'worlds'):
             # If currently selected world is being deleted, clear session
             if session.get('world_path') == world_path:
                 session.clear()
+
+            # Remove from engine cache if present
+            if world_name in app.engine_instances:
+                del app.engine_instances[world_name]
+                logger.info(f"Removed cached StateEngine for deleted world: {world_name}")
 
             # Delete the world directory
             import shutil
