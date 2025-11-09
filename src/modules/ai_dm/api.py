@@ -1,7 +1,8 @@
 """
 AI DM Module API Blueprint.
 
-Provides REST API endpoints for DM chat and interaction:
+Provides REST API endpoints and pages for DM chat and interaction:
+- GET  /dm/chat/:id              - DM chat page (HTML)
 - POST /api/dm/message          - Send message to DM
 - GET  /api/dm/chat_display/:id - Get rendered chat HTML
 - POST /api/dm/execute_action   - Execute suggested action
@@ -9,13 +10,14 @@ Provides REST API endpoints for DM chat and interaction:
 
 import logging
 from datetime import datetime
-from flask import Blueprint, jsonify, request, session, current_app
+from flask import Blueprint, jsonify, request, session, current_app, render_template, redirect, url_for, flash
 from src.core.module_loader import ModuleLoader
 
 logger = logging.getLogger(__name__)
 
 # Create blueprint for AI DM module API
-ai_dm_bp = Blueprint('ai_dm', __name__)
+# Note: We use both /dm (for pages) and /api/dm (for API endpoints)
+ai_dm_bp = Blueprint('ai_dm', __name__, template_folder='templates')
 
 # Cache for initialized modules per world
 _world_modules_cache = {}
@@ -57,6 +59,80 @@ def ensure_modules_loaded():
         _world_modules_cache[world_name] = modules
         logger.info(f"✓ Modules loaded for AI DM: {world_name}")
 
+
+# ========== Page Routes ==========
+
+@ai_dm_bp.route('/dm/chat/<entity_id>')
+def dm_chat_page(entity_id: str):
+    """
+    DM Chat page for a character.
+
+    Displays the full chat interface in a dedicated page instead of
+    cluttering the character sheet.
+    """
+    try:
+        world_name = session.get('world_name')
+        if not world_name:
+            flash('No world selected', 'error')
+            return redirect(url_for('index'))
+
+        ensure_modules_loaded()
+        engine = get_engine()
+
+        # Get entity
+        entity = engine.get_entity(entity_id)
+        if not entity:
+            flash('Character not found', 'error')
+            return redirect(url_for('client.index'))
+
+        # Get or create DMDisplay component
+        dm_display = engine.get_component(entity_id, 'DMDisplay')
+        if not dm_display:
+            engine.add_component(entity_id, 'DMDisplay', {
+                'show_suggested_actions': True,
+                'show_timestamps': True,
+                'max_visible_messages': 20,
+                'auto_scroll': True
+            })
+            dm_display = engine.get_component(entity_id, 'DMDisplay')
+
+        # Get or create Conversation component
+        conversation = engine.get_component(entity_id, 'Conversation')
+        if not conversation:
+            engine.add_component(entity_id, 'Conversation', {
+                'message_ids': [],
+                'active': True
+            })
+            conversation = engine.get_component(entity_id, 'Conversation')
+
+        # Get conversation messages
+        messages = []
+        if conversation:
+            message_ids = conversation.data.get('message_ids', [])
+            for msg_id in message_ids:
+                msg_entity = engine.get_entity(msg_id)
+                if msg_entity and msg_entity.is_active():
+                    msg_comp = engine.get_component(msg_id, 'ChatMessage')
+                    if msg_comp:
+                        messages.append({
+                            'id': msg_id,
+                            'data': msg_comp.data
+                        })
+
+        return render_template(
+            'dm_chat.html',
+            entity=entity,
+            messages=messages,
+            dm_display_data=dm_display.data if dm_display else {}
+        )
+
+    except Exception as e:
+        logger.error(f"Error loading DM chat page: {e}", exc_info=True)
+        flash(f'Error loading DM chat: {str(e)}', 'error')
+        return redirect(url_for('client.index'))
+
+
+# ========== API Routes ==========
 
 @ai_dm_bp.route('/api/dm/message', methods=['POST'])
 def api_send_message():

@@ -309,8 +309,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Check if we're on a character sheet page
     const characterName = document.querySelector('.character-name');
     if (characterName) {
-        // Extract entity ID from the page (look for entity ID in data attributes or URL)
-        const entityIdMatch = window.location.pathname.match(/\/character\/([a-f0-9\-]+)/);
+        // Extract entity ID from the page URL
+        // Pattern matches: /character/entity_XXXX or /character/entity_XXXX-XXXX-XXXX
+        const entityIdMatch = window.location.pathname.match(/\/character\/(entity_[a-z0-9_\-]+)/);
         if (entityIdMatch) {
             const entityId = entityIdMatch[1];
             window.characterQuickView = new CharacterQuickView(entityId, characterName.textContent);
