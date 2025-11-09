@@ -445,6 +445,25 @@ class ModuleRegistry:
         """
         return [entry['key'] for entry in self.get_all()]
 
+    def get(self, key: str) -> Optional[Dict[str, Any]]:
+        """
+        Get a specific registered value by key.
+
+        Args:
+            key: Key to look up
+
+        Returns:
+            Dict with 'key', 'description', 'module', 'metadata' keys, or None if not found
+
+        Example:
+            class_data = classes_registry.get('wizard')
+            # Returns: {'key': 'wizard', 'description': '...', 'module': 'generic_fantasy', 'metadata': {...}}
+        """
+        for entry in self.get_all():
+            if entry['key'] == key:
+                return entry
+        return None
+
     def is_valid(self, key: str) -> bool:
         """
         Check if a key is registered in this registry.
