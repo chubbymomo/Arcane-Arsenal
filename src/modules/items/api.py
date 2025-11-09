@@ -13,8 +13,7 @@ Endpoints:
 """
 
 import logging
-from flask import Blueprint, jsonify, request, session
-from src.core.state_engine import StateEngine
+from flask import Blueprint, jsonify, request, session, current_app
 from src.core.module_loader import ModuleLoader
 
 logger = logging.getLogger(__name__)
@@ -22,53 +21,63 @@ logger = logging.getLogger(__name__)
 # Create blueprint for items module API
 items_bp = Blueprint('items', __name__)
 
+# Cache for initialized modules per world
+# Modules are expensive to load (importing files, registering types, initializing registries)
+# We load them once per world and reuse the same module instances
+_world_modules_cache = {}
 
-def get_current_world_path():
-    """Get current world path from session or return None."""
-    return session.get('world_path')
 
-
-def get_equipment_system(world_path: str):
+def get_equipment_system():
     """
-    Get initialized equipment system for a world.
+    Get the equipment system for the current world.
 
-    This helper function properly loads and initializes the items module
-    with an engine instance, ensuring the equipment system is ready to use.
-
-    Args:
-        world_path: Path to the world directory
+    Uses Flask's cached StateEngine from current_app.engine_instances.
+    Loads and initializes modules once per world, then reuses them.
 
     Returns:
         EquipmentSystem instance
 
     Raises:
-        ValueError: If items module is not loaded in this world
+        ValueError: If no world selected or items module not loaded
     """
-    # Create engine instance
-    engine = StateEngine(world_path)
+    world_name = session.get('world_name')
+    if not world_name:
+        raise ValueError('No world selected')
 
-    # Load and initialize modules with the engine
-    loader = ModuleLoader(world_path)
-    modules = loader.load_modules(strategy='config')
+    # Get the cached StateEngine for this world
+    engine = current_app.engine_instances.get(world_name)
+    if not engine:
+        raise ValueError(f'StateEngine not initialized for world: {world_name}')
 
-    # Initialize each module with the engine
-    for module in modules:
-        try:
-            module.initialize(engine)
-        except Exception as e:
-            logger.warning(f"Failed to initialize module {module.name}: {e}")
+    # Check if modules are already loaded for this world
+    if world_name not in _world_modules_cache:
+        # Load and initialize modules (expensive - do once per world)
+        world_path = session.get('world_path')
+        logger.info(f"Loading modules for world: {world_name}")
+
+        loader = ModuleLoader(world_path)
+        modules = loader.load_modules(strategy='config')
+
+        # Initialize each module with the cached engine
+        for module in modules:
+            try:
+                module.initialize(engine)
+            except Exception as e:
+                logger.warning(f"Failed to initialize module {module.name}: {e}")
+
+        # Cache the loaded modules for this world
+        _world_modules_cache[world_name] = modules
+        logger.info(f"✓ Modules loaded and cached for world: {world_name}")
+
+    # Get modules from cache
+    modules = _world_modules_cache[world_name]
 
     # Find items module
-    items_module = None
     for module in modules:
         if module.name == 'items':
-            items_module = module
-            break
+            return module.get_equipment_system()
 
-    if not items_module:
-        raise ValueError('Items module not loaded in this world')
-
-    return items_module.get_equipment_system()
+    raise ValueError('Items module not loaded in this world')
 
 
 @items_bp.route('/api/equipment/<entity_id>')
@@ -89,12 +98,8 @@ def api_equipment(entity_id: str):
             ]
         }
     """
-    world_path = get_current_world_path()
-    if not world_path:
-        return jsonify({'error': 'No world selected', 'success': False}), 400
-
     try:
-        equipment_system = get_equipment_system(world_path)
+        equipment_system = get_equipment_system()
         equipped_items = equipment_system.get_equipped_items(entity_id)
 
         return jsonify({
@@ -135,12 +140,8 @@ def api_inventory(entity_id: str):
             ]
         }
     """
-    world_path = get_current_world_path()
-    if not world_path:
-        return jsonify({'error': 'No world selected', 'success': False}), 400
-
     try:
-        equipment_system = get_equipment_system(world_path)
+        equipment_system = get_equipment_system()
         inventory = equipment_system.get_inventory(entity_id)
 
         return jsonify({
@@ -184,10 +185,6 @@ def api_equip_item():
             }
         }
     """
-    world_path = get_current_world_path()
-    if not world_path:
-        return jsonify({'error': 'No world selected', 'success': False}), 400
-
     try:
         data = request.get_json()
         character_id = data.get('character_id')
@@ -199,7 +196,7 @@ def api_equip_item():
                 'error': 'Missing required fields: character_id, item_id'
             }), 400
 
-        equipment_system = get_equipment_system(world_path)
+        equipment_system = get_equipment_system()
         result = equipment_system.equip_item(character_id, item_id)
 
         if result.success:
@@ -241,10 +238,6 @@ def api_unequip_item():
             }
         }
     """
-    world_path = get_current_world_path()
-    if not world_path:
-        return jsonify({'error': 'No world selected', 'success': False}), 400
-
     try:
         data = request.get_json()
         character_id = data.get('character_id')
@@ -256,7 +249,7 @@ def api_unequip_item():
                 'error': 'Missing required fields: character_id, item_id'
             }), 400
 
-        equipment_system = get_equipment_system(world_path)
+        equipment_system = get_equipment_system()
         result = equipment_system.unequip_item(character_id, item_id)
 
         if result.success:

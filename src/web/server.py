@@ -45,6 +45,11 @@ def create_app(worlds_dir: str = 'worlds'):
     app.config['WORLDS_DIR'] = worlds_dir
     app.config['SECRET_KEY'] = os.urandom(24)  # For sessions and flash messages
 
+    # Initialize StateEngine instance cache
+    # Each world gets one StateEngine that persists for the app lifetime
+    # This avoids creating new database connections on every request
+    app.engine_instances = {}
+
     # Initialize SocketIO
     socketio = SocketIO(
         app,
@@ -173,6 +178,13 @@ def create_app(worlds_dir: str = 'worlds'):
         session['world_path'] = world_path
         session['world_name'] = world_name  # Folder name for file operations
         session['world_display_name'] = display_name  # Aesthetic name for UI
+
+        # Initialize StateEngine for this world if not already cached
+        if world_name not in app.engine_instances:
+            logger.info(f"Initializing StateEngine for world: {world_name}")
+            app.engine_instances[world_name] = StateEngine(world_path)
+            logger.info(f"✓ StateEngine initialized and cached for: {world_name}")
+
         flash(f'Entered realm: {display_name}', 'success')
 
         # Redirect to client interface
