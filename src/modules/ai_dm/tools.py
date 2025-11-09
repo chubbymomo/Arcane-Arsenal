@@ -107,7 +107,7 @@ def generate_tool_documentation() -> str:
 _CORE_TOOL_DEFINITIONS = [
     {
         "name": "create_npc",
-        "description": "Create a new NPC (non-player character) in the game world. Use this when an NPC first appears in the story.",
+        "description": "Create a new NPC (non-player character) in the game world. Use this when an NPC first appears in the story. NPCs can have classes and levels for mechanical depth (e.g., wizard innkeeper, cleric healer).",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -121,11 +121,19 @@ _CORE_TOOL_DEFINITIONS = [
                 },
                 "race": {
                     "type": "string",
-                    "description": "The NPC's race (e.g., 'human', 'elf', 'dwarf', 'orc')"
+                    "description": "The NPC's race (e.g., 'human', 'elf', 'dwarf', 'orc') - use values from Game System races list"
                 },
                 "occupation": {
                     "type": "string",
-                    "description": "The NPC's occupation or role (e.g., 'blacksmith', 'guard', 'merchant')"
+                    "description": "The NPC's occupation or role (e.g., 'blacksmith', 'guard', 'merchant', 'wizard')"
+                },
+                "npc_class": {
+                    "type": "string",
+                    "description": "Optional: NPC's class for mechanical abilities (e.g., 'wizard', 'cleric', 'fighter') - use values from Game System classes list. Omit for non-combatant NPCs."
+                },
+                "level": {
+                    "type": "integer",
+                    "description": "Optional: NPC's level if they have a class (default: 1). Determines their capabilities."
                 },
                 "disposition": {
                     "type": "string",
@@ -426,6 +434,8 @@ def _create_npc(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Di
     disposition = tool_input.get("disposition", "neutral")
     race = tool_input.get("race", "human")
     occupation = tool_input.get("occupation", "commoner")
+    npc_class = tool_input.get("npc_class")  # Optional class
+    level = tool_input.get("level", 1)  # Default level 1
     location = tool_input.get("location")
 
     # Create entity
@@ -443,6 +453,17 @@ def _create_npc(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Di
     }
     engine.add_component(npc_id, 'Identity', identity_data)
     logger.info(f"  → Added Identity: race={race}, occupation={occupation}, desc={description[:50]}...")
+
+    # Add CharacterDetails if class is provided (enables mechanics like spells, skills)
+    if npc_class:
+        char_details = {
+            'character_class': npc_class,
+            'level': level,
+            'race': race  # Also in CharacterDetails for module compatibility
+        }
+        engine.add_component(npc_id, 'CharacterDetails', char_details)
+        logger.info(f"  → Added CharacterDetails: class={npc_class}, level={level}")
+        # Note: This will trigger auto-add of Magic/Skills components via events if applicable
 
     # Add NPC component
     engine.add_component(npc_id, 'NPC', {
