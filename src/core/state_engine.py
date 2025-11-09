@@ -966,6 +966,62 @@ class StateEngine:
         position_system = PositionSystem(self)
         return position_system.validate_position_data(entity_id, position_data)
 
+    # ========== AI Context Generation ==========
+
+    def generate_ai_context(
+        self,
+        entity_id: str,
+        include_history: bool = True,
+        include_events: bool = True,
+        include_nearby: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Generate comprehensive AI context for an entity.
+
+        Builds a structured representation of game state optimized for
+        LLM consumption. Includes character stats, location, inventory,
+        conversation history, and recent events.
+
+        Args:
+            entity_id: ID of the entity to build context for
+            include_history: Include conversation history (default: True)
+            include_events: Include recent game events (default: True)
+            include_nearby: Include nearby entities (default: True)
+
+        Returns:
+            Dict with comprehensive game state context:
+            {
+                'character': {...},      # Stats, class, level, etc.
+                'location': {...},       # Current location and nearby entities
+                'inventory': [...],      # Items owned/equipped
+                'conversation': [...],   # Recent messages (if include_history)
+                'recent_events': [...]   # Recent game events (if include_events)
+            }
+
+        Example:
+            >>> context = engine.generate_ai_context('entity_123')
+            >>> print(context['character']['name'])
+            'Theron the Brave'
+            >>> print(context['character']['level'])
+            5
+            >>> print(len(context['conversation']))
+            10
+
+        Note:
+            This method is optimized for AI DM functionality. The context
+            includes only information that's relevant for narrative generation
+            and action suggestions.
+        """
+        from .ai_context import AIContextBuilder
+
+        builder = AIContextBuilder(self)
+        return builder.build_full_context(
+            entity_id=entity_id,
+            include_history=include_history,
+            include_events=include_events,
+            include_nearby=include_nearby
+        )
+
     def close(self) -> None:
         """Close storage connection."""
         self.storage.close()
