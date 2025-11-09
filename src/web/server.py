@@ -54,6 +54,18 @@ def create_app(worlds_dir: str = 'worlds'):
         engineio_logger=False
     )
 
+    # Custom Jinja2 filters
+    @app.template_filter('component_name')
+    def format_component_name(name):
+        """Format component type names for display (e.g., 'RollHistory' -> 'Roll History')."""
+        import re
+        # Handle special cases first
+        if name == 'RollHistory':
+            return '🎲 Roll History'
+        # Split on capital letters and join with spaces
+        formatted = re.sub(r'(?<!^)(?=[A-Z])', ' ', name)
+        return formatted
+
     # Register blueprints
     app.register_blueprint(client_bp)
     app.register_blueprint(host_bp)

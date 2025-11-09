@@ -24,7 +24,7 @@
                     {% set category = form_builder.categorize_component(comp_type, comp_data) %}
                     {% if category == 'CORE' %}
                     <div class="component-card {% if comp_type == 'Attributes' %}non-collapsible{% endif %}">
-                        <h3 class="component-title">{{ comp_type }}</h3>
+                        <h3 class="component-title">{{ comp_type|component_name }}</h3>
                         {{ form_builder.build_display(comp_type, comp_data, entity.id) | safe }}
                     </div>
                     {% endif %}
@@ -36,7 +36,7 @@
                     {% set category = form_builder.categorize_component(comp_type, comp_data) %}
                     {% if category == 'SKILLS' %}
                     <div class="component-card">
-                        <h3 class="component-title">{{ comp_type }}</h3>
+                        <h3 class="component-title">{{ comp_type|component_name }}</h3>
                         {{ form_builder.build_display(comp_type, comp_data, entity.id) | safe }}
                     </div>
                     {% endif %}
@@ -53,7 +53,7 @@
                     {% set category = form_builder.categorize_component(comp_type, comp_data) %}
                     {% if category == 'COMBAT' %}
                     <div class="component-card">
-                        <h3 class="component-title">{{ comp_type }}</h3>
+                        <h3 class="component-title">{{ comp_type|component_name }}</h3>
                         {{ form_builder.build_display(comp_type, comp_data, entity.id) | safe }}
                     </div>
                     {% endif %}
@@ -65,7 +65,7 @@
                     {% set category = form_builder.categorize_component(comp_type, comp_data) %}
                     {% if category == 'RESOURCES' %}
                     <div class="component-card">
-                        <h3 class="component-title">{{ comp_type }}</h3>
+                        <h3 class="component-title">{{ comp_type|component_name }}</h3>
                         {{ form_builder.build_display(comp_type, comp_data, entity.id) | safe }}
                     </div>
                     {% endif %}

@@ -213,36 +213,24 @@ class RollHistoryComponent(ComponentTypeDefinition):
     def get_character_sheet_renderer(self, data: Dict[str, Any], engine=None, entity_id=None) -> str:
         """Custom renderer for Roll History with toasts."""
 
-        # Roll History content + Toasts (global floating)
+        # Roll History content
         # Note: The component card and title are added by the template
         html = '''
-            <div x-data="{ historyOpen: true }">
-                <div class="roll-history-controls" style="margin-bottom: 0.5rem;">
-                    <button @click="historyOpen = !historyOpen"
-                            class="btn-toggle"
-                            style="padding: 0.25rem 0.5rem; background: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">
-                        <span x-text="historyOpen ? '▼ Hide' : '▶ Show'"></span>
-                    </button>
-                </div>
+            <p x-show="history.length === 0" class="roll-history-empty">No rolls yet. Click any 🎲 button to roll!</p>
 
-                <div x-show="historyOpen" x-transition class="roll-history">
-                    <p x-show="history.length === 0" class="roll-history-empty">No rolls yet. Click any 🎲 button to roll!</p>
-
-                    <template x-for="(roll, index) in history" :key="index">
-                        <div class="roll-entry roll-success">
-                            <div class="roll-label" x-text="roll.purpose || 'Roll'"></div>
-                            <div class="roll-total"
-                                 :class="{
-                                     'critical-success': roll.critical_success,
-                                     'critical-failure': roll.critical_failure
-                                 }"
-                                 x-text="roll.total">
-                            </div>
-                            <div class="roll-breakdown" x-text="roll.breakdown"></div>
-                        </div>
-                    </template>
+            <template x-for="(roll, index) in history" :key="index">
+                <div class="roll-entry roll-success">
+                    <div class="roll-label" x-text="roll.purpose || 'Roll'"></div>
+                    <div class="roll-total"
+                         :class="{
+                             'critical-success': roll.critical_success,
+                             'critical-failure': roll.critical_failure
+                         }"
+                         x-text="roll.total">
+                    </div>
+                    <div class="roll-breakdown" x-text="roll.breakdown"></div>
                 </div>
-            </div>
+            </template>
 
             <!-- Dice roll toasts (global floating UI) -->
             <!-- Rolling indicator toast -->
