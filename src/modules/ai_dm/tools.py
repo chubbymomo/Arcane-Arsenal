@@ -471,8 +471,10 @@ def _create_npc(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Di
             logger.info(f"  → Added CharacterDetails: class={npc_class}, level={level}")
         # Note: This will trigger auto-add of Magic/Skills components via events if applicable
 
-    # Add NPC component
+    # Add NPC component (includes race and occupation)
     result = engine.add_component(npc_id, 'NPC', {
+        'race': race,
+        'occupation': occupation,
         'disposition': disposition,
         'dialogue_state': 'initial',
         'met_player': False
@@ -480,7 +482,7 @@ def _create_npc(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Di
     if not result.success:
         logger.error(f"  ✗ Failed to add NPC component: {result.error}")
         return {"success": False, "message": f"Failed to add NPC component: {result.error}"}
-    logger.info(f"  → Added NPC component: disposition={disposition}")
+    logger.info(f"  → Added NPC component: race={race}, occupation={occupation}, disposition={disposition}")
 
     # Add Position component - entity-based hierarchical positioning
     location_name = tool_input.get("location_name")

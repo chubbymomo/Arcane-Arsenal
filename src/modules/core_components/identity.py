@@ -44,18 +44,10 @@ class IdentityComponent(ComponentTypeDefinition):
                 "description": {
                     "type": "string",
                     "minLength": 1
-                },
-                "race": {
-                    "type": "string",
-                    "description": "Entity's race (for NPCs and characters)"
-                },
-                "occupation": {
-                    "type": "string",
-                    "description": "Entity's occupation or role"
                 }
             },
             "required": ["description"],
-            "additionalProperties": True  # Allow flexible identity data
+            "additionalProperties": False
         }
 
     def get_ui_metadata(self) -> Dict[str, Dict[str, Any]]:

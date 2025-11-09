@@ -274,12 +274,21 @@ class AIContextBuilder:
             'id': entity.id
         }
 
-        # Include Identity component for richer context
+        # Include Identity component for description
         identity = self.engine.get_component(entity.id, 'Identity')
         if identity:
             entity_info['description'] = identity.data.get('description', '')
-            entity_info['race'] = identity.data.get('race', '')
-            entity_info['occupation'] = identity.data.get('occupation', '')
+
+        # Get race and occupation from NPC component (for NPCs)
+        npc = self.engine.get_component(entity.id, 'NPC')
+        if npc:
+            entity_info['race'] = npc.data.get('race', '')
+            entity_info['occupation'] = npc.data.get('occupation', '')
+
+        # Get race from CharacterDetails (for player characters)
+        char_details = self.engine.get_component(entity.id, 'CharacterDetails')
+        if char_details and not entity_info.get('race'):
+            entity_info['race'] = char_details.data.get('race', '')
 
         return entity_info
 
