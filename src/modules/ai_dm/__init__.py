@@ -10,8 +10,10 @@ Provides an AI-powered DM that can:
 
 Components:
 - ChatMessage: Individual messages in the conversation
-- Conversation: Chat history tracking
-- DMDisplay: UI component for the chat interface
+- Conversation: Chat history tracking (data only, UI on dedicated page)
+
+Dependencies:
+- dm_tools: Provides core DM functionality and time management
 
 Philosophy:
 The AI DM is a collaborative storyteller that enhances gameplay without
@@ -21,7 +23,7 @@ replacing player agency. It suggests actions but lets players make choices.
 import logging
 from typing import List, Optional, Any
 from ..base import Module, ComponentTypeDefinition
-from .components import ChatMessageComponent, ConversationComponent, DMDisplayComponent
+from .components import ChatMessageComponent, ConversationComponent
 from src.core.event_bus import Event
 
 logger = logging.getLogger(__name__)
@@ -56,37 +58,27 @@ class AIDMModule(Module):
         return "Conversational AI Dungeon Master with suggested actions and chat interface"
 
     def dependencies(self) -> List[str]:
-        """AI DM depends on core_components."""
-        return ['core_components']
+        """AI DM depends on dm_tools for core DM functionality."""
+        return ['dm_tools']
 
     def initialize(self, engine) -> None:
         """
         Initialize AI DM module.
 
-        Sets up event subscriptions and auto-adds DMDisplay to PlayerCharacter entities.
+        Sets up event subscriptions and auto-adds Conversation to PlayerCharacter entities.
         """
         self.engine = engine
 
-        # Subscribe to component.added to auto-add DMDisplay to new PlayerCharacter entities
+        # Subscribe to component.added to auto-add Conversation to new PlayerCharacter entities
         engine.event_bus.subscribe('component.added', self.on_component_added)
 
-        # Auto-add DMDisplay component to all existing PlayerCharacter entities
+        # Auto-add Conversation component to all existing PlayerCharacter entities
         try:
             player_characters = engine.query_entities(['PlayerCharacter'])
             for pc in player_characters:
-                # Check if DMDisplay already exists
-                if not engine.get_component(pc.id, 'DMDisplay'):
-                    # Add DMDisplay component with default settings
-                    engine.add_component(pc.id, 'DMDisplay', {
-                        'show_suggested_actions': True,
-                        'show_timestamps': True,
-                        'max_visible_messages': 20,
-                        'auto_scroll': True
-                    })
-                    logger.info(f"Added DMDisplay component to player character {pc.name} ({pc.id})")
-
-                # Also add Conversation component if missing
+                # Check if Conversation already exists
                 if not engine.get_component(pc.id, 'Conversation'):
+                    # Add Conversation component
                     engine.add_component(pc.id, 'Conversation', {
                         'message_ids': [],
                         'active': True
@@ -94,29 +86,16 @@ class AIDMModule(Module):
                     logger.info(f"Added Conversation component to player character {pc.name} ({pc.id})")
 
         except Exception as e:
-            logger.warning(f"Could not auto-add AI DM components: {e}")
+            logger.warning(f"Could not auto-add Conversation components: {e}")
 
     def on_component_added(self, event: Event) -> None:
-        """Auto-add DMDisplay and Conversation when PlayerCharacter component is added."""
+        """Auto-add Conversation when PlayerCharacter component is added."""
         if not hasattr(self, 'engine'):
             return
 
-        # If PlayerCharacter component was added, add DMDisplay and Conversation too
+        # If PlayerCharacter component was added, add Conversation too
         if event.data.get('component_type') == 'PlayerCharacter':
             entity_id = event.entity_id
-
-            # Add DMDisplay if missing
-            if not self.engine.get_component(entity_id, 'DMDisplay'):
-                try:
-                    self.engine.add_component(entity_id, 'DMDisplay', {
-                        'show_suggested_actions': True,
-                        'show_timestamps': True,
-                        'max_visible_messages': 20,
-                        'auto_scroll': True
-                    })
-                    logger.info(f"Auto-added DMDisplay component to new player character {entity_id}")
-                except Exception as e:
-                    logger.warning(f"Could not auto-add DMDisplay to {entity_id}: {e}")
 
             # Add Conversation if missing
             if not self.engine.get_component(entity_id, 'Conversation'):
@@ -130,11 +109,10 @@ class AIDMModule(Module):
                     logger.warning(f"Could not auto-add Conversation to {entity_id}: {e}")
 
     def register_component_types(self) -> List[ComponentTypeDefinition]:
-        """Register ChatMessage, Conversation, and DMDisplay components."""
+        """Register ChatMessage and Conversation components."""
         return [
             ChatMessageComponent(),
-            ConversationComponent(),
-            DMDisplayComponent()
+            ConversationComponent()
         ]
 
     def register_blueprint(self) -> Optional[Any]:

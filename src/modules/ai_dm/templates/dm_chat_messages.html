@@ -29,7 +29,7 @@
                 <strong style="color: {{ speaker_color }}; font-family: 'Cinzel', serif; font-size: 1.1rem;">
                     {{ speaker_name }}
                 </strong>
-                {% if dm_display_data.get('show_timestamps') and timestamp %}
+                {% if ui_settings.get('show_timestamps') and timestamp %}
                     <span style="font-size: 0.85rem; color: #6a5a7a;">
                         {{ timestamp.split('T')[1].split('.')[0] if 'T' in timestamp else timestamp }}
                     </span>
@@ -39,7 +39,7 @@
                 {{ message_text }}
             </div>
 
-            {% if dm_display_data.get('show_suggested_actions') and suggested_actions %}
+            {% if ui_settings.get('show_suggested_actions') and suggested_actions %}
                 <div style="margin-top: 1rem; display: flex; flex-wrap: wrap; gap: 0.75rem;">
                     {% for action in suggested_actions %}
                         <button class="dm-suggested-action"

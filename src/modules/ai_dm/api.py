@@ -85,17 +85,6 @@ def dm_chat_page(entity_id: str):
             flash('Character not found', 'error')
             return redirect(url_for('client.index'))
 
-        # Get or create DMDisplay component
-        dm_display = engine.get_component(entity_id, 'DMDisplay')
-        if not dm_display:
-            engine.add_component(entity_id, 'DMDisplay', {
-                'show_suggested_actions': True,
-                'show_timestamps': True,
-                'max_visible_messages': 20,
-                'auto_scroll': True
-            })
-            dm_display = engine.get_component(entity_id, 'DMDisplay')
-
         # Get or create Conversation component
         conversation = engine.get_component(entity_id, 'Conversation')
         if not conversation:
@@ -119,11 +108,17 @@ def dm_chat_page(entity_id: str):
                             'data': msg_comp.data
                         })
 
+        # Hardcoded UI preferences (no component needed)
+        ui_settings = {
+            'show_suggested_actions': True,
+            'show_timestamps': True
+        }
+
         return render_template(
             'dm_chat.html',
             entity=entity,
             messages=messages,
-            dm_display_data=dm_display.data if dm_display else {}
+            ui_settings=ui_settings
         )
 
     except Exception as e:
@@ -296,15 +291,11 @@ def api_chat_display(entity_id: str):
         if not entity:
             return '<p>Error: Entity not found</p>', 404
 
-        # Get DMDisplay component for settings
-        dm_display = engine.get_component(entity_id, 'DMDisplay')
-        if not dm_display:
-            dm_display_data = {
-                'show_suggested_actions': True,
-                'show_timestamps': True
-            }
-        else:
-            dm_display_data = dm_display.data
+        # Hardcoded UI settings (no component needed)
+        ui_settings = {
+            'show_suggested_actions': True,
+            'show_timestamps': True
+        }
 
         # Get conversation messages
         conversation = engine.get_component(entity_id, 'Conversation')
@@ -326,7 +317,7 @@ def api_chat_display(entity_id: str):
             'dm_chat_messages.html',
             entity=entity,
             messages=messages,
-            dm_display_data=dm_display_data
+            ui_settings=ui_settings
         ), 200, {'Content-Type': 'text/html; charset=utf-8'}
 
     except Exception as e:
