@@ -31,9 +31,16 @@ def require_world(f):
 
 
 def get_engine() -> StateEngine:
-    """Get StateEngine instance for current world from session."""
-    world_path = session.get('world_path')
-    return StateEngine(world_path)
+    """Get the cached StateEngine for the current world."""
+    world_name = session.get('world_name')
+    if not world_name:
+        raise ValueError('No world selected')
+
+    engine = current_app.engine_instances.get(world_name)
+    if not engine:
+        raise ValueError(f'StateEngine not initialized for world: {world_name}')
+
+    return engine
 
 
 # ========== View Endpoints ==========
