@@ -100,7 +100,6 @@ def character_builder():
         # Handle starting scenario selection
         scenario_type = request.form.get('scenario_type', 'default')
         region = 'The Realm'  # Default
-        needs_ai_intro = False
 
         if scenario_type == 'join_players':
             # Join existing players at their location
@@ -124,9 +123,8 @@ def character_builder():
             }
             region = scenario_regions.get(scenario_key, 'The Realm')
         elif scenario_type == 'ai_generated':
-            # AI will generate a custom starting scenario
+            # AI will generate a custom starting scenario during character creation
             region = 'The Realm'  # Placeholder - AI will describe the real location
-            needs_ai_intro = True
         # else: scenario_type == 'default', region already set to 'The Realm'
 
         # Fantasy-specific fields (only present if generic_fantasy module loaded)
@@ -173,10 +171,8 @@ def character_builder():
                 'region': region
             })
 
-            # Add PlayerCharacter component with AI intro flag
-            engine.add_component(entity_id, 'PlayerCharacter', {
-                'needs_ai_intro': needs_ai_intro
-            })
+            # Add PlayerCharacter component (marker - no data needed)
+            engine.add_component(entity_id, 'PlayerCharacter', {})
 
             # Add Attributes component (only if generic_fantasy module loaded)
             if has_attributes:
@@ -202,6 +198,66 @@ def character_builder():
                     char_details['alignment'] = alignment
 
                 engine.add_component(entity_id, 'CharacterDetails', char_details)
+
+            # Generate AI intro if requested (one-time event during creation)
+            if scenario_type == 'ai_generated':
+                try:
+                    from datetime import datetime
+                    from src.modules.ai_dm.llm_client import get_llm_client, LLMError
+                    from src.modules.ai_dm.prompts import build_full_prompt
+                    from src.modules.ai_dm.response_parser import parse_dm_response
+                    from src.core.config import get_config
+
+                    # Create Conversation component
+                    engine.add_component(entity_id, 'Conversation', {
+                        'message_ids': []
+                    })
+
+                    # Build context and generate intro
+                    ai_context = engine.generate_ai_context(entity_id)
+                    full_system_prompt = build_full_prompt(ai_context)
+
+                    intro_prompt = (
+                        "This is the very beginning of the adventure. "
+                        "Create an engaging opening scene that introduces the character to their starting location. "
+                        "Set the mood, describe the environment, and present an initial situation that draws them in. "
+                        "Remember: no meta-gaming, just vivid narrative."
+                    )
+
+                    config = get_config()
+                    llm = get_llm_client(config)
+                    raw_response = llm.generate_response(
+                        messages=[{'role': 'user', 'content': intro_prompt}],
+                        system=full_system_prompt,
+                        max_tokens=config.ai_max_tokens,
+                        temperature=config.ai_temperature
+                    )
+
+                    intro_text, intro_actions = parse_dm_response(raw_response)
+
+                    # Create intro message entity
+                    dm_msg_result = engine.create_entity("DM intro message")
+                    if dm_msg_result.success:
+                        dm_msg_id = dm_msg_result.data['id']
+
+                        engine.add_component(dm_msg_id, 'ChatMessage', {
+                            'speaker': 'dm',
+                            'speaker_name': 'Dungeon Master',
+                            'message': intro_text,
+                            'timestamp': datetime.utcnow().isoformat(),
+                            'suggested_actions': intro_actions
+                        })
+
+                        # Add to conversation
+                        engine.update_component(entity_id, 'Conversation', {
+                            'message_ids': [dm_msg_id]
+                        })
+
+                        logger.info(f"Generated AI intro for character {entity_id}")
+
+                except Exception as e:
+                    logger.error(f"Failed to generate AI intro: {e}")
+                    # Non-fatal - character still created, just no intro
 
             flash(f'Character "{name}" created successfully!', 'success')
             return redirect(url_for('client.character_sheet', entity_id=entity_id))
