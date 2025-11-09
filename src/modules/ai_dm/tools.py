@@ -811,53 +811,109 @@ def _create_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> D
 
 
 def _roll_dice(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
-    """Roll dice and return results."""
-    import random
-    import re
+    """
+    Roll dice using the RNG module's event-driven system.
 
+    This integrates with the RNG module so rolls are saved to roll history
+    and displayed in the player's character sheet.
+    """
     dice_notation = tool_input["dice_notation"]
     reason = tool_input["reason"]
     skill = tool_input.get("skill")
     difficulty = tool_input.get("difficulty")
 
-    # Parse dice notation (e.g., "1d20+5", "2d6")
-    match = re.match(r'(\d+)d(\d+)([+-]\d+)?', dice_notation.lower())
-    if not match:
-        return {"success": False, "message": f"Invalid dice notation: {dice_notation}"}
+    # Determine roll type based on skill or default to skill_check
+    roll_type = "skill_check"
+    if skill:
+        # Map common skills to roll types if needed
+        # For now, everything is a skill_check
+        roll_type = "skill_check"
 
-    num_dice = int(match.group(1))
-    die_size = int(match.group(2))
-    modifier = int(match.group(3)) if match.group(3) else 0
+    # Publish roll.initiated event - RNG module will process it
+    from src.core.event_bus import Event
 
-    # Roll the dice
-    rolls = [random.randint(1, die_size) for _ in range(num_dice)]
-    total = sum(rolls) + modifier
+    roll_event = Event.create(
+        event_type='roll.initiated',
+        entity_id=player_entity_id,
+        actor_id=player_entity_id,
+        data={
+            'entity_id': player_entity_id,
+            'notation': dice_notation,
+            'roll_type': roll_type,
+            'purpose': reason
+        }
+    )
+
+    engine.event_bus.publish(roll_event)
+
+    # Wait for roll.completed event (synchronous for tool execution)
+    # Subscribe temporarily to get the result
+    result_data = {}
+    def capture_result(event):
+        if event.entity_id == player_entity_id:
+            result_data.update(event.data)
+
+    # Subscribe to roll.completed
+    engine.event_bus.subscribe('roll.completed', capture_result)
+
+    # Process events (the RNG module's handler runs synchronously)
+    # The event should be processed immediately since we're in the same thread
+    import time
+    max_wait = 1.0  # Maximum 1 second wait
+    start = time.time()
+    while not result_data and (time.time() - start) < max_wait:
+        time.sleep(0.01)  # Small delay to let event process
+
+    # Unsubscribe
+    engine.event_bus.unsubscribe('roll.completed', capture_result)
+
+    if not result_data:
+        # Fallback: event system didn't work, log error
+        logger.error(f"Roll event did not complete for {dice_notation}")
+        return {
+            "success": False,
+            "message": _format_error("Roll system error - check logs")
+        }
+
+    # Extract result data
+    total = result_data.get('total', 0)
+    breakdown = result_data.get('breakdown', '')
+    critical_success = result_data.get('critical_success', False)
+    critical_failure = result_data.get('critical_failure', False)
 
     # Determine success if DC provided
     success_result = None
     if difficulty:
         success_result = total >= difficulty
 
-    result_msg = f"Rolled {dice_notation}: {rolls} "
-    if modifier:
-        result_msg += f"+ {modifier} "
-    result_msg += f"= {total}"
+    # Build result message
+    result_msg = f"Rolled {dice_notation}: {breakdown}"
 
     if difficulty:
-        result_msg += f" (DC {difficulty}: {'SUCCESS' if success_result else 'FAILURE'})"
+        if success_result:
+            result_msg += f" (DC {difficulty}: SUCCESS ✓)"
+        else:
+            result_msg += f" (DC {difficulty}: FAILURE ✗)"
 
-    logger.info(f"Dice roll: {result_msg} - Reason: {reason}")
+    if critical_success:
+        result_msg += " 🎯 CRITICAL SUCCESS!"
+    elif critical_failure:
+        result_msg += " 💥 CRITICAL FAILURE!"
+
+    logger.info(f"Dice roll via RNG module: {result_msg} - Reason: {reason}")
+
     return {
         "success": True,
         "message": result_msg,
         "data": {
-            "rolls": rolls,
-            "modifier": modifier,
             "total": total,
+            "breakdown": breakdown,
             "difficulty": difficulty,
             "success": success_result,
             "skill": skill,
-            "reason": reason
+            "reason": reason,
+            "critical_success": critical_success,
+            "critical_failure": critical_failure
         }
     }
 
