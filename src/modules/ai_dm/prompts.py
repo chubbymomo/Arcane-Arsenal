@@ -177,20 +177,66 @@ def build_context_prompt(ai_context: Dict[str, Any]) -> str:
     inventory = ai_context.get('inventory', [])
     if inventory:
         prompt_parts.append("## Inventory")
+
+        # Calculate total gold/wealth
+        total_gold = 0
+        for item in inventory:
+            value = item.get('value', 0)
+            quantity = item.get('quantity', 1)
+            if item.get('type') == 'currency' or 'gold' in item.get('name', '').lower():
+                total_gold += value * quantity
+            else:
+                # Count item value as sellable wealth
+                pass
+
+        # Show gold prominently
+        if total_gold > 0:
+            prompt_parts.append(f"**💰 Gold:** {total_gold} gp")
+        else:
+            prompt_parts.append(f"**💰 Gold:** 0 gp (no money!)")
+
         equipped = [item for item in inventory if item.get('equipped')]
         carried = [item for item in inventory if not item.get('equipped')]
 
         if equipped:
-            equipped_str = ', '.join([item['name'] for item in equipped])
-            prompt_parts.append(f"**Equipped:** {equipped_str}")
+            equipped_items = []
+            for item in equipped:
+                name = item['name']
+                value = item.get('value', 0)
+                qty = item.get('quantity', 1)
+                if qty > 1:
+                    equipped_items.append(f"{name} x{qty} ({value}gp ea)")
+                elif value > 0:
+                    equipped_items.append(f"{name} ({value}gp)")
+                else:
+                    equipped_items.append(name)
+            prompt_parts.append(f"**Equipped:** {', '.join(equipped_items)}")
 
         if carried:
-            carried_names = [item['name'] for item in carried[:5]]  # Top 5
-            more = len(carried) - 5
-            carried_str = ', '.join(carried_names)
-            if more > 0:
-                carried_str += f", and {more} more items"
-            prompt_parts.append(f"**Carried:** {carried_str}")
+            carried_items = []
+            for item in carried[:10]:  # Show top 10
+                name = item['name']
+                value = item.get('value', 0)
+                qty = item.get('quantity', 1)
+                item_type = item.get('type', 'misc')
+
+                # Skip currency items (already counted in gold)
+                if item_type == 'currency' or 'gold' in name.lower():
+                    continue
+
+                if qty > 1:
+                    carried_items.append(f"{name} x{qty} ({value}gp ea)")
+                elif value > 0:
+                    carried_items.append(f"{name} ({value}gp)")
+                else:
+                    carried_items.append(name)
+
+            more = len(carried) - 10
+            if carried_items:
+                carried_str = ', '.join(carried_items)
+                if more > 0:
+                    carried_str += f", and {more} more items"
+                prompt_parts.append(f"**Carried:** {carried_str}")
 
         prompt_parts.append("")  # Blank line
 
