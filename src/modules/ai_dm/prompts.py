@@ -186,7 +186,7 @@ def build_context_prompt(ai_context: Dict[str, Any]) -> str:
     return "\n".join(prompt_parts)
 
 
-def build_message_history(messages: List[Dict], limit: int = 10) -> List[Dict[str, str]]:
+def build_message_history(messages: List[Dict], limit: int = 10, player_message: str = None) -> List[Dict[str, str]]:
     """
     Convert conversation messages to LLM format.
 
@@ -196,17 +196,18 @@ def build_message_history(messages: List[Dict], limit: int = 10) -> List[Dict[st
     Args:
         messages: List of message dicts from conversation history
         limit: Maximum number of messages to include (default: 10)
+        player_message: Optional current player message to append
 
     Returns:
         List of formatted messages for LLM
 
     Example:
         >>> messages = context['conversation']
-        >>> llm_messages = build_message_history(messages)
+        >>> llm_messages = build_message_history(messages, player_message="I search the room")
         >>> print(llm_messages)
         [
-            {'role': 'user', 'content': 'I search the room'},
-            {'role': 'assistant', 'content': 'You find a hidden door...'}
+            {'role': 'assistant', 'content': 'You find a hidden door...'},
+            {'role': 'user', 'content': 'I search the room'}
         ]
     """
     llm_messages = []
@@ -229,22 +230,32 @@ def build_message_history(messages: List[Dict], limit: int = 10) -> List[Dict[st
                 'content': content
             })
 
+    # Add current player message if provided
+    if player_message:
+        llm_messages.append({
+            'role': 'user',
+            'content': player_message
+        })
+
     logger.debug(f"Built {len(llm_messages)} messages for LLM context")
     return llm_messages
 
 
 def build_full_prompt(
     ai_context: Dict[str, Any],
-    system_prompt: str = None
+    system_prompt: str = None,
+    include_tool_docs: bool = True
 ) -> str:
     """
     Build complete system prompt with context.
 
-    Combines the DM system prompt with current game state context.
+    Combines the DM system prompt with current game state context and
+    dynamically generated tool documentation.
 
     Args:
         ai_context: Context from engine.generate_ai_context()
         system_prompt: System prompt text (loads from file if not provided)
+        include_tool_docs: Whether to include dynamic tool documentation (default: True)
 
     Returns:
         Complete system prompt with context
@@ -263,8 +274,22 @@ def build_full_prompt(
 
     context_prompt = build_context_prompt(ai_context)
 
-    # Combine system prompt with context
-    full_prompt = f"{system_prompt}\n\n---\n\n# Current Game State\n\n{context_prompt}"
+    # Build prompt sections
+    prompt_sections = [system_prompt]
+
+    # Add dynamic tool documentation if requested
+    if include_tool_docs:
+        try:
+            from .tools import generate_tool_documentation
+            tool_docs = generate_tool_documentation()
+            prompt_sections.append(f"---\n\n{tool_docs}")
+        except ImportError:
+            logger.warning("Could not import tool documentation generator")
+
+    # Add current game state
+    prompt_sections.append(f"---\n\n# Current Game State\n\n{context_prompt}")
+
+    full_prompt = "\n\n".join(prompt_sections)
 
     logger.debug(f"Built full prompt: {len(full_prompt)} characters")
     return full_prompt
