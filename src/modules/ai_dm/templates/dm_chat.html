@@ -283,6 +283,65 @@ function sendDMMessage() {
 
                                 // Auto-scroll
                                 messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                            } else if (data.type === 'tool_start') {
+                                // Remove cursor if present
+                                const cursor = streamingTextDiv.querySelector('.cursor-blink');
+                                if (cursor) cursor.remove();
+
+                                // Show tool execution indicator
+                                const toolDiv = document.createElement('div');
+                                toolDiv.className = 'tool-execution';
+                                toolDiv.style.cssText = `
+                                    color: #8e44ad;
+                                    font-style: italic;
+                                    margin: 0.5rem 0;
+                                    padding: 0.5rem;
+                                    background: rgba(142, 68, 173, 0.1);
+                                    border-left: 3px solid #8e44ad;
+                                    border-radius: 4px;
+                                `;
+                                toolDiv.innerHTML = `🔧 Using tool: <strong>${escapeHtml(data.tool_name)}</strong>...`;
+                                streamingTextDiv.appendChild(toolDiv);
+
+                                // Add cursor back at end
+                                const newCursor = document.createElement('span');
+                                newCursor.className = 'cursor-blink';
+                                newCursor.textContent = '▊';
+                                streamingTextDiv.appendChild(newCursor);
+
+                                // Auto-scroll
+                                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                            } else if (data.type === 'tool_result') {
+                                // Remove cursor if present
+                                const cursor = streamingTextDiv.querySelector('.cursor-blink');
+                                if (cursor) cursor.remove();
+
+                                // Show tool result
+                                const resultDiv = document.createElement('div');
+                                resultDiv.className = 'tool-result';
+                                const success = data.result && data.result.success;
+                                const message = data.result ? data.result.message : 'Unknown result';
+
+                                resultDiv.style.cssText = `
+                                    color: ${success ? '#27ae60' : '#e74c3c'};
+                                    font-style: italic;
+                                    margin: 0.5rem 0;
+                                    padding: 0.5rem;
+                                    background: ${success ? 'rgba(39, 174, 96, 0.1)' : 'rgba(231, 76, 60, 0.1)'};
+                                    border-left: 3px solid ${success ? '#27ae60' : '#e74c3c'};
+                                    border-radius: 4px;
+                                `;
+                                resultDiv.innerHTML = `${success ? '✓' : '✗'} ${escapeHtml(message)}`;
+                                streamingTextDiv.appendChild(resultDiv);
+
+                                // Add cursor back at end
+                                const newCursor = document.createElement('span');
+                                newCursor.className = 'cursor-blink';
+                                newCursor.textContent = '▊';
+                                streamingTextDiv.appendChild(newCursor);
+
+                                // Auto-scroll
+                                messagesDiv.scrollTop = messagesDiv.scrollHeight;
                             } else if (data.type === 'done') {
                                 // Remove cursor
                                 const cursor = streamingTextDiv.querySelector('.cursor-blink');

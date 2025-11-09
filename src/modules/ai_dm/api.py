@@ -552,11 +552,12 @@ def send_dm_message_stream():
                 'last_message_time': timestamp
             })
 
-            # Generate DM response using streaming LLM
+            # Generate DM response using streaming LLM with tools
             try:
                 from .llm_client import get_llm_client, LLMError
                 from .prompts import build_full_prompt, build_message_history
                 from .response_parser import parse_dm_response, get_fallback_actions
+                from .tools import get_tool_definitions, execute_tool
                 from src.core.config import get_config
 
                 logger.info(f"Generating streaming AI response for entity {entity_id}")
@@ -575,22 +576,82 @@ def send_dm_message_stream():
                 full_system_prompt = build_full_prompt(ai_context)
                 llm_messages = build_message_history(conversation_messages, player_message=message)
 
-                # Get LLM client and stream response
+                # Get LLM client and tool definitions
                 config = get_config()
                 llm = get_llm_client(config)
+                tools = get_tool_definitions()
 
-                # Accumulate full response for parsing
+                # Convert tools to Anthropic format
+                anthropic_tools = []
+                for tool in tools:
+                    anthropic_tools.append({
+                        "name": tool["name"],
+                        "description": tool["description"],
+                        "input_schema": tool["input_schema"]
+                    })
+
+                # Accumulate full response and tool uses
                 full_response = ""
+                current_tool = None
+                tool_input_json = ""
+                tool_results = []
 
-                # Stream the response
+                # Stream the response with tools
                 for chunk in llm.generate_response_stream(
                     messages=llm_messages,
                     system=full_system_prompt,
                     max_tokens=config.ai_max_tokens,
-                    temperature=config.ai_temperature
+                    temperature=config.ai_temperature,
+                    tools=anthropic_tools if anthropic_tools else None
                 ):
-                    full_response += chunk
-                    yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
+                    if chunk['type'] == 'text':
+                        # Stream text to user
+                        full_response += chunk['content']
+                        yield f"data: {json.dumps({'type': 'token', 'content': chunk['content']})}\n\n"
+
+                    elif chunk['type'] == 'tool_use_start':
+                        # AI wants to use a tool
+                        current_tool = {
+                            'id': chunk['tool_use_id'],
+                            'name': chunk['tool_name']
+                        }
+                        tool_input_json = ""
+                        # Notify frontend
+                        yield f"data: {json.dumps({'type': 'tool_start', 'tool_name': chunk['tool_name']})}\n\n"
+                        logger.info(f"AI using tool: {chunk['tool_name']}")
+
+                    elif chunk['type'] == 'tool_input_delta':
+                        # Accumulate tool input JSON
+                        tool_input_json += chunk['partial_json']
+
+                # Execute any tools that were called
+                if current_tool and tool_input_json:
+                    try:
+                        tool_input = json.loads(tool_input_json)
+                        logger.info(f"Executing tool {current_tool['name']} with input: {tool_input}")
+
+                        # Execute the tool
+                        result = execute_tool(
+                            current_tool['name'],
+                            tool_input,
+                            engine,
+                            entity_id
+                        )
+
+                        tool_results.append(result)
+
+                        # Notify frontend
+                        yield f"data: {json.dumps({'type': 'tool_result', 'tool_name': current_tool['name'], 'result': result})}\n\n"
+
+                        # Add tool result to narrative if successful
+                        if result['success']:
+                            full_response += f"\n\n{result['message']}"
+                        else:
+                            full_response += f"\n\n[Tool failed: {result['message']}]"
+
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Failed to parse tool input: {e}")
+                        yield f"data: {json.dumps({'type': 'error', 'error': 'Tool input parsing failed'})}\n\n"
 
                 # Parse complete response for actions
                 narrative, suggested_actions = parse_dm_response(full_response)
