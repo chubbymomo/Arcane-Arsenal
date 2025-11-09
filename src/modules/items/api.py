@@ -271,4 +271,54 @@ def api_unequip_item():
         }), 500
 
 
+@items_bp.route('/api/inventory_display/<entity_id>')
+def api_inventory_display(entity_id: str):
+    """
+    HTML API: Get rendered inventory display for an entity.
+
+    This endpoint returns just the inventory display HTML without reloading
+    the entire page, allowing for smooth updates without WebSocket reconnection.
+
+    Returns:
+        HTML string of the inventory display
+    """
+    try:
+        world_name = session.get('world_name')
+        if not world_name:
+            return '<p>Error: No world selected</p>', 400
+
+        # Get the cached StateEngine for this world
+        engine = current_app.engine_instances.get(world_name)
+        if not engine:
+            return '<p>Error: StateEngine not initialized</p>', 500
+
+        # Get entity to verify it exists
+        entity = engine.get_entity(entity_id)
+        if not entity:
+            return '<p>Error: Entity not found</p>', 404
+
+        # Get InventoryDisplay component
+        inventory_display = engine.get_component(entity_id, 'InventoryDisplay')
+        if not inventory_display:
+            return '<p>No inventory display component found</p>', 404
+
+        # Get the component definition to call its renderer
+        comp_def = engine.component_validators.get('InventoryDisplay')
+        if not comp_def:
+            return '<p>Error: InventoryDisplay component definition not found</p>', 500
+
+        # Render the inventory display
+        html = comp_def.get_character_sheet_renderer(
+            inventory_display.data,
+            engine,
+            entity_id
+        )
+
+        return html, 200, {'Content-Type': 'text/html; charset=utf-8'}
+
+    except Exception as e:
+        logger.error(f"Error rendering inventory display for entity {entity_id}: {e}", exc_info=True)
+        return f'<p>Error: {str(e)}</p>', 500
+
+
 __all__ = ['items_bp']
