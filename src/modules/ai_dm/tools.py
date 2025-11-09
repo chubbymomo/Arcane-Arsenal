@@ -829,7 +829,17 @@ def _roll_dice(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dic
         # For now, everything is a skill_check
         roll_type = "skill_check"
 
-    # Publish roll.initiated event - RNG module will process it
+    # Subscribe to roll.completed BEFORE publishing roll.initiated
+    # (Events are processed synchronously, so we need to subscribe first)
+    result_data = {}
+    def capture_result(event):
+        if event.entity_id == player_entity_id:
+            result_data.update(event.data)
+
+    # Subscribe FIRST (before publishing event)
+    engine.event_bus.subscribe('roll.completed', capture_result)
+
+    # Now publish roll.initiated event - RNG module will process it synchronously
     from src.core.event_bus import Event
 
     roll_event = Event.create(
@@ -846,25 +856,8 @@ def _roll_dice(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dic
 
     engine.event_bus.publish(roll_event)
 
-    # Wait for roll.completed event (synchronous for tool execution)
-    # Subscribe temporarily to get the result
-    result_data = {}
-    def capture_result(event):
-        if event.entity_id == player_entity_id:
-            result_data.update(event.data)
-
-    # Subscribe to roll.completed
-    engine.event_bus.subscribe('roll.completed', capture_result)
-
-    # Process events (the RNG module's handler runs synchronously)
-    # The event should be processed immediately since we're in the same thread
-    import time
-    max_wait = 1.0  # Maximum 1 second wait
-    start = time.time()
-    while not result_data and (time.time() - start) < max_wait:
-        time.sleep(0.01)  # Small delay to let event process
-
-    # Unsubscribe
+    # Event is processed synchronously, result_data should be populated immediately
+    # Unsubscribe right away
     engine.event_bus.unsubscribe('roll.completed', capture_result)
 
     if not result_data:
