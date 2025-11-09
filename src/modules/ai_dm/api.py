@@ -108,6 +108,89 @@ def dm_chat_page(entity_id: str):
                             'data': msg_comp.data
                         })
 
+        # Check if we need to generate an AI intro (empty conversation + needs_ai_intro flag)
+        if len(messages) == 0:
+            player_comp = engine.get_component(entity_id, 'PlayerCharacter')
+            if player_comp and player_comp.data.get('needs_ai_intro', False):
+                # Generate AI opening scene
+                try:
+                    from .llm_client import get_llm_client, LLMError
+                    from .prompts import build_full_prompt
+                    from .response_parser import parse_dm_response, get_fallback_actions
+                    from src.core.config import get_config
+                    from datetime import datetime
+
+                    logger.info(f"Generating AI intro for {entity_id}")
+
+                    # Build context for intro generation
+                    ai_context = engine.generate_ai_context(entity_id)
+                    full_system_prompt = build_full_prompt(ai_context)
+
+                    # Specific prompt for generating opening scene
+                    intro_prompt = (
+                        "This is the very beginning of the adventure. "
+                        "Create an engaging opening scene that introduces the character to their starting location. "
+                        "Set the mood, describe the environment, and present an initial situation that draws them in. "
+                        "Remember: no meta-gaming, just vivid narrative."
+                    )
+
+                    # Call LLM
+                    config = get_config()
+                    llm = get_llm_client(config)
+                    raw_response = llm.generate_response(
+                        messages=[{'role': 'user', 'content': intro_prompt}],
+                        system=full_system_prompt,
+                        max_tokens=config.ai_max_tokens,
+                        temperature=config.ai_temperature
+                    )
+
+                    # Parse response
+                    intro_text, intro_actions = parse_dm_response(raw_response)
+
+                    # Create DM message entity for intro
+                    dm_msg_result = engine.create_entity("DM intro message")
+                    if dm_msg_result.success:
+                        dm_msg_id = dm_msg_result.data['id']
+
+                        engine.add_component(dm_msg_id, 'ChatMessage', {
+                            'speaker': 'dm',
+                            'speaker_name': 'Dungeon Master',
+                            'message': intro_text,
+                            'timestamp': datetime.utcnow().isoformat(),
+                            'suggested_actions': intro_actions
+                        })
+
+                        # Add to conversation
+                        message_ids.append(dm_msg_id)
+                        engine.update_component(entity_id, 'Conversation', {
+                            'message_ids': message_ids
+                        })
+
+                        # Add to messages list for rendering
+                        messages.append({
+                            'id': dm_msg_id,
+                            'data': {
+                                'speaker': 'dm',
+                                'speaker_name': 'Dungeon Master',
+                                'message': intro_text,
+                                'timestamp': datetime.utcnow().isoformat(),
+                                'suggested_actions': intro_actions
+                            }
+                        })
+
+                        # Clear the needs_ai_intro flag
+                        engine.update_component(entity_id, 'PlayerCharacter', {
+                            'needs_ai_intro': False
+                        })
+
+                        logger.info(f"AI intro generated successfully for {entity_id}")
+
+                except LLMError as e:
+                    logger.error(f"Failed to generate AI intro: {e}")
+                    # Continue without intro - user can start conversation manually
+                except Exception as e:
+                    logger.error(f"Unexpected error generating AI intro: {e}", exc_info=True)
+
         # Hardcoded UI preferences (no component needed)
         ui_settings = {
             'show_suggested_actions': True,
