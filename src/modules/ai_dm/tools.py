@@ -190,7 +190,7 @@ _CORE_TOOL_DEFINITIONS = [
     },
     {
         "name": "create_item",
-        "description": "Create a new item that can be interacted with or acquired. Use this for loot, quest items, or notable objects.",
+        "description": "Create a new item with a specified owner. All items must be owned by an entity (location, NPC, player, container, etc.) from creation. Use this for loot, quest items, or notable objects.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -201,6 +201,10 @@ _CORE_TOOL_DEFINITIONS = [
                 "description": {
                     "type": "string",
                     "description": "Detailed description of the item"
+                },
+                "owned_by_entity_name": {
+                    "type": "string",
+                    "description": "Name of the entity that owns this item. Can be a location (e.g., 'Treasure Chest', 'Ancient Tomb'), NPC (e.g., 'Merchant'), or 'player'. Items on the ground should be owned by their location."
                 },
                 "weight": {
                     "type": "number",
@@ -213,13 +217,9 @@ _CORE_TOOL_DEFINITIONS = [
                 "rarity": {
                     "type": "string",
                     "description": "Item rarity: 'common', 'uncommon', 'rare', 'very_rare', 'legendary', or 'artifact'. Default: 'common'"
-                },
-                "location": {
-                    "type": "string",
-                    "description": "Where the item currently is (location name or 'player_inventory' if given to player)"
                 }
             },
-            "required": ["name", "description"]
+            "required": ["name", "description", "owned_by_entity_name"]
         }
     },
     {
@@ -776,13 +776,22 @@ def _create_location(engine, player_entity_id: str, tool_input: Dict[str, Any]) 
 
 
 def _create_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
-    """Create an item entity with all proper components."""
+    """Create an item entity with all proper components and establish ownership."""
     name = tool_input["name"]
     description = tool_input["description"]
+    owned_by_entity_name = tool_input["owned_by_entity_name"]
     weight = tool_input.get("weight", 0.0)
     value = tool_input.get("value", 0.0)
     rarity = tool_input.get("rarity", "common")
-    location = tool_input.get("location")
+
+    # Find the owner entity first
+    all_entities = engine.query_entities(['NPC']) + engine.query_entities(['Location']) + \
+                   engine.query_entities(['Item']) + engine.query_entities(['PlayerCharacter'])
+
+    owner_entity = next((e for e in all_entities if e.name.lower() == owned_by_entity_name.lower()), None)
+
+    if not owner_entity:
+        return {"success": False, "message": _format_error(f"Owner entity '{owned_by_entity_name}' not found. Create the owner entity first before creating items it owns.")}
 
     # Create entity
     result = engine.create_entity(name)
@@ -797,11 +806,11 @@ def _create_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> D
     })
     if not result.success:
         logger.error(f"  ✗ Failed to add Identity: {result.error}")
+        engine.delete_entity(item_id)  # Clean up on failure
         return {"success": False, "message": _format_error(f"Failed to add Identity component: {result.error}")}
     logger.info(f"  → Added Identity: desc={description[:50]}...")
 
     # Add Item component (REQUIRED for items to be recognized)
-    # Must provide weight and value (required fields)
     result = engine.add_component(item_id, 'Item', {
         'weight': weight,
         'value': value,
@@ -810,39 +819,28 @@ def _create_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> D
     })
     if not result.success:
         logger.error(f"  ✗ Failed to add Item component: {result.error}")
+        engine.delete_entity(item_id)  # Clean up on failure
         return {"success": False, "message": _format_error(f"Failed to add Item component: {result.error}")}
     logger.info(f"  → Added Item component: weight={weight} lbs, value={value} gp, rarity={rarity}")
 
-    # Add Position if location specified (use entity-based positioning)
-    if location:
-        # Find location entity by name
-        locations = engine.query_entities(['Location'])
-        location_entity = next((e for e in locations if e.name.lower() == location.lower()), None)
+    # Establish ownership relationship
+    result = engine.create_relationship(owner_entity.id, item_id, 'owns')
+    if not result.success:
+        logger.error(f"  ✗ Failed to create ownership: {result.error}")
+        engine.delete_entity(item_id)  # Clean up on failure
+        return {"success": False, "message": _format_error(f"Failed to establish ownership: {result.error}")}
+    logger.info(f"  → Ownership established: {owned_by_entity_name} owns {name}")
 
-        if location_entity:
-            # Position item AT the location (entity-based positioning)
-            result = engine.add_component(item_id, 'Position', {
-                'region': location_entity.id  # Entity ID, not string!
-            })
-            if not result.success:
-                logger.error(f"  ✗ Failed to add Position: {result.error}")
-            else:
-                logger.info(f"  → Positioned item at location: {location} ({location_entity.id})")
-        else:
-            # Fallback: location name as string (legacy)
-            result = engine.add_component(item_id, 'Position', {
-                'region': location
-            })
-            if not result.success:
-                logger.error(f"  ✗ Failed to add Position: {result.error}")
-            else:
-                logger.warning(f"  → Location '{location}' not found as entity, using string region")
-
-    logger.info(f"Created Item: {name} ({item_id})")
+    logger.info(f"Created Item: {name} ({item_id}) owned by {owned_by_entity_name} ({owner_entity.id})")
     return {
         "success": True,
-        "message": f"Created {rarity} item '{name}' ({weight} lbs, {value} gp)",
-        "data": {"entity_id": item_id, "name": name}
+        "message": f"Created {rarity} item '{name}' ({weight} lbs, {value} gp) owned by {owned_by_entity_name}",
+        "data": {
+            "entity_id": item_id,
+            "name": name,
+            "owner_entity_name": owned_by_entity_name,
+            "owner_entity_id": owner_entity.id
+        }
     }
 
 
