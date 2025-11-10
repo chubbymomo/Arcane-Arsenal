@@ -757,9 +757,13 @@ def _create_location(engine, player_entity_id: str, tool_input: Dict[str, Any]) 
     logger.info(f"Creating location: {name} ({location_id})")
 
     # Add Identity component
-    engine.add_component(location_id, 'Identity', {
+    result = engine.add_component(location_id, 'Identity', {
         'description': description
     })
+    if not result.success:
+        logger.error(f"  ✗ Failed to add Identity component: {result.error}")
+        engine.delete_entity(location_id)  # Clean up on failure
+        return {"success": False, "message": _format_error(f"Failed to add Identity component: {result.error}")}
     logger.info(f"  → Added Identity: desc={description[:50]}...")
 
     # Resolve parent location if specified
@@ -785,21 +789,29 @@ def _create_location(engine, player_entity_id: str, tool_input: Dict[str, Any]) 
             logger.warning(f"  → Could not resolve connected location: {connected_name}")
 
     # Add Location component (marker with metadata and graph connections)
-    engine.add_component(location_id, 'Location', {
+    result = engine.add_component(location_id, 'Location', {
         'location_type': location_type,
         'features': features,
         'visited': False,
         'parent_location': parent_location_id,
         'connected_locations': connected_location_ids
     })
+    if not result.success:
+        logger.error(f"  ✗ Failed to add Location component: {result.error}")
+        engine.delete_entity(location_id)  # Clean up on failure
+        return {"success": False, "message": _format_error(f"Failed to add Location component: {result.error}")}
     logger.info(f"  → Added Location component: type={location_type}, features={len(features)}, parent={parent_location_id}, connections={len(connected_location_ids)}")
 
     # Add Position component (WHERE the location is - in a broader region)
     # If parent_location_id is specified, use it; otherwise use region string
     position_region = parent_location_id if parent_location_id else region
-    engine.add_component(location_id, 'Position', {
+    result = engine.add_component(location_id, 'Position', {
         'region': position_region
     })
+    if not result.success:
+        logger.error(f"  ✗ Failed to add Position component: {result.error}")
+        engine.delete_entity(location_id)  # Clean up on failure
+        return {"success": False, "message": _format_error(f"Failed to add Position component: {result.error}")}
     logger.info(f"  → Added Position: region={position_region}")
 
     logger.info(f"Created Location: {name} ({location_id}) in {region}")

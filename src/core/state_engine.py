@@ -441,31 +441,35 @@ class StateEngine:
 
         Returns:
             Result with component data or error
+
+        IMPORTANT: Always check result.success! Ignoring failures causes silent bugs.
         """
         try:
             # Check entity exists
             entity = self.storage.get_entity(entity_id)
             if not entity:
-                return Result.fail(f"Entity {entity_id} not found", "ENTITY_NOT_FOUND")
+                error_msg = f"Entity {entity_id} not found"
+                logger.error(f"❌ add_component FAILED: {error_msg}")
+                return Result.fail(error_msg, "ENTITY_NOT_FOUND")
 
             if not entity.is_active():
-                return Result.fail(f"Entity {entity_id} is deleted", "ENTITY_DELETED")
+                error_msg = f"Entity {entity_id} is deleted"
+                logger.error(f"❌ add_component FAILED: {error_msg}")
+                return Result.fail(error_msg, "ENTITY_DELETED")
 
             # Check component type is registered
             registered_types = [t['type'] for t in self.storage.get_component_types()]
             if component_type not in registered_types:
-                return Result.fail(
-                    f"Component type {component_type} not registered",
-                    "TYPE_NOT_REGISTERED"
-                )
+                error_msg = f"Component type {component_type} not registered"
+                logger.error(f"❌ add_component FAILED: {error_msg}")
+                return Result.fail(error_msg, "TYPE_NOT_REGISTERED")
 
             # Check if entity already has this component type
             existing = self.storage.get_component(entity_id, component_type)
             if existing:
-                return Result.fail(
-                    f"Entity {entity_id} already has component {component_type}",
-                    "COMPONENT_EXISTS"
-                )
+                error_msg = f"Entity {entity_id} already has component {component_type}"
+                logger.error(f"❌ add_component FAILED: {error_msg}")
+                return Result.fail(error_msg, "COMPONENT_EXISTS")
 
             # Validate data if validator exists
             if component_type in self.component_validators:
@@ -473,24 +477,26 @@ class StateEngine:
                 try:
                     validator.validate(data)
                 except jsonschema.ValidationError as e:
-                    return Result.fail(
-                        f"Component data validation failed: {e.message}",
-                        "VALIDATION_ERROR"
-                    )
+                    error_msg = f"Component data validation failed: {e.message}"
+                    logger.error(f"❌ add_component FAILED ({component_type} on {entity_id}): {error_msg}")
+                    logger.error(f"   Data: {data}")
+                    return Result.fail(error_msg, "VALIDATION_ERROR")
 
                 # Additional validation against engine state
                 try:
                     validator.validate_with_engine(data, self)
                 except ValueError as e:
-                    return Result.fail(
-                        f"Component data validation failed: {str(e)}",
-                        "VALIDATION_ERROR"
-                    )
+                    error_msg = f"Component data validation failed: {str(e)}"
+                    logger.error(f"❌ add_component FAILED ({component_type} on {entity_id}): {error_msg}")
+                    logger.error(f"   Data: {data}")
+                    return Result.fail(error_msg, "VALIDATION_ERROR")
 
             # Spatial validation for Position components
             if component_type == 'Position':
                 validation_result = self._validate_position_with_system(entity_id, data)
                 if not validation_result.success:
+                    logger.error(f"❌ add_component FAILED (Position on {entity_id}): {validation_result.error}")
+                    logger.error(f"   Data: {data}")
                     return validation_result
 
             # Create component
@@ -498,7 +504,9 @@ class StateEngine:
 
             # Save to storage
             if not self.storage.save_component(component):
-                return Result.fail("Failed to save component", ErrorCode.STORAGE_ERROR)
+                error_msg = "Failed to save component"
+                logger.error(f"❌ add_component FAILED ({component_type} on {entity_id}): {error_msg}")
+                return Result.fail(error_msg, ErrorCode.STORAGE_ERROR)
 
             # Emit event
             event = Event.create(
@@ -518,7 +526,9 @@ class StateEngine:
             return Result.ok(component.to_dict())
 
         except Exception as e:
-            return Result.fail(str(e), ErrorCode.UNEXPECTED_ERROR)
+            error_msg = str(e)
+            logger.error(f"❌ add_component FAILED ({component_type} on {entity_id}): {error_msg}", exc_info=True)
+            return Result.fail(error_msg, ErrorCode.UNEXPECTED_ERROR)
 
     def get_component(self, entity_id: str, component_type: str) -> Optional[Component]:
         """
@@ -1116,20 +1126,6 @@ class StateEngine:
         except Exception:
             self.storage.rollback()
             raise
-
-    def commit(self) -> None:
-        """
-        Commit the current transaction.
-
-        This ensures all pending database writes are committed and visible
-        to subsequent queries. Essential for making entities created in one
-        tool immediately visible to the next tool in a batch execution.
-
-        Critical for SQLite transaction isolation: Without commits between
-        tool executions, entities created in Tool 1 won't be visible to
-        Tool 2's queries within the same transaction.
-        """
-        self.storage.commit()
 
     # ========== Position Validation (delegates to PositionSystem) ==========
 
