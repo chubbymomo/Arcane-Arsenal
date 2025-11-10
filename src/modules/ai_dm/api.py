@@ -710,18 +710,27 @@ def send_dm_message_stream():
                         content = chunk['content']
                         full_response += content
 
-                        # Detect <actions> block and don't stream it
-                        if '<actions>' in content:
+                        # Filter out <actions> block from streaming
+                        # Handle case where entire block is in one chunk
+                        if '<actions>' in content and '</actions>' in content:
+                            # Complete actions block in this chunk - remove it entirely
+                            before = content.split('<actions>')[0]
+                            after = content.split('</actions>')[-1]
+                            filtered = before + after
+                            if filtered.strip():
+                                yield f"data: {json.dumps({'type': 'token', 'content': filtered})}\n\n"
+                        elif '<actions>' in content:
+                            # Opening tag - start filtering
                             in_actions_block = True
-                            # Stream only the part before <actions>
                             before_actions = content.split('<actions>')[0]
                             if before_actions:
                                 yield f"data: {json.dumps({'type': 'token', 'content': before_actions})}\n\n"
                         elif '</actions>' in content:
+                            # Closing tag - stop filtering
                             in_actions_block = False
-                            # Don't stream the closing tag or content after
+                            # Don't stream the closing tag or anything in this chunk
                         elif not in_actions_block:
-                            # Stream normal content
+                            # Normal content outside actions block
                             yield f"data: {json.dumps({'type': 'token', 'content': content})}\n\n"
 
                     elif chunk['type'] == 'tool_use_start':
@@ -827,18 +836,27 @@ def send_dm_message_stream():
                             content = chunk['content']
                             full_response += content
 
-                            # Detect <actions> block and don't stream it
-                            if '<actions>' in content:
+                            # Filter out <actions> block from streaming
+                            # Handle case where entire block is in one chunk
+                            if '<actions>' in content and '</actions>' in content:
+                                # Complete actions block in this chunk - remove it entirely
+                                before = content.split('<actions>')[0]
+                                after = content.split('</actions>')[-1]
+                                filtered = before + after
+                                if filtered.strip():
+                                    yield f"data: {json.dumps({'type': 'token', 'content': filtered})}\n\n"
+                            elif '<actions>' in content:
+                                # Opening tag - start filtering
                                 in_actions_block = True
-                                # Stream only the part before <actions>
                                 before_actions = content.split('<actions>')[0]
                                 if before_actions:
                                     yield f"data: {json.dumps({'type': 'token', 'content': before_actions})}\n\n"
                             elif '</actions>' in content:
+                                # Closing tag - stop filtering
                                 in_actions_block = False
-                                # Don't stream the closing tag or content after
+                                # Don't stream the closing tag or anything in this chunk
                             elif not in_actions_block:
-                                # Stream normal narrative
+                                # Normal narrative
                                 yield f"data: {json.dumps({'type': 'token', 'content': content})}\n\n"
 
                     logger.info(f"Second turn complete: {len(full_response)} chars narrative")
