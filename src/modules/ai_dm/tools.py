@@ -311,24 +311,6 @@ _CORE_TOOL_DEFINITIONS = [
         }
     },
     {
-        "name": "give_item_to_player",
-        "description": "Add an item to the player's inventory. The item must exist (create it first if needed).",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "item_name": {
-                    "type": "string",
-                    "description": "Name of the item to give"
-                },
-                "quantity": {
-                    "type": "integer",
-                    "description": "How many to give (default 1)"
-                }
-            },
-            "required": ["item_name"]
-        }
-    },
-    {
         "name": "remove_item",
         "description": "Remove an item from the player's inventory, deleting it from the game. Use this when items are consumed, destroyed, or disappear (e.g., potion drunk, scroll burned, item dissolved). For giving items to NPCs or placing them somewhere, use transfer_item instead.",
         "input_schema": {
@@ -1109,63 +1091,6 @@ def _update_npc_disposition(engine, player_entity_id: str, tool_input: Dict[str,
     }
 
 
-def _give_item_to_player(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
-    """Give an item to the player."""
-    item_name = tool_input["item_name"]
-    quantity = tool_input.get("quantity", 1)
-
-    # Find the item
-    items = engine.query_entities(['Item'])
-    item = next((e for e in items if e.name.lower() == item_name.lower()), None)
-
-    if not item:
-        # Get player's current location to check for nearby items
-        player_position = engine.get_component(player_entity_id, 'Position')
-        player_region = player_position.data.get('region') if player_position else None
-
-        # Find items at the same location (nearby)
-        nearby_items = []
-        if player_region:
-            for item_entity in items:
-                item_pos = engine.get_component(item_entity.id, 'Position')
-                if item_pos and item_pos.data.get('region') == player_region:
-                    nearby_items.append(item_entity.name)
-
-        error_msg = f"Item '{item_name}' not found"
-        if nearby_items:
-            error_msg += f". Did you mean: {', '.join(nearby_items[:5])}?"
-        else:
-            error_msg += " (create it first or check the name)"
-
-        return {"success": False, "message": _format_error(error_msg)}
-
-    # Use items module's ownership system (create 'owns' relationship)
-    # First check if ownership relationship already exists
-    owns_rels = engine.get_relationships(player_entity_id, rel_type='owns', direction='from')
-    already_owns = any(rel.to_entity == item.id for rel in owns_rels)
-
-    if not already_owns:
-        # Create ownership relationship
-        result = engine.create_relationship(
-            from_id=player_entity_id,
-            to_id=item.id,
-            rel_type='owns'
-        )
-        if not result.success:
-            return {"success": False, "message": _format_error(f"Failed to give item: {result.error}")}
-
-    # Update quantity if specified
-    if quantity > 1:
-        engine.update_component(item.id, 'Item', {'quantity': quantity})
-
-    logger.info(f"Gave {quantity}x {item_name} to player")
-    return {
-        "success": True,
-        "message": f"Gave {quantity}x {item_name} to player",
-        "data": {"item_id": item.id, "quantity": quantity}
-    }
-
-
 def _remove_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
     """Remove an item from the player's inventory, deleting it from the game."""
     item_name = tool_input["item_name"]
@@ -1719,7 +1644,6 @@ def _initialize_core_tools():
         'move_player_to_location': _move_player_to_location,
         'query_entities': _query_entities,
         'update_npc_disposition': _update_npc_disposition,
-        'give_item_to_player': _give_item_to_player,
         'remove_item': _remove_item,
         'transfer_item': _transfer_item,
         'deal_damage': _deal_damage,
