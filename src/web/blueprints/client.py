@@ -65,11 +65,20 @@ def index():
         position = components.get('Position', {})
         player_char = components.get('PlayerCharacter', {})
 
+        # Resolve location name if region is an entity ID
+        region = position.get('region', 'Unknown')
+        if region and region.startswith('entity_'):
+            # Region is an entity ID, get the entity's name
+            location_entity = engine.get_entity(region)
+            if location_entity:
+                region = location_entity.name
+            # else: keep the entity ID as fallback
+
         characters.append({
             'entity': entity,
             'description': identity.get('description', 'No description'),
             'has_position': True,  # Always true due to query filter
-            'region': position.get('region', 'Unknown'),
+            'region': region,
             'needs_ai_intro': player_char.get('needs_ai_intro', False)
         })
 
@@ -209,10 +218,19 @@ def character_builder():
     for player in player_entities:
         pos = engine.get_component(player.id, 'Position')
         if pos:
+            # Resolve location name if region is an entity ID
+            region = pos.data.get('region', 'Unknown')
+            if region and region.startswith('entity_'):
+                # Region is an entity ID, get the entity's name
+                location_entity = engine.get_entity(region)
+                if location_entity:
+                    region = location_entity.name
+                # else: keep the entity ID as fallback
+
             existing_players.append({
                 'id': player.id,
                 'name': player.name,
-                'region': pos.data.get('region', 'Unknown')
+                'region': region
             })
 
     # Pre-written starting scenarios
@@ -279,6 +297,29 @@ def character_sheet(entity_id: str):
     position_system = PositionSystem(engine)
     world_pos = position_system.get_world_position(entity_id)
 
+    # Resolve location name if region is an entity ID
+    location_name = None
+    if position:
+        region = position.get('region')
+        if region and region.startswith('entity_'):
+            # Region is an entity ID, get the entity's name
+            location_entity = engine.get_entity(region)
+            if location_entity:
+                location_name = location_entity.name
+                # Also get description from Identity if available
+                location_identity = engine.get_component(region, 'Identity')
+                if location_identity:
+                    location_description = location_identity.data.get('description', '')
+                else:
+                    location_description = ''
+            else:
+                location_name = region  # Fallback to showing ID if entity not found
+        else:
+            # Region is a named region string
+            location_name = region
+    else:
+        location_name = 'Unknown'
+
     # Get relationships
     relationships = engine.get_relationships(entity_id)
 
@@ -332,6 +373,7 @@ def character_sheet(entity_id: str):
         entity=entity,
         identity=identity,
         position=position,
+        location_name=location_name,
         world_pos=world_pos,
         components=components,
         located_at=located_at,
