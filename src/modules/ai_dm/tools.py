@@ -699,6 +699,15 @@ def _create_npc(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Di
         resolver = EntityResolver(engine)
         location_entity = resolver.resolve(location_name, expected_type='location')
 
+        # Fallback: If EntityResolver fails, try querying all entities
+        if not location_entity:
+            all_entities = engine.query_entities()
+            for ent in all_entities:
+                if engine.get_component(ent.id, 'Location') and ent.name.lower() == location_name.lower():
+                    location_entity = ent
+                    logger.info(f"  → Resolved location via fallback query: {location_name} → {location_entity.id}")
+                    break
+
         if location_entity:
             # Position NPC AT the location entity (using entity ID)
             position_data = {
@@ -771,15 +780,22 @@ def _create_location(engine, player_entity_id: str, tool_input: Dict[str, Any]) 
             parent_location_id = parent_entity.id
             logger.info(f"  → Resolved parent location: {parent_location_name} → {parent_location_id}")
         else:
-            # Fallback: Try direct query by name (helpful for debugging)
-            all_locations = engine.query_entities(['Location'])
-            matching = [loc for loc in all_locations if loc.name.lower() == parent_location_name.lower()]
+            # Fallback: Query ALL entities (not filtered by component) to catch newly-created locations
+            # Component-based queries may not see entities created in the same batch
+            all_entities = engine.query_entities()  # Get ALL entities
+            matching = []
+            for ent in all_entities:
+                # Check if it has Location component and matches name
+                if engine.get_component(ent.id, 'Location') and ent.name.lower() == parent_location_name.lower():
+                    matching.append(ent)
+
             if matching:
                 parent_entity = matching[0]
                 parent_location_id = parent_entity.id
-                logger.info(f"  → Resolved parent location via fallback: {parent_location_name} → {parent_location_id}")
+                logger.info(f"  → Resolved parent location via fallback: {parent_location_name} → {parent_location_id} (checked {len(all_entities)} entities)")
             else:
-                logger.warning(f"  → Could not resolve parent location: {parent_location_name} (checked {len(all_locations)} locations)")
+                location_count = sum(1 for e in all_entities if engine.get_component(e.id, 'Location'))
+                logger.warning(f"  → Could not resolve parent location: {parent_location_name} (checked {len(all_entities)} entities, {location_count} have Location component)")
 
     # Resolve connected locations
     connected_location_ids = []
@@ -790,9 +806,13 @@ def _create_location(engine, player_entity_id: str, tool_input: Dict[str, Any]) 
             connected_location_ids.append(connected_entity.id)
             logger.info(f"  → Resolved connected location: {connected_name} → {connected_entity.id}")
         else:
-            # Fallback: Try direct query by name
-            all_locations = engine.query_entities(['Location'])
-            matching = [loc for loc in all_locations if loc.name.lower() == connected_name.lower()]
+            # Fallback: Query ALL entities to catch newly-created locations
+            all_entities = engine.query_entities()
+            matching = []
+            for ent in all_entities:
+                if engine.get_component(ent.id, 'Location') and ent.name.lower() == connected_name.lower():
+                    matching.append(ent)
+
             if matching:
                 connected_entity = matching[0]
                 connected_location_ids.append(connected_entity.id)
@@ -1017,6 +1037,15 @@ def _move_player_to_location(engine, player_entity_id: str, tool_input: Dict[str
     # Find location entity by name (entity-based positioning)
     resolver = EntityResolver(engine)
     location_entity = resolver.resolve(location_name, expected_type='location')
+
+    # Fallback: If EntityResolver fails, try querying all entities
+    if not location_entity:
+        all_entities = engine.query_entities()
+        for ent in all_entities:
+            if engine.get_component(ent.id, 'Location') and ent.name.lower() == location_name.lower():
+                location_entity = ent
+                logger.info(f"  → Resolved location via fallback query: {location_name} → {location_entity.id}")
+                break
 
     if location_entity:
         # Entity-based positioning: set region to location entity ID
