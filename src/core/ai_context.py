@@ -196,8 +196,17 @@ class AIContextBuilder:
         if not position:
             return {}
 
+        # Get region and resolve if it's an entity ID
+        region = position.data.get('region', 'Unknown')
+        if region and region.startswith('entity_'):
+            # Region is an entity reference - resolve to entity name
+            location_entity = self.engine.get_entity(region)
+            if location_entity:
+                logger.debug(f"Resolved region entity {region} to name: {location_entity.name}")
+                region = location_entity.name
+
         context = {
-            'region': position.data.get('region', 'Unknown'),
+            'region': region,
             'coordinates': {
                 'x': position.data.get('x', 0),
                 'y': position.data.get('y', 0),
