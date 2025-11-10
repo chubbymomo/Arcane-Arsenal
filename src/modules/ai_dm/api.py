@@ -661,6 +661,296 @@ def api_chat_display(entity_id: str):
         return f'<p>Error: {str(e)}</p>', 500
 
 
+@ai_dm_bp.route('/api/dm/generate_intro', methods=['POST'])
+def api_generate_intro():
+    """
+    Generate AI intro for a new character.
+
+    Request JSON:
+        {
+            "entity_id": "character_123"
+        }
+
+    Returns:
+        {
+            "success": true,
+            "message_id": "dm_msg_456",
+            "intro_text": "The intro narrative...",
+            "starting_location_id": "location_789"
+        }
+    """
+    try:
+        ensure_modules_loaded()
+        engine = get_engine()
+
+        data = request.get_json()
+        entity_id = data.get('entity_id')
+
+        if not entity_id:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field: entity_id'
+            }), 400
+
+        # Verify entity exists
+        entity = engine.get_entity(entity_id)
+        if not entity:
+            return jsonify({
+                'success': False,
+                'error': f'Entity {entity_id} not found'
+            }), 404
+
+        try:
+            import json
+            from .llm_client import get_llm_client, LLMError
+            from .prompts import build_full_prompt
+            from .response_parser import parse_dm_response
+            from .tools import get_tool_definitions, execute_tool
+            from src.core.config import get_config
+
+            # Create Conversation component
+            conversation = engine.get_component(entity_id, 'Conversation')
+            if not conversation:
+                result = engine.add_component(entity_id, 'Conversation', {
+                    'message_ids': []
+                })
+                if not result.success:
+                    return jsonify({
+                        'success': False,
+                        'error': f'Failed to create conversation: {result.error}'
+                    }), 500
+
+            # Build context and generate intro
+            ai_context = engine.generate_ai_context(entity_id)
+            full_system_prompt = build_full_prompt(ai_context)
+
+            intro_prompt = (
+                "This is the very beginning of the adventure. "
+                "Create an engaging, UNIQUE opening scene that introduces the character to their starting location. "
+                "Set the mood, describe the environment, and present an initial situation that draws them in. "
+                "\n\n"
+                "IMPORTANT - CREATE VARIETY:\n"
+                "- Avoid generic taverns unless the character's class/background specifically suggests it\n"
+                "- Consider diverse starting locations: festivals, caravans, wilderness camps, merchant shops, "
+                "noble courts, guild halls, temples, city gates, docks, markets, ruins, etc.\n"
+                "- Create NPCs with distinct, memorable names and personalities (avoid common fantasy names)\n"
+                "- Match the starting scenario to the character's class and background when possible\n"
+                "- Add unexpected twists or unique situations that immediately engage the player\n"
+                "\n"
+                "Use your available tools to create NPCs, locations, and items as needed to make the world come alive. "
+                "Remember: no meta-gaming, just vivid narrative."
+            )
+
+            config = get_config()
+            llm = get_llm_client(config)
+            tools = get_tool_definitions()
+
+            # Convert tools to Anthropic format
+            anthropic_tools = []
+            for tool in tools:
+                anthropic_tools.append({
+                    "name": tool["name"],
+                    "description": tool["description"],
+                    "input_schema": tool["input_schema"]
+                })
+
+            # Accumulate response and execute tools
+            full_response = ""
+            tool_uses = []
+            current_tool = None
+            tool_input_json = ""
+
+            logger.info("=== Starting AI intro generation ===")
+            logger.info(f"Prompt: {intro_prompt}")
+            logger.info(f"Tools available: {len(anthropic_tools)}")
+
+            # First turn: Let Claude use tools
+            llm_messages = [{'role': 'user', 'content': intro_prompt}]
+
+            for chunk in llm.generate_response_stream(
+                messages=llm_messages,
+                system=full_system_prompt,
+                max_tokens=config.ai_max_tokens,
+                temperature=config.ai_temperature,
+                tools=anthropic_tools if anthropic_tools else None
+            ):
+                if chunk['type'] == 'text':
+                    full_response += chunk['content']
+                elif chunk['type'] == 'tool_use_start':
+                    # Save previous tool if exists
+                    if current_tool and tool_input_json:
+                        try:
+                            tool_uses.append({
+                                'id': current_tool['id'],
+                                'name': current_tool['name'],
+                                'input': json.loads(tool_input_json)
+                            })
+                        except json.JSONDecodeError:
+                            logger.error(f"Failed to parse tool input for {current_tool['name']}")
+
+                    current_tool = {
+                        'id': chunk['tool_use_id'],
+                        'name': chunk['tool_name']
+                    }
+                    tool_input_json = ""
+                    logger.info(f"Tool use START: {chunk['tool_name']} (id: {chunk['tool_use_id']})")
+                elif chunk['type'] == 'tool_input_delta':
+                    tool_input_json += chunk['partial_json']
+
+            # Save last tool
+            if current_tool and tool_input_json:
+                try:
+                    tool_uses.append({
+                        'id': current_tool['id'],
+                        'name': current_tool['name'],
+                        'input': json.loads(tool_input_json)
+                    })
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse final tool input: {e}")
+
+            logger.info(f"=== First turn complete: {len(tool_uses)} tools, {len(full_response)} chars text ===")
+
+            # Execute all tools
+            tool_results = []
+            if tool_uses:
+                logger.info(f"=== Executing {len(tool_uses)} tools ===")
+                for tool_use in tool_uses:
+                    logger.info(f"Executing: {tool_use['name']}")
+                    result = execute_tool(
+                        tool_use['name'],
+                        tool_use['input'],
+                        engine,
+                        entity_id
+                    )
+                    tool_results.append({
+                        'tool_use_id': tool_use['id'],
+                        'result': result
+                    })
+                    logger.info(f"  Result: {result['success']} - {result['message']}")
+
+                # Second turn: Give Claude the tool results and ask for narrative
+                logger.info("=== Second turn: Asking Claude for narrative ===")
+
+                # Build tool result content
+                tool_result_content = []
+                for tr in tool_results:
+                    result_text = tr['result']['message']
+                    tool_result_content.append({
+                        'type': 'tool_result',
+                        'tool_use_id': tr['tool_use_id'],
+                        'content': result_text
+                    })
+
+                # Add assistant message with tool uses
+                llm_messages.append({
+                    'role': 'assistant',
+                    'content': [{'type': 'tool_use', 'id': tu['id'], 'name': tu['name'], 'input': tu['input']} for tu in tool_uses]
+                })
+
+                # Add user message with tool results
+                llm_messages.append({
+                    'role': 'user',
+                    'content': tool_result_content
+                })
+
+                # Get narrative response
+                full_response = ""
+                for chunk in llm.generate_response_stream(
+                    messages=llm_messages,
+                    system=full_system_prompt,
+                    max_tokens=config.ai_max_tokens,
+                    temperature=config.ai_temperature,
+                    tools=None  # No tools in second turn
+                ):
+                    if chunk['type'] == 'text':
+                        full_response += chunk['content']
+
+                logger.info(f"=== Second turn complete: {len(full_response)} chars narrative ===")
+
+            logger.info(f"=== Final response: {full_response[:300]}... ===")
+
+            intro_text, intro_actions = parse_dm_response(full_response)
+            logger.info(f"=== Parsed intro ===")
+            logger.info(f"Intro text length: {len(intro_text)} chars")
+            logger.info(f"Intro actions: {intro_actions}")
+
+            # Create intro message entity
+            dm_msg_result = engine.create_entity("DM intro message")
+            if not dm_msg_result.success:
+                return jsonify({
+                    'success': False,
+                    'error': 'Failed to create intro message entity'
+                }), 500
+
+            dm_msg_id = dm_msg_result.data['id']
+
+            engine.add_component(dm_msg_id, 'ChatMessage', {
+                'speaker': 'dm',
+                'speaker_name': 'Dungeon Master',
+                'message': intro_text,
+                'timestamp': datetime.utcnow().isoformat(),
+                'suggested_actions': intro_actions
+            })
+
+            # Add to conversation
+            conversation = engine.get_component(entity_id, 'Conversation')
+            message_ids = conversation.data.get('message_ids', []) if conversation else []
+            message_ids.append(dm_msg_id)
+            engine.update_component(entity_id, 'Conversation', {
+                'message_ids': message_ids
+            })
+
+            logger.info(f"Generated AI intro for character {entity_id}")
+
+            # Entity-based positioning: Move player to created location if any
+            location_entities = engine.query_entities(['Location'])
+            starting_location_id = None
+            if location_entities:
+                # Get the first (most recent) location
+                starting_location = location_entities[0]
+                logger.info(f"Found starting location: {starting_location.name} ({starting_location.id})")
+
+                # Update player's Position to be AT this location (entity-based)
+                position = engine.get_component(entity_id, 'Position')
+                if position:
+                    engine.update_component(entity_id, 'Position', {
+                        **position.data,
+                        'region': starting_location.id  # Entity reference!
+                    })
+                    starting_location_id = starting_location.id
+                    logger.info(f"  → Moved player to location entity: {starting_location.id}")
+            else:
+                logger.warning("No location entities found after AI intro - player remains in named region")
+
+            return jsonify({
+                'success': True,
+                'message_id': dm_msg_id,
+                'intro_text': intro_text,
+                'starting_location_id': starting_location_id
+            })
+
+        except LLMError as e:
+            logger.error(f"LLM error during intro generation: {e}", exc_info=True)
+            return jsonify({
+                'success': False,
+                'error': f'AI service error: {str(e)}'
+            }), 503
+
+        except Exception as e:
+            logger.error(f"Failed to generate AI intro: {e}", exc_info=True)
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
+    except Exception as e:
+        logger.error(f"Error in generate_intro endpoint: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @ai_dm_bp.route('/api/dm/execute_action', methods=['POST'])
 def api_execute_action():
     """

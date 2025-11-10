@@ -150,6 +150,17 @@ class CoreComponentsModule(Module):
             ContainsRelationship()
         ]
 
+    def register_blueprint(self) -> Optional[Any]:
+        """
+        Register Flask blueprint for core components API.
+
+        Provides REST API endpoints for position queries:
+        - GET /api/position/world/<entity_id> - Get world position
+        - GET /api/position/nearby/<entity_id> - Get nearby entities
+        """
+        from .api import core_components_bp
+        return core_components_bp
+
 
 # Export everything for convenience
 __all__ = [
