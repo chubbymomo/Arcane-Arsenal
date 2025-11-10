@@ -299,14 +299,24 @@ class GenericFantasyModule(Module):
 
         # Extract fantasy fields from event data
         race = data.get('race')
-        character_class = data.get('character_class')
+        character_class = data.get('class')  # Form uses 'class', not 'character_class'
         alignment = data.get('alignment')
-        strength = data.get('strength')
-        dexterity = data.get('dexterity')
-        constitution = data.get('constitution')
-        intelligence = data.get('intelligence')
-        wisdom = data.get('wisdom')
-        charisma = data.get('charisma')
+
+        # Convert attributes from strings to integers (form data comes as strings)
+        def safe_int(value):
+            if value is None or value == '':
+                return None
+            try:
+                return int(value)
+            except (ValueError, TypeError):
+                return None
+
+        strength = safe_int(data.get('strength'))
+        dexterity = safe_int(data.get('dexterity'))
+        constitution = safe_int(data.get('constitution'))
+        intelligence = safe_int(data.get('intelligence'))
+        wisdom = safe_int(data.get('wisdom'))
+        charisma = safe_int(data.get('charisma'))
 
         # Only proceed if fantasy fields are provided
         has_attributes = any(attr is not None for attr in [
