@@ -203,26 +203,28 @@ def build_context_prompt(ai_context: Dict[str, Any]) -> str:
 
     # === Inventory ===
     inventory = ai_context.get('inventory', [])
-    if inventory:
-        prompt_parts.append("## Inventory")
+    prompt_parts.append("## Inventory")
+    prompt_parts.append("**Items currently owned by the player character:**")
 
-        # List all items with quantities
-        items_list = []
-        for item in inventory:
-            name = item['name']
-            qty = item.get('quantity', 1)
-            if qty > 1:
-                items_list.append(f"{name} x{qty}")
-            else:
-                items_list.append(name)
-
-        if items_list:
-            # Show in comma-separated list
-            prompt_parts.append(', '.join(items_list))
+    # List all items with quantities
+    items_list = []
+    for item in inventory:
+        name = item['name']
+        qty = item.get('quantity', 1)
+        if qty > 1:
+            items_list.append(f"{name} x{qty}")
         else:
-            prompt_parts.append("Empty")
+            items_list.append(name)
 
-        prompt_parts.append("")  # Blank line
+    if items_list:
+        # Show in comma-separated list
+        prompt_parts.append(', '.join(items_list))
+    else:
+        prompt_parts.append("*Empty - player owns no items*")
+
+    prompt_parts.append("")
+    prompt_parts.append("⚠️ IMPORTANT: If your narrative describes the player using, holding, or manipulating an item, it MUST be in this inventory list. If it's not, you must use transfer_item to give it to them first.")
+    prompt_parts.append("")  # Blank line
 
     # === Recent Events ===
     recent_events = ai_context.get('recent_events', [])

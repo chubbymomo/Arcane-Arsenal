@@ -1180,7 +1180,22 @@ def _transfer_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) ->
     owns_item = any(rel.to_entity == item.id for rel in owns_rels)
 
     if not owns_item:
-        return {"success": False, "message": _format_error(f"'{from_entity_name}' does not own '{item_name}'")}
+        # Find who actually owns this item for a more helpful error message
+        all_owns_rels = engine.get_relationships(item.id, rel_type='owns', direction='to')
+        actual_owners = []
+        for rel in all_owns_rels:
+            owner = engine.get_entity(rel.from_entity)
+            if owner:
+                actual_owners.append(owner.name)
+
+        error_msg = f"'{from_entity_name}' does not own '{item_name}'"
+        if actual_owners:
+            error_msg += f". Item is currently owned by: {', '.join(actual_owners)}"
+            error_msg += f". Use transfer_item to transfer from {actual_owners[0]} to {from_entity_name} first."
+        else:
+            error_msg += f". No ownership found for this item."
+
+        return {"success": False, "message": _format_error(error_msg)}
 
     # Get current quantity
     item_comp = engine.get_component(item.id, 'Item')
