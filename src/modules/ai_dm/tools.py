@@ -160,7 +160,7 @@ _CORE_TOOL_DEFINITIONS = [
     },
     {
         "name": "create_location",
-        "description": "Create a new location in the game world. Use this when the player enters a new area that should be tracked. Supports hierarchical locations - you can specify a parent location and connected locations to build a spatial graph.",
+        "description": "Create a new location in the game world. IMPORTANT: Build location hierarchies by creating parent locations FIRST. If you specify a region that isn't a parent location, you must have created that region as a location entity earlier. Use parent_location_name for hierarchical containment (automatically creates bidirectional connections).",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -174,25 +174,25 @@ _CORE_TOOL_DEFINITIONS = [
                 },
                 "region": {
                     "type": "string",
-                    "description": "The broader region this location is in (e.g., 'The Borderlands', 'Shadowmere Valley', 'The Iron Coast'). Can be either: (1) A region name string for top-level locations, or (2) The NAME of a parent location entity if this location is inside another location. Create unique, evocative region names - do NOT use generic names like 'The Realm'."
+                    "description": "CRITICAL: The broader region this location is in. Can be: (1) The NAME of a parent location entity (if this location is inside another location - use parent_location_name instead), or (2) A simple string for abstract placement. If you use a region name that represents a place (e.g., 'The Borderlands', 'Shadowmere Valley'), you MUST have created that region as a location entity FIRST using create_location."
                 },
                 "location_type": {
                     "type": "string",
-                    "description": "Type of location (e.g., 'tavern', 'dungeon', 'shop', 'wilderness', 'building', 'region', 'district')"
+                    "description": "Type of location (e.g., 'tavern', 'dungeon', 'shop', 'wilderness', 'building', 'region', 'district', 'tunnel', 'chamber')"
                 },
                 "features": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Notable features (e.g., ['fireplace', 'bar', 'stage'])"
+                    "description": "Notable features (e.g., ['fireplace', 'bar', 'stage'], ['collapsed wall', 'iron ladder', 'flooded floor'])"
                 },
                 "parent_location_name": {
                     "type": "string",
-                    "description": "Optional: Name of the parent location entity that contains this location (e.g., 'Waterdeep' for a tavern in that city). Use query_entities first to find the parent."
+                    "description": "RECOMMENDED: Name of the parent location entity that contains this location (e.g., 'The Sunken Archives' for 'Northern Passage'). Automatically creates bidirectional connection. Use this for hierarchical locations instead of the region parameter."
                 },
                 "connected_location_names": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Optional: Names of locations directly accessible from here (e.g., ['Town Square', 'Market District']). These should already exist or be created before connecting."
+                    "description": "Optional: Names of locations directly accessible from here via exits, passages, or doors (e.g., ['Town Square', 'Market District']). These locations must already exist. Parent/child connections are handled automatically by parent_location_name."
                 }
             },
             "required": ["name", "description", "region", "location_type"]
@@ -446,7 +446,7 @@ _CORE_TOOL_DEFINITIONS = [
     },
     {
         "name": "update_component",
-        "description": "Update a component's data on any entity. Use this to modify NPC stats, location features, item properties, etc. Get entity details first to see current values.",
+        "description": "Update a component's data on any entity. Use this to modify NPC stats, location features, item properties, etc. Get entity details first to see current values. For moving entities to locations, you can use 'location_name' when updating Position components.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -456,11 +456,11 @@ _CORE_TOOL_DEFINITIONS = [
                 },
                 "component_type": {
                     "type": "string",
-                    "description": "Component to update (e.g., 'Identity', 'NPC', 'Location', 'Item', 'Health')"
+                    "description": "Component to update (e.g., 'Identity', 'NPC', 'Location', 'Item', 'Health', 'Position')"
                 },
                 "updates": {
                     "type": "object",
-                    "description": "Fields to update with new values (e.g., {'race': 'elf', 'occupation': 'mage'})"
+                    "description": "Fields to update with new values. Examples: {'race': 'elf', 'occupation': 'mage'}, {'current': 50} for Health. For Position: use {'location_name': 'Location Name'} to move an entity to a location, or {'region': 'entity_id'} for direct entity reference."
                 },
                 "reason": {
                     "type": "string",
@@ -814,6 +814,40 @@ def _create_location(engine, player_entity_id: str, tool_input: Dict[str, Any]) 
         return {"success": False, "message": _format_error(f"Failed to add Position component: {result.error}")}
     logger.info(f"  → Added Position: region={position_region}")
 
+    # Automatically create bidirectional connection with parent location
+    if parent_location_id:
+        parent_location_component = engine.get_component(parent_location_id, 'Location')
+        if parent_location_component:
+            parent_connected = parent_location_component.data.get('connected_locations', [])
+            if location_id not in parent_connected:
+                # Add child to parent's connected_locations
+                updated_connected = parent_connected + [location_id]
+                result = engine.update_component(parent_location_id, 'Location', {
+                    'connected_locations': updated_connected
+                })
+                if result.success:
+                    logger.info(f"  → Bidirectional connection: Added {name} to {parent_location_name}'s connected_locations")
+                else:
+                    logger.warning(f"  → Failed to update parent's connected_locations: {result.error}")
+
+    # Automatically create bidirectional connections with explicitly connected locations
+    for connected_id in connected_location_ids:
+        connected_component = engine.get_component(connected_id, 'Location')
+        if connected_component:
+            their_connected = connected_component.data.get('connected_locations', [])
+            if location_id not in their_connected:
+                # Add this location to their connected_locations
+                updated_connected = their_connected + [location_id]
+                result = engine.update_component(connected_id, 'Location', {
+                    'connected_locations': updated_connected
+                })
+                if result.success:
+                    connected_entity = engine.get_entity(connected_id)
+                    connected_name = connected_entity.name if connected_entity else connected_id
+                    logger.info(f"  → Bidirectional connection: Added {name} to {connected_name}'s connected_locations")
+                else:
+                    logger.warning(f"  → Failed to update connected location {connected_id}: {result.error}")
+
     logger.info(f"Created Location: {name} ({location_id}) in {region}")
     return {
         "success": True,
@@ -1006,24 +1040,19 @@ def _move_player_to_location(engine, player_entity_id: str, tool_input: Dict[str
     location_name = tool_input["location_name"]
     region = tool_input.get("region")  # Legacy fallback
 
-    position = engine.get_component(player_entity_id, 'Position')
-    if not position:
-        return {"success": False, "message": _format_error("Player has no Position component")}
+    # Use centralized PositionSystem method for movement
+    from src.modules.core_components.systems import PositionSystem
+    position_system = PositionSystem(engine)
 
-    # Find location entity by name (entity-based positioning)
-    resolver = EntityResolver(engine)
-    location_entity = resolver.resolve(location_name, expected_type='location')
+    result = position_system.move_entity_to_location(player_entity_id, location_name)
 
-    if location_entity:
-        # Entity-based positioning: set region to location entity ID
-        engine.update_component(player_entity_id, 'Position', {
-            'region': location_entity.id  # Entity reference!
-        })
-        logger.info(f"Moved player to location entity: {location_name} ({location_entity.id})")
+    if result.success:
+        location_id = result.data.get('location_id')
+        logger.info(f"Moved player to location entity: {location_name} ({location_id})")
         return {
             "success": True,
             "message": f"Moved to {location_name}",
-            "data": {"location": location_name, "location_id": location_entity.id}
+            "data": {"location": location_name, "location_id": location_id}
         }
     elif region:
         # Fallback: Use region string (legacy or for abstract regions)
@@ -1037,14 +1066,7 @@ def _move_player_to_location(engine, player_entity_id: str, tool_input: Dict[str
             "data": {"region": region}
         }
     else:
-        # Location not found and no region specified
-        # Query for available locations to provide helpful error message
-        all_locations = engine.query_entities(['Location'])
-        nearby_locations = [loc.name for loc in all_locations[:5]]
-        error_msg = f"Location '{location_name}' not found"
-        if nearby_locations:
-            error_msg += f". Available locations: {', '.join(nearby_locations)}"
-        return {"success": False, "message": _format_error(error_msg)}
+        return {"success": False, "message": _format_error(result.error)}
 
 
 def _query_entities(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
@@ -1489,7 +1511,37 @@ def _update_component(engine, player_entity_id: str, tool_input: Dict[str, Any])
     if not component:
         return {"success": False, "message": _format_error(f"Entity '{entity_name}' does not have a {component_type} component")}
 
-    # Update the component
+    # Special handling for Position component updates with location_name
+    # Use centralized PositionSystem method for location-based movement
+    if component_type == 'Position' and 'location_name' in updates:
+        location_name = updates.pop('location_name')  # Remove location_name from updates
+
+        # Use centralized PositionSystem method
+        from src.modules.core_components.systems import PositionSystem
+        position_system = PositionSystem(engine)
+
+        result = position_system.move_entity_to_location(entity.id, location_name)
+        if not result.success:
+            return {"success": False, "message": _format_error(result.error)}
+
+        location_id = result.data.get('location_id')
+        logger.info(f"  → Moved {entity_name} to {location_name} ({location_id}) via PositionSystem")
+
+        # If there are other Position updates (x, y, z), apply them now
+        if updates:
+            result = engine.update_component(entity.id, component_type, updates)
+            if not result.success:
+                logger.error(f"Failed to update additional Position fields on {entity_name}: {result.error}")
+                return {"success": False, "message": _format_error(f"Failed to update component: {result.error}")}
+
+        logger.info(f"Updated Position on {entity_name} ({entity.id}): moved to {location_name} - {reason}")
+        return {
+            "success": True,
+            "message": f"Updated {entity_name}'s {component_type} component: {reason}",
+            "data": {"entity_id": entity.id, "component_type": component_type, "location": location_name}
+        }
+
+    # Update the component normally
     result = engine.update_component(entity.id, component_type, updates)
     if not result.success:
         logger.error(f"Failed to update {component_type} on {entity_name}: {result.error}")
