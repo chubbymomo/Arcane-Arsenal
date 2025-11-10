@@ -72,6 +72,9 @@ class AIDMModule(Module):
         # Subscribe to component.added to auto-add Conversation to new PlayerCharacter entities
         engine.event_bus.subscribe('component.added', self.on_component_added)
 
+        # Subscribe to character.intro_requested to auto-generate AI intros
+        engine.event_bus.subscribe('character.intro_requested', self.on_intro_requested)
+
         # Auto-add Conversation component to all existing PlayerCharacter entities
         try:
             player_characters = engine.query_entities(['PlayerCharacter'])
@@ -107,6 +110,29 @@ class AIDMModule(Module):
                     logger.info(f"Auto-added Conversation component to new player character {entity_id}")
                 except Exception as e:
                     logger.warning(f"Could not auto-add Conversation to {entity_id}: {e}")
+
+    def on_intro_requested(self, event: Event) -> None:
+        """Generate AI intro when requested for a new character."""
+        if not hasattr(self, 'engine'):
+            return
+
+        entity_id = event.entity_id
+        logger.info(f"Generating AI intro for character {entity_id}")
+
+        try:
+            # Import generate_intro_for_character from api module
+            from .api import generate_intro_for_character
+
+            # Generate the intro (runs synchronously)
+            result = generate_intro_for_character(self.engine, entity_id)
+
+            if result.get('success'):
+                logger.info(f"Successfully generated AI intro for {entity_id}")
+            else:
+                logger.error(f"Failed to generate AI intro for {entity_id}: {result.get('error')}")
+
+        except Exception as e:
+            logger.error(f"Error generating AI intro for {entity_id}: {e}", exc_info=True)
 
     def register_component_types(self) -> List[ComponentTypeDefinition]:
         """Register ChatMessage and Conversation components."""

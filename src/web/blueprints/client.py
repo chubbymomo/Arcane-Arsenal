@@ -193,16 +193,16 @@ def character_builder():
             ))
 
             # Generate AI intro if requested
-            # Note: AI intro generation is handled by ai_dm module
-            # For now, we skip auto-generation during character creation
-            # Players can trigger intro generation from the character sheet
-            # This simplifies the flow and moves AI logic to the ai_dm module
             if scenario_type == 'ai_generated':
-                # Create empty Conversation component so AI intro can be generated later
-                engine.add_component(entity_id, 'Conversation', {
-                    'message_ids': []
-                })
-                flash('Character created! Visit your character sheet to generate an AI introduction.', 'info')
+                # Publish event to trigger AI intro generation
+                # The ai_dm module will listen for this event and generate the intro
+                from src.core.event_bus import Event
+                engine.event_bus.publish(Event(
+                    type='character.intro_requested',
+                    entity_id=entity_id,
+                    data={'scenario_type': 'ai_generated'}
+                ))
+                flash('Character created! AI is generating your introduction...', 'info')
 
             flash(f'Character "{name}" created successfully!', 'success')
             return redirect(url_for('client.character_sheet', entity_id=entity_id))
