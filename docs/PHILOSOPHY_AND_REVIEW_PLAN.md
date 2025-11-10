@@ -199,9 +199,8 @@ For EACH system:
 
 ### Mitigation
 1. Before schema change: `grep -r "ComponentName" src/`
-2. Plan migration script for breaking changes
-3. Check template renderers
-4. Update systems that query this component
+2. Check template renderers
+3. Update systems that query this component
 
 ---
 
@@ -335,8 +334,7 @@ A --knows--> B
 1. Search: `grep -r 'create_relationship.*"type"'`
 2. Search: `grep -r 'get_relationships.*"type"'`
 3. Check templates
-4. Migration script
-5. Test on copy first
+4. Test on copy first
 
 ---
 
@@ -498,7 +496,7 @@ For EACH page/feature:
 
 **Context Quality**:
 - [ ] Focuses on relevant entities
-- [ ] Includes nearby (based on Position)
+- [ ] Includes nearby (based on Location and/or Position)
 - [ ] Includes relationships
 - [ ] Includes recent events
 - [ ] Computes available actions
