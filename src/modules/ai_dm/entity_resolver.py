@@ -176,7 +176,18 @@ class EntityResolver:
         if not component:
             return True  # Unknown type, don't filter
 
-        return self.engine.get_component(entity.id, component) is not None
+        result = self.engine.get_component(entity.id, component)
+
+        # DEBUG logging
+        if result is None:
+            logger.info(f"  _has_type: Entity {entity.name} ({entity.id}) missing {component} component")
+            # Check what components it actually has
+            all_comps = self.engine.get_entity_components(entity.id)
+            logger.info(f"    → Has components: {list(all_comps.keys())}")
+        else:
+            logger.info(f"  _has_type: Entity {entity.name} ({entity.id}) HAS {component} component")
+
+        return result is not None
 
     def _find_by_exact_name(self,
                            name: str,
@@ -196,7 +207,10 @@ class EntityResolver:
         Component-filtered queries may have caching issues.
         """
         all_entities = self.engine.query_entities()
+        logger.info(f"_find_all_by_exact_name: Searching for '{name}' (type={expected_type}) in {len(all_entities)} entities")
+
         matches = []
+        name_matches_before_type_filter = []
 
         for entity in all_entities:
             if not entity.is_active():
@@ -204,11 +218,16 @@ class EntityResolver:
 
             # Case-insensitive name comparison
             if entity.name.lower() == name.lower():
+                name_matches_before_type_filter.append(entity)
+                logger.info(f"  → Found name match: {entity.name} ({entity.id})")
+
                 # Filter by type if specified (check component manually)
                 if expected_type and not self._has_type(entity, expected_type):
+                    logger.info(f"    → Filtered out: Wrong type (expected {expected_type})")
                     continue
                 matches.append(entity)
 
+        logger.info(f"  Result: {len(name_matches_before_type_filter)} name matches, {len(matches)} after type filter")
         return matches
 
     def _find_by_fuzzy_name(self,
