@@ -23,7 +23,13 @@ class CharacterDetailsComponent(ComponentTypeDefinition):
     module = "generic_fantasy"
 
     def get_schema(self) -> Dict[str, Any]:
-        """Return JSON Schema for character details."""
+        """
+        Return JSON Schema for character details.
+
+        Note: race is always required. character_class and level are required
+        for mechanically-defined characters (players, combat NPCs) but optional
+        for simple NPCs who only need race for description.
+        """
         return {
             "type": "object",
             "properties": {
@@ -33,7 +39,7 @@ class CharacterDetailsComponent(ComponentTypeDefinition):
                 },
                 "character_class": {
                     "type": "string",
-                    "description": "Character's class (e.g., fighter, wizard, rogue)"
+                    "description": "Character's class (e.g., fighter, wizard, rogue). Optional for simple NPCs."
                 },
                 "background": {
                     "type": "string",
@@ -48,10 +54,10 @@ class CharacterDetailsComponent(ComponentTypeDefinition):
                     "minimum": 1,
                     "maximum": 20,
                     "default": 1,
-                    "description": "Character level"
+                    "description": "Character level. Defaults to 1 if not specified."
                 }
             },
-            "required": ["race", "character_class", "level"]
+            "required": ["race"]
         }
 
     def get_ui_metadata(self) -> Dict[str, Dict[str, Any]]:
@@ -159,7 +165,7 @@ class CharacterDetailsComponent(ComponentTypeDefinition):
                     f"Valid races: {', '.join(races_registry.get_keys())}"
                 )
 
-        # Validate character_class
+        # Validate character_class (optional - only if provided)
         char_class = data.get('character_class')
         if char_class:
             classes_registry = engine.create_registry('classes', self.module)
@@ -170,6 +176,7 @@ class CharacterDetailsComponent(ComponentTypeDefinition):
                     f"Invalid class '{char_class}'. "
                     f"Valid classes: {', '.join(classes_registry.get_keys())}"
                 )
+        # Note: character_class is now optional, so NPCs can have just race without class
 
         # Validate alignment (optional field)
         alignment = data.get('alignment')

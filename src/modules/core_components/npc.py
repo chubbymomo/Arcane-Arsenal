@@ -19,43 +19,44 @@ Usage:
     hostile = [e for e in hostile if e.NPC['disposition'] == 'hostile']
 
 Entity Type by Components:
-    - Has NPC + Identity: Named NPC with personality
-    - Has NPC + CharacterDetails: NPC with class/level mechanics
-    - Has PlayerCharacter: Player-controlled character
+    - Has NPC + CharacterDetails + Identity: Named NPC with race and personality
+    - Has NPC + CharacterDetails (with class): NPC with class/level mechanics
+    - Has PlayerCharacter + CharacterDetails: Player-controlled character
     - No NPC or PlayerCharacter: Monster, item, location, etc.
 
 This component works with:
-    - Identity: NPC description, race, occupation
-    - CharacterDetails: Class, level (for mechanically-defined NPCs)
+    - Identity: NPC description (narrative data)
+    - CharacterDetails: Race (required for all NPCs), class/level (optional for mechanically-defined NPCs)
     - Position: NPC location in the world
     - Conversation: For NPCs the player can talk to
 
 Examples:
-    # Tavern keeper (simple NPC)
+    # Tavern keeper (simple NPC - race but no class)
+    engine.add_component(keeper_id, 'Identity', {
+        'description': 'A grizzled dwarf who runs the tavern'
+    })
+    engine.add_component(keeper_id, 'CharacterDetails', {
+        'race': 'dwarf'
+    })
     engine.add_component(keeper_id, 'NPC', {
+        'occupation': 'tavern keeper',
         'disposition': 'friendly',
         'met_player': False
     })
-    engine.add_component(keeper_id, 'Identity', {
-        'description': 'A grizzled dwarf who runs the tavern',
-        'race': 'dwarf',
-        'occupation': 'tavern keeper'
-    })
 
-    # Enemy wizard (NPC with class/level)
-    engine.add_component(wizard_id, 'NPC', {
-        'disposition': 'hostile',
-        'met_player': True
-    })
+    # Enemy wizard (NPC with class/level for combat mechanics)
     engine.add_component(wizard_id, 'Identity', {
-        'description': 'A dark wizard who commands shadow magic',
-        'race': 'human',
-        'occupation': 'evil wizard'
+        'description': 'A dark wizard who commands shadow magic'
     })
     engine.add_component(wizard_id, 'CharacterDetails', {
+        'race': 'human',
         'character_class': 'wizard',
-        'level': 8,
-        'race': 'human'
+        'level': 8
+    })
+    engine.add_component(wizard_id, 'NPC', {
+        'occupation': 'evil wizard',
+        'disposition': 'hostile',
+        'met_player': True
     })
 """
 
@@ -76,19 +77,17 @@ class NPCComponent(ComponentTypeDefinition):
         Get JSON schema for NPC component.
 
         Properties:
-            race: NPC's race (human, elf, dwarf, etc.)
             occupation: NPC's occupation or role
             disposition: How the NPC feels toward the player
             dialogue_state: Current state in dialogue tree (default: 'initial')
             met_player: Whether the NPC has met the player (default: False)
+
+        Note: Race is stored in CharacterDetails component, not here.
+        All NPCs should have CharacterDetails with at least race defined.
         """
         return {
             "type": "object",
             "properties": {
-                "race": {
-                    "type": "string",
-                    "description": "NPC's race (human, elf, dwarf, etc.)"
-                },
                 "occupation": {
                     "type": "string",
                     "description": "NPC's occupation or role (blacksmith, guard, merchant, etc.)"

@@ -640,23 +640,26 @@ def _create_npc(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Di
         return {"success": False, "message": _format_error(f"Failed to add Identity component: {result.error}")}
     logger.info(f"  → Added Identity: desc={description[:50]}...")
 
-    # Add CharacterDetails if class is provided (enables mechanics like spells, skills)
+    # ALWAYS add CharacterDetails with race (single source of truth for race)
+    # Add class/level only if provided (for mechanical NPCs like wizards, fighters)
+    char_details = {'race': race}
     if npc_class:
-        char_details = {
-            'character_class': npc_class,
-            'level': level,
-            'race': race  # Also in CharacterDetails for module compatibility
-        }
-        result = engine.add_component(npc_id, 'CharacterDetails', char_details)
-        if not result.success:
-            logger.error(f"  ✗ Failed to add CharacterDetails: {result.error}")
-        else:
-            logger.info(f"  → Added CharacterDetails: class={npc_class}, level={level}")
-        # Note: This will trigger auto-add of Magic/Skills components via events if applicable
+        char_details['character_class'] = npc_class
+        char_details['level'] = level
 
-    # Add NPC component (includes race and occupation)
+    result = engine.add_component(npc_id, 'CharacterDetails', char_details)
+    if not result.success:
+        logger.error(f"  ✗ Failed to add CharacterDetails: {result.error}")
+        return {"success": False, "message": _format_error(f"Failed to add CharacterDetails: {result.error}")}
+
+    if npc_class:
+        logger.info(f"  → Added CharacterDetails: race={race}, class={npc_class}, level={level}")
+        # Note: This will trigger auto-add of Magic/Skills components via events if applicable
+    else:
+        logger.info(f"  → Added CharacterDetails: race={race} (no class)")
+
+    # Add NPC component (occupation and behavioral data only - race is in CharacterDetails)
     result = engine.add_component(npc_id, 'NPC', {
-        'race': race,
         'occupation': occupation,
         'disposition': disposition,
         'dialogue_state': 'initial',
@@ -665,7 +668,7 @@ def _create_npc(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Di
     if not result.success:
         logger.error(f"  ✗ Failed to add NPC component: {result.error}")
         return {"success": False, "message": _format_error(f"Failed to add NPC component: {result.error}")}
-    logger.info(f"  → Added NPC component: race={race}, occupation={occupation}, disposition={disposition}")
+    logger.info(f"  → Added NPC component: occupation={occupation}, disposition={disposition}")
 
     # Add Position component - entity-based hierarchical positioning
     location_name = tool_input.get("location_name")
