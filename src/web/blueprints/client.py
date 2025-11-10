@@ -11,12 +11,16 @@ import json as json_module
 from functools import wraps
 
 from src.core.state_engine import StateEngine
+from src.core.module_loader import ModuleLoader
 from src.web.form_builder import FormBuilder
 
 logger = logging.getLogger(__name__)
 
 # Create blueprint
 client_bp = Blueprint('client', __name__, url_prefix='/client', template_folder='../templates/client')
+
+# Cache for initialized modules per world
+_world_modules_cache = {}
 
 
 def require_world(f):
@@ -41,6 +45,49 @@ def get_engine() -> StateEngine:
         raise ValueError(f'StateEngine not initialized for world: {world_name}')
 
     return engine
+
+
+def get_generic_fantasy_module():
+    """
+    Get the generic_fantasy module for the current world (if loaded).
+
+    Returns:
+        GenericFantasyModule instance or None if not loaded
+    """
+    world_name = session.get('world_name')
+    if not world_name:
+        return None
+
+    # Check if modules are already loaded for this world
+    if world_name not in _world_modules_cache:
+        # Load and initialize modules
+        world_path = session.get('world_path')
+        engine = get_engine()
+
+        logger.info(f"Loading modules for world: {world_name}")
+        loader = ModuleLoader(world_path)
+        modules = loader.load_modules(strategy='config')
+
+        # Initialize each module with the cached engine
+        for module in modules:
+            try:
+                module.initialize(engine)
+            except Exception as e:
+                logger.warning(f"Failed to initialize module {module.name}: {e}")
+
+        # Cache the loaded modules for this world
+        _world_modules_cache[world_name] = modules
+        logger.info(f"✓ Modules loaded and cached for world: {world_name}")
+
+    # Get modules from cache
+    modules = _world_modules_cache[world_name]
+
+    # Find generic_fantasy module
+    for module in modules:
+        if module.name == 'generic_fantasy':
+            return module
+
+    return None
 
 
 # ========== View Endpoints ==========
@@ -160,255 +207,51 @@ def character_builder():
         entity_id = result.data['id']
 
         try:
-            # Add Identity component
+            # Add core components (these are core_components module, always available)
             engine.add_component(entity_id, 'Identity', {
-                'description': description or f"A {race} {char_class}"
+                'description': description or f"A {race} {char_class}" if (race or char_class) else "A new character"
             })
 
-            # Add Position component
             engine.add_component(entity_id, 'Position', {
                 'x': 0, 'y': 0, 'z': 0,
                 'region': region
             })
 
-            # Add PlayerCharacter component (marker - no data needed)
             engine.add_component(entity_id, 'PlayerCharacter', {})
 
-            # Add Attributes component (only if generic_fantasy module loaded)
-            if has_attributes:
-                engine.add_component(entity_id, 'Attributes', {
-                    'strength': strength,
-                    'dexterity': dexterity,
-                    'constitution': constitution,
-                    'intelligence': intelligence,
-                    'wisdom': wisdom,
-                    'charisma': charisma
-                })
-
-            # Add CharacterDetails if provided (triggers auto-add of Magic/Skills via events)
-            if race or char_class or alignment:
-                char_details = {
-                    'level': 1  # Default starting level
-                }
-                if race:
-                    char_details['race'] = race
-                if char_class:
-                    char_details['character_class'] = char_class
-                if alignment:
-                    char_details['alignment'] = alignment
-
-                engine.add_component(entity_id, 'CharacterDetails', char_details)
-
-            # Generate AI intro if requested (one-time event during creation)
-            if scenario_type == 'ai_generated':
-                try:
-                    from datetime import datetime
-                    import json
-                    from src.modules.ai_dm.llm_client import get_llm_client, LLMError
-                    from src.modules.ai_dm.prompts import build_full_prompt
-                    from src.modules.ai_dm.response_parser import parse_dm_response
-                    from src.modules.ai_dm.tools import get_tool_definitions, execute_tool
-                    from src.core.config import get_config
-
-                    # Create Conversation component
-                    engine.add_component(entity_id, 'Conversation', {
-                        'message_ids': []
-                    })
-
-                    # Build context and generate intro
-                    ai_context = engine.generate_ai_context(entity_id)
-                    full_system_prompt = build_full_prompt(ai_context)
-
-                    intro_prompt = (
-                        "This is the very beginning of the adventure. "
-                        "Create an engaging, UNIQUE opening scene that introduces the character to their starting location. "
-                        "Set the mood, describe the environment, and present an initial situation that draws them in. "
-                        "\n\n"
-                        "IMPORTANT - CREATE VARIETY:\n"
-                        "- Avoid generic taverns unless the character's class/background specifically suggests it\n"
-                        "- Consider diverse starting locations: festivals, caravans, wilderness camps, merchant shops, "
-                        "noble courts, guild halls, temples, city gates, docks, markets, ruins, etc.\n"
-                        "- Create NPCs with distinct, memorable names and personalities (avoid common fantasy names)\n"
-                        "- Match the starting scenario to the character's class and background when possible\n"
-                        "- Add unexpected twists or unique situations that immediately engage the player\n"
-                        "\n"
-                        "Use your available tools to create NPCs, locations, and items as needed to make the world come alive. "
-                        "Remember: no meta-gaming, just vivid narrative."
+            # Add fantasy-specific components via module (if module loaded and fields provided)
+            # This delegates to the module instead of directly manipulating module components
+            if has_attributes or race or char_class or alignment:
+                fantasy_module = get_generic_fantasy_module()
+                if fantasy_module:
+                    result = fantasy_module.add_fantasy_components(
+                        engine, entity_id,
+                        race=race,
+                        character_class=char_class,
+                        alignment=alignment,
+                        strength=strength,
+                        dexterity=dexterity,
+                        constitution=constitution,
+                        intelligence=intelligence,
+                        wisdom=wisdom,
+                        charisma=charisma
                     )
+                    if not result.success:
+                        raise ValueError(result.error)
+                else:
+                    logger.warning("Fantasy fields provided but generic_fantasy module not loaded")
 
-                    config = get_config()
-                    llm = get_llm_client(config)
-                    tools = get_tool_definitions()
-
-                    # Convert tools to Anthropic format
-                    anthropic_tools = []
-                    for tool in tools:
-                        anthropic_tools.append({
-                            "name": tool["name"],
-                            "description": tool["description"],
-                            "input_schema": tool["input_schema"]
-                        })
-
-                    # Accumulate response and execute tools
-                    full_response = ""
-                    tool_uses = []  # Collect all tool uses
-                    current_tool = None
-                    tool_input_json = ""
-
-                    logger.info("=== Starting AI intro generation ===")
-                    logger.info(f"Prompt: {intro_prompt}")
-                    logger.info(f"Tools available: {len(anthropic_tools)}")
-
-                    # First turn: Let Claude use tools
-                    llm_messages = [{'role': 'user', 'content': intro_prompt}]
-
-                    for chunk in llm.generate_response_stream(
-                        messages=llm_messages,
-                        system=full_system_prompt,
-                        max_tokens=config.ai_max_tokens,
-                        temperature=config.ai_temperature,
-                        tools=anthropic_tools if anthropic_tools else None
-                    ):
-                        if chunk['type'] == 'text':
-                            full_response += chunk['content']
-                        elif chunk['type'] == 'tool_use_start':
-                            # Save previous tool if exists
-                            if current_tool and tool_input_json:
-                                try:
-                                    tool_uses.append({
-                                        'id': current_tool['id'],
-                                        'name': current_tool['name'],
-                                        'input': json.loads(tool_input_json)
-                                    })
-                                except json.JSONDecodeError:
-                                    logger.error(f"Failed to parse tool input for {current_tool['name']}")
-
-                            current_tool = {
-                                'id': chunk['tool_use_id'],
-                                'name': chunk['tool_name']
-                            }
-                            tool_input_json = ""
-                            logger.info(f"Tool use START: {chunk['tool_name']} (id: {chunk['tool_use_id']})")
-                        elif chunk['type'] == 'tool_input_delta':
-                            tool_input_json += chunk['partial_json']
-
-                    # Save last tool
-                    if current_tool and tool_input_json:
-                        try:
-                            tool_uses.append({
-                                'id': current_tool['id'],
-                                'name': current_tool['name'],
-                                'input': json.loads(tool_input_json)
-                            })
-                        except json.JSONDecodeError as e:
-                            logger.error(f"Failed to parse final tool input: {e}")
-
-                    logger.info(f"=== First turn complete: {len(tool_uses)} tools, {len(full_response)} chars text ===")
-
-                    # Execute all tools
-                    tool_results = []
-                    if tool_uses:
-                        logger.info(f"=== Executing {len(tool_uses)} tools ===")
-                        for tool_use in tool_uses:
-                            logger.info(f"Executing: {tool_use['name']}")
-                            result = execute_tool(
-                                tool_use['name'],
-                                tool_use['input'],
-                                engine,
-                                entity_id
-                            )
-                            tool_results.append({
-                                'tool_use_id': tool_use['id'],
-                                'result': result
-                            })
-                            logger.info(f"  Result: {result['success']} - {result['message']}")
-
-                        # Second turn: Give Claude the tool results and ask for narrative
-                        logger.info("=== Second turn: Asking Claude for narrative ===")
-
-                        # Build tool result content
-                        tool_result_content = []
-                        for tr in tool_results:
-                            result_text = tr['result']['message']
-                            tool_result_content.append({
-                                'type': 'tool_result',
-                                'tool_use_id': tr['tool_use_id'],
-                                'content': result_text
-                            })
-
-                        # Add assistant message with tool uses
-                        llm_messages.append({
-                            'role': 'assistant',
-                            'content': [{'type': 'tool_use', 'id': tu['id'], 'name': tu['name'], 'input': tu['input']} for tu in tool_uses]
-                        })
-
-                        # Add user message with tool results
-                        llm_messages.append({
-                            'role': 'user',
-                            'content': tool_result_content
-                        })
-
-                        # Get narrative response
-                        full_response = ""
-                        for chunk in llm.generate_response_stream(
-                            messages=llm_messages,
-                            system=full_system_prompt,
-                            max_tokens=config.ai_max_tokens,
-                            temperature=config.ai_temperature,
-                            tools=None  # No tools in second turn
-                        ):
-                            if chunk['type'] == 'text':
-                                full_response += chunk['content']
-
-                        logger.info(f"=== Second turn complete: {len(full_response)} chars narrative ===")
-
-                    logger.info(f"=== Final response: {full_response[:300]}... ===")
-
-                    intro_text, intro_actions = parse_dm_response(full_response)
-                    logger.info(f"=== Parsed intro ===")
-                    logger.info(f"Intro text length: {len(intro_text)} chars")
-                    logger.info(f"Intro text: {intro_text}")
-                    logger.info(f"Intro actions: {intro_actions}")
-
-                    # Create intro message entity
-                    dm_msg_result = engine.create_entity("DM intro message")
-                    if dm_msg_result.success:
-                        dm_msg_id = dm_msg_result.data['id']
-
-                        engine.add_component(dm_msg_id, 'ChatMessage', {
-                            'speaker': 'dm',
-                            'speaker_name': 'Dungeon Master',
-                            'message': intro_text,
-                            'timestamp': datetime.utcnow().isoformat(),
-                            'suggested_actions': intro_actions
-                        })
-
-                        # Add to conversation
-                        engine.update_component(entity_id, 'Conversation', {
-                            'message_ids': [dm_msg_id]
-                        })
-
-                        logger.info(f"Generated AI intro for character {entity_id}")
-
-                        # Entity-based positioning: Move player to created location if any
-                        # Find any location entities created during intro
-                        location_entities = engine.query_entities(['Location'])
-                        if location_entities:
-                            # Get the first (most recent) location
-                            starting_location = location_entities[0]
-                            logger.info(f"Found starting location: {starting_location.name} ({starting_location.id})")
-
-                            # Update player's Position to be AT this location (entity-based)
-                            engine.update_component(entity_id, 'Position', {
-                                'region': starting_location.id  # Entity reference!
-                            })
-                            logger.info(f"  → Moved player to location entity: {starting_location.id}")
-                        else:
-                            logger.warning("No location entities found after AI intro - player remains in named region")
-
-                except Exception as e:
-                    logger.error(f"Failed to generate AI intro: {e}")
-                    # Non-fatal - character still created, just no intro
+            # Generate AI intro if requested
+            # Note: AI intro generation is handled by ai_dm module
+            # For now, we skip auto-generation during character creation
+            # Players can trigger intro generation from the character sheet
+            # This simplifies the flow and moves AI logic to the ai_dm module
+            if scenario_type == 'ai_generated':
+                # Create empty Conversation component so AI intro can be generated later
+                engine.add_component(entity_id, 'Conversation', {
+                    'message_ids': []
+                })
+                flash('Character created! Visit your character sheet to generate an AI introduction.', 'info')
 
             flash(f'Character "{name}" created successfully!', 'success')
             return redirect(url_for('client.character_sheet', entity_id=entity_id))
@@ -525,6 +368,7 @@ def character_sheet(entity_id: str):
     position = components.get('Position', {})
 
     # Get world position if available
+    # Note: PositionSystem is a core utility, so direct import is acceptable
     from src.modules.core_components.systems import PositionSystem
     position_system = PositionSystem(engine)
     world_pos = position_system.get_world_position(entity_id)
@@ -591,71 +435,5 @@ def character_sheet(entity_id: str):
         form_builder=form_builder
     )
 
-@client_bp.route('/api/entities/<entity_id>/use_item', methods=['POST'])
-def use_item(entity_id):
-    """Use a consumable item."""
-    from flask import request, jsonify, session, current_app
-
-    world_name = session.get('world_name')
-    if not world_name:
-        return jsonify({'success': False, 'error': 'No world selected'}), 400
-
-    engine = current_app.engine_instances.get(world_name)
-    if not engine:
-        return jsonify({'success': False, 'error': 'World engine not found'}), 404
-
-    data = request.get_json()
-    item_id = data.get('item_id')
-
-    if not item_id:
-        return jsonify({'success': False, 'error': 'item_id required'}), 400
-
-    # Get the item
-    item = engine.get_entity(item_id)
-    if not item:
-        return jsonify({'success': False, 'error': 'Item not found'}), 404
-
-    # Check if item is consumable
-    consumable = engine.get_component(item_id, 'Consumable')
-    if not consumable:
-        return jsonify({'success': False, 'error': 'Item is not consumable'}), 400
-
-    # Check if item has charges
-    charges = consumable.data.get('charges', 0)
-    if charges <= 0:
-        return jsonify({'success': False, 'error': 'Item has no charges remaining'}), 400
-
-    try:
-        # Decrease charges
-        new_charges = charges - 1
-        engine.update_component(item_id, 'Consumable', {
-            **consumable.data,
-            'charges': new_charges
-        })
-
-        # If charges reach 0, delete the item (unless rechargeable)
-        if new_charges == 0 and not consumable.data.get('rechargeable', False):
-            engine.delete_entity(item_id)
-            message = f"Used {item.name}. Item consumed (no charges remaining)."
-        else:
-            message = f"Used {item.name}. {new_charges} charges remaining."
-
-        # Emit event
-        from src.core.event_bus import Event
-        engine.event_bus.publish(Event.create(
-            event_type='item.used',
-            entity_id=entity_id,
-            actor_id=entity_id,
-            data={
-                'item_id': item_id,
-                'item_name': item.name,
-                'effect': consumable.data.get('effect_description', ''),
-                'charges_remaining': new_charges
-            }
-        ))
-
-        return jsonify({'success': True, 'message': message, 'charges_remaining': new_charges})
-
-    except Exception as e:
-        logger.error(f"Error using item: {e}", exc_info=True)
-        return jsonify({'success': False, 'error': str(e)}), 500
+# Note: Item usage endpoint moved to items module API
+# See src/modules/items/api.py - POST /api/item/use

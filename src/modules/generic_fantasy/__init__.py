@@ -14,7 +14,7 @@ while being specific enough to be immediately useful. Worlds can customize
 via registries (add custom races, classes, skills, etc.).
 """
 
-from typing import List
+from typing import List, Optional, Any
 import logging
 from ..base import Module, ComponentTypeDefinition
 from src.core.event_bus import Event
@@ -429,6 +429,82 @@ class GenericFantasyModule(Module):
                 except Exception as e:
                     logger.warning(f"Could not update spell slots: {e}")
 
+    def add_fantasy_components(self, engine, entity_id: str, race: str = None,
+                               character_class: str = None, alignment: str = None,
+                               strength: int = None, dexterity: int = None,
+                               constitution: int = None, intelligence: int = None,
+                               wisdom: int = None, charisma: int = None):
+        """
+        Add fantasy-specific components to an entity.
+
+        This method encapsulates the module's logic for creating fantasy characters,
+        keeping the web layer free from knowledge of Attributes and CharacterDetails structure.
+
+        Args:
+            engine: StateEngine instance
+            entity_id: ID of entity to add components to
+            race: Character race (optional)
+            character_class: Character class (optional)
+            alignment: Character alignment (optional)
+            strength, dexterity, constitution, intelligence, wisdom, charisma: Attribute scores (optional)
+
+        Returns:
+            Result object with success status
+        """
+        from src.core.result import Result
+
+        try:
+            components_added = []
+
+            # Add Attributes component if attribute values provided
+            attrs = [strength, dexterity, constitution, intelligence, wisdom, charisma]
+            has_attributes = any(attr is not None for attr in attrs)
+
+            if has_attributes:
+                # Validate all attributes are present and in range
+                if any(attr is None or attr < 1 or attr > 20 for attr in attrs):
+                    return Result.error('All attributes must be provided and between 1 and 20')
+
+                result = engine.add_component(entity_id, 'Attributes', {
+                    'strength': strength,
+                    'dexterity': dexterity,
+                    'constitution': constitution,
+                    'intelligence': intelligence,
+                    'wisdom': wisdom,
+                    'charisma': charisma
+                })
+
+                if not result.success:
+                    return result
+
+                components_added.append('Attributes')
+
+            # Add CharacterDetails if race, class, or alignment provided
+            if race or character_class or alignment:
+                char_details = {'level': 1}  # Default starting level
+                if race:
+                    char_details['race'] = race
+                if character_class:
+                    char_details['character_class'] = character_class
+                if alignment:
+                    char_details['alignment'] = alignment
+
+                result = engine.add_component(entity_id, 'CharacterDetails', char_details)
+
+                if not result.success:
+                    return result
+
+                components_added.append('CharacterDetails')
+                # Event system will auto-add Magic and Skills components if spellcaster
+
+            if not components_added:
+                return Result.error('No fantasy components specified')
+
+            return Result.success(data={'components_added': components_added})
+
+        except Exception as e:
+            return Result.error(f'Failed to add fantasy components: {str(e)}')
+
     def register_component_types(self) -> List[ComponentTypeDefinition]:
         """Register fantasy character components."""
         return [
@@ -440,6 +516,16 @@ class GenericFantasyModule(Module):
             # Note: Inventory is handled by the 'items' module through
             # entity relationships (owns, equipped), which is the proper ECS way
         ]
+
+    def register_blueprint(self) -> Optional[Any]:
+        """
+        Register Flask blueprint for fantasy character creation API.
+
+        Provides REST API endpoints for fantasy-specific character management:
+        - POST /api/fantasy/character/create - Create fantasy character with race/class/attributes
+        """
+        from .api import generic_fantasy_bp
+        return generic_fantasy_bp
 
 
 # Export

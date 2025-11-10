@@ -271,6 +271,93 @@ def api_unequip_item():
         }), 500
 
 
+@items_bp.route('/api/item/use', methods=['POST'])
+def api_use_item():
+    """
+    Use a consumable item.
+
+    Request JSON:
+        {
+            "entity_id": "character_123",
+            "item_id": "potion_456"
+        }
+
+    Returns:
+        {
+            "success": true,
+            "message": "Used Health Potion. 2 charges remaining.",
+            "charges_remaining": 2
+        }
+    """
+    try:
+        world_name = session.get('world_name')
+        if not world_name:
+            return jsonify({'success': False, 'error': 'No world selected'}), 400
+
+        engine = current_app.engine_instances.get(world_name)
+        if not engine:
+            return jsonify({'success': False, 'error': 'World engine not found'}), 404
+
+        data = request.get_json()
+        entity_id = data.get('entity_id')
+        item_id = data.get('item_id')
+
+        if not entity_id or not item_id:
+            return jsonify({'success': False, 'error': 'entity_id and item_id required'}), 400
+
+        # Get the item
+        item = engine.get_entity(item_id)
+        if not item:
+            return jsonify({'success': False, 'error': 'Item not found'}), 404
+
+        # Check if item is consumable
+        consumable = engine.get_component(item_id, 'Consumable')
+        if not consumable:
+            return jsonify({'success': False, 'error': 'Item is not consumable'}), 400
+
+        # Check if item has charges
+        charges = consumable.data.get('charges', 0)
+        if charges <= 0:
+            return jsonify({'success': False, 'error': 'Item has no charges remaining'}), 400
+
+        # Decrease charges
+        new_charges = charges - 1
+        result = engine.update_component(item_id, 'Consumable', {
+            **consumable.data,
+            'charges': new_charges
+        })
+
+        if not result.success:
+            return jsonify({'success': False, 'error': f'Failed to update item: {result.error}'}), 500
+
+        # If charges reach 0, delete the item (unless rechargeable)
+        if new_charges == 0 and not consumable.data.get('rechargeable', False):
+            engine.delete_entity(item_id)
+            message = f"Used {item.name}. Item consumed (no charges remaining)."
+        else:
+            message = f"Used {item.name}. {new_charges} charges remaining."
+
+        # Emit event
+        from src.core.event_bus import Event
+        engine.event_bus.publish(Event.create(
+            event_type='item.used',
+            entity_id=entity_id,
+            actor_id=entity_id,
+            data={
+                'item_id': item_id,
+                'item_name': item.name,
+                'effect': consumable.data.get('effect_description', ''),
+                'charges_remaining': new_charges
+            }
+        ))
+
+        return jsonify({'success': True, 'message': message, 'charges_remaining': new_charges})
+
+    except Exception as e:
+        logger.error(f"Error using item: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @items_bp.route('/api/inventory_display/<entity_id>')
 def api_inventory_display(entity_id: str):
     """
