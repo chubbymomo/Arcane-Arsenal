@@ -11,6 +11,7 @@ their own tools (e.g., spell casting, crafting, etc.).
 import logging
 from typing import Dict, Any, List, Callable
 from datetime import datetime
+from .entity_resolver import EntityResolver
 
 logger = logging.getLogger(__name__)
 
@@ -685,13 +686,9 @@ def _create_npc(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Di
     # Add Position component - entity-based hierarchical positioning
     location_name = tool_input.get("location_name")
     if location_name:
-        # Query for location entity by name (entity-based positioning)
-        location_entities = engine.query_entities(['Location'])
-        location_entity = None
-        for loc in location_entities:
-            if loc.name.lower() == location_name.lower():
-                location_entity = loc
-                break
+        # Resolve location entity by name
+        resolver = EntityResolver(engine)
+        location_entity = resolver.resolve(location_name, expected_type='location')
 
         if location_entity:
             # Position NPC AT the location entity (using entity ID)
@@ -785,10 +782,8 @@ def _create_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> D
     rarity = tool_input.get("rarity", "common")
 
     # Find the owner entity first
-    all_entities = engine.query_entities(['NPC']) + engine.query_entities(['Location']) + \
-                   engine.query_entities(['Item']) + engine.query_entities(['PlayerCharacter'])
-
-    owner_entity = next((e for e in all_entities if e.name.lower() == owned_by_entity_name.lower()), None)
+    resolver = EntityResolver(engine)
+    owner_entity = resolver.resolve(owned_by_entity_name)
 
     if not owner_entity:
         return {"success": False, "message": _format_error(f"Owner entity '{owned_by_entity_name}' not found. Create the owner entity first before creating items it owns.")}
@@ -955,8 +950,8 @@ def _move_player_to_location(engine, player_entity_id: str, tool_input: Dict[str
         return {"success": False, "message": _format_error("Player has no Position component")}
 
     # Find location entity by name (entity-based positioning)
-    locations = engine.query_entities(['Location'])
-    location_entity = next((e for e in locations if e.name.lower() == location_name.lower()), None)
+    resolver = EntityResolver(engine)
+    location_entity = resolver.resolve(location_name, expected_type='location')
 
     if location_entity:
         # Entity-based positioning: set region to location entity ID
@@ -1013,8 +1008,8 @@ def _query_entities(engine, player_entity_id: str, tool_input: Dict[str, Any]) -
     # Find location entity ID if location filter specified
     location_id = None
     if location:
-        locations = engine.query_entities(['Location'])
-        location_entity = next((e for e in locations if e.name.lower() == location.lower()), None)
+        resolver = EntityResolver(engine)
+        location_entity = resolver.resolve(location, expected_type='location')
         if location_entity:
             location_id = location_entity.id
         else:
@@ -1055,16 +1050,18 @@ def _update_npc_disposition(engine, player_entity_id: str, tool_input: Dict[str,
     new_disposition = tool_input["new_disposition"]
     reason = tool_input["reason"]
 
-    # Find the NPC
-    npcs = engine.query_entities(['NPC'])
-    npc = next((e for e in npcs if e.name.lower() == npc_name.lower()), None)
+    # Find the NPC (with context for disambiguation)
+    player_position = engine.get_component(player_entity_id, 'Position')
+    player_region = player_position.data.get('region') if player_position else None
+
+    resolver = EntityResolver(engine)
+    npc = resolver.resolve(npc_name, expected_type='npc', context_location=player_region)
 
     if not npc:
-        # Get player's current location to suggest nearby NPCs
-        player_position = engine.get_component(player_entity_id, 'Position')
-        player_region = player_position.data.get('region') if player_position else None
+        # Find NPCs at the same location (nearby) to suggest alternatives
+        npcs = engine.query_entities(['NPC'])
 
-        # Find NPCs at the same location (nearby)
+        # Find NPCs at the same location
         nearby_npcs = []
         if player_region:
             for npc_entity in npcs:
@@ -1096,8 +1093,8 @@ def _remove_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> D
     reason = tool_input["reason"]
 
     # Find the item in player's inventory
-    items = engine.query_entities(['Item'])
-    item = next((e for e in items if e.name.lower() == item_name.lower()), None)
+    resolver = EntityResolver(engine)
+    item = resolver.resolve(item_name, expected_type='item')
 
     if not item:
         return {"success": False, "message": _format_error(f"Item '{item_name}' not found")}
@@ -1148,23 +1145,21 @@ def _transfer_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) ->
     quantity = tool_input.get("quantity")
     reason = tool_input["reason"]
 
-    # Find all entities involved
-    all_entities = engine.query_entities(['NPC']) + engine.query_entities(['Location']) + \
-                   engine.query_entities(['Item']) + engine.query_entities(['PlayerCharacter'])
+    # Find all entities involved using resolver
+    resolver = EntityResolver(engine)
 
     # Find the from entity
-    from_entity = next((e for e in all_entities if e.name.lower() == from_entity_name.lower()), None)
+    from_entity = resolver.resolve(from_entity_name)
     if not from_entity:
         return {"success": False, "message": _format_error(f"Source entity '{from_entity_name}' not found")}
 
     # Find the to entity
-    to_entity = next((e for e in all_entities if e.name.lower() == to_entity_name.lower()), None)
+    to_entity = resolver.resolve(to_entity_name)
     if not to_entity:
         return {"success": False, "message": _format_error(f"Destination entity '{to_entity_name}' not found")}
 
     # Find the item
-    items = engine.query_entities(['Item'])
-    item = next((e for e in items if e.name.lower() == item_name.lower()), None)
+    item = resolver.resolve(item_name, expected_type='item')
 
     if not item:
         return {"success": False, "message": _format_error(f"Item '{item_name}' not found")}
@@ -1354,19 +1349,10 @@ def _get_entity_details(engine, player_entity_id: str, tool_input: Dict[str, Any
     entity_name = tool_input["entity_name"]
     entity_type = tool_input.get("entity_type")
 
-    # Find the entity
-    entities = []
-    if entity_type:
-        component_map = {"npc": "NPC", "location": "Location", "item": "Item", "player": "PlayerCharacter"}
-        component = component_map.get(entity_type)
-        if component:
-            entities = engine.query_entities([component])
-    else:
-        # Search all entity types
-        entities = engine.query_entities(['NPC']) + engine.query_entities(['Location']) + \
-                   engine.query_entities(['Item']) + engine.query_entities(['PlayerCharacter'])
+    # Find the entity using resolver
+    resolver = EntityResolver(engine)
+    entity = resolver.resolve(entity_name, expected_type=entity_type)
 
-    entity = next((e for e in entities if e.name.lower() == entity_name.lower()), None)
     if not entity:
         return {"success": False, "message": _format_error(f"Entity '{entity_name}' not found")}
 
@@ -1395,10 +1381,9 @@ def _update_component(engine, player_entity_id: str, tool_input: Dict[str, Any])
     updates = tool_input["updates"]
     reason = tool_input["reason"]
 
-    # Find the entity (search all types)
-    entities = engine.query_entities(['NPC']) + engine.query_entities(['Location']) + \
-               engine.query_entities(['Item']) + engine.query_entities(['PlayerCharacter'])
-    entity = next((e for e in entities if e.name.lower() == entity_name.lower()), None)
+    # Find the entity using resolver
+    resolver = EntityResolver(engine)
+    entity = resolver.resolve(entity_name)
 
     if not entity:
         return {"success": False, "message": _format_error(f"Entity '{entity_name}' not found")}
@@ -1429,10 +1414,9 @@ def _add_component(engine, player_entity_id: str, tool_input: Dict[str, Any]) ->
     component_data = tool_input["component_data"]
     reason = tool_input["reason"]
 
-    # Find the entity
-    entities = engine.query_entities(['NPC']) + engine.query_entities(['Location']) + \
-               engine.query_entities(['Item']) + engine.query_entities(['PlayerCharacter'])
-    entity = next((e for e in entities if e.name.lower() == entity_name.lower()), None)
+    # Find the entity using resolver
+    resolver = EntityResolver(engine)
+    entity = resolver.resolve(entity_name)
 
     if not entity:
         return {"success": False, "message": _format_error(f"Entity '{entity_name}' not found")}
@@ -1462,10 +1446,9 @@ def _remove_component(engine, player_entity_id: str, tool_input: Dict[str, Any])
     component_type = tool_input["component_type"]
     reason = tool_input["reason"]
 
-    # Find the entity
-    entities = engine.query_entities(['NPC']) + engine.query_entities(['Location']) + \
-               engine.query_entities(['Item']) + engine.query_entities(['PlayerCharacter'])
-    entity = next((e for e in entities if e.name.lower() == entity_name.lower()), None)
+    # Find the entity using resolver
+    resolver = EntityResolver(engine)
+    entity = resolver.resolve(entity_name)
 
     if not entity:
         return {"success": False, "message": _format_error(f"Entity '{entity_name}' not found")}
@@ -1497,12 +1480,10 @@ def _add_relationship(engine, player_entity_id: str, tool_input: Dict[str, Any])
     relationship_data = tool_input.get("relationship_data", {})
     reason = tool_input["reason"]
 
-    # Find both entities
-    all_entities = engine.query_entities(['NPC']) + engine.query_entities(['Location']) + \
-                   engine.query_entities(['Item']) + engine.query_entities(['PlayerCharacter'])
-
-    from_entity = next((e for e in all_entities if e.name.lower() == from_entity_name.lower()), None)
-    to_entity = next((e for e in all_entities if e.name.lower() == to_entity_name.lower()), None)
+    # Find both entities using resolver
+    resolver = EntityResolver(engine)
+    from_entity = resolver.resolve(from_entity_name)
+    to_entity = resolver.resolve(to_entity_name)
 
     if not from_entity:
         return {"success": False, "message": _format_error(f"Entity '{from_entity_name}' not found")}
@@ -1534,12 +1515,10 @@ def _remove_relationship(engine, player_entity_id: str, tool_input: Dict[str, An
     relationship_type = tool_input["relationship_type"]
     reason = tool_input["reason"]
 
-    # Find both entities
-    all_entities = engine.query_entities(['NPC']) + engine.query_entities(['Location']) + \
-                   engine.query_entities(['Item']) + engine.query_entities(['PlayerCharacter'])
-
-    from_entity = next((e for e in all_entities if e.name.lower() == from_entity_name.lower()), None)
-    to_entity = next((e for e in all_entities if e.name.lower() == to_entity_name.lower()), None)
+    # Find both entities using resolver
+    resolver = EntityResolver(engine)
+    from_entity = resolver.resolve(from_entity_name)
+    to_entity = resolver.resolve(to_entity_name)
 
     if not from_entity:
         return {"success": False, "message": _format_error(f"Entity '{from_entity_name}' not found")}
@@ -1570,10 +1549,9 @@ def _query_relationships(engine, player_entity_id: str, tool_input: Dict[str, An
     relationship_type = tool_input.get("relationship_type")
     direction = tool_input.get("direction", "both")
 
-    # Find the entity
-    all_entities = engine.query_entities(['NPC']) + engine.query_entities(['Location']) + \
-                   engine.query_entities(['Item']) + engine.query_entities(['PlayerCharacter'])
-    entity = next((e for e in all_entities if e.name.lower() == entity_name.lower()), None)
+    # Find the entity using resolver
+    resolver = EntityResolver(engine)
+    entity = resolver.resolve(entity_name)
 
     if not entity:
         return {"success": False, "message": _format_error(f"Entity '{entity_name}' not found")}
