@@ -422,7 +422,7 @@ def character_builder():
     # GET request - show form
     # Get registries for dropdowns
     try:
-        owner = engine.storage.get_registry_owner('races')
+        owner = engine.get_registry_owner('races')
         if owner:
             races_registry = engine.create_registry('races', owner)
             races = races_registry.get_all()
@@ -433,7 +433,7 @@ def character_builder():
         races = []
 
     try:
-        owner = engine.storage.get_registry_owner('classes')
+        owner = engine.get_registry_owner('classes')
         if owner:
             classes_registry = engine.create_registry('classes', owner)
             classes = classes_registry.get_all()
@@ -444,7 +444,7 @@ def character_builder():
         classes = []
 
     try:
-        owner = engine.storage.get_registry_owner('alignments')
+        owner = engine.get_registry_owner('alignments')
         if owner:
             alignments_registry = engine.create_registry('alignments', owner)
             alignments = alignments_registry.get_all()

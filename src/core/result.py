@@ -45,6 +45,7 @@ class ErrorCode(Enum):
     # Database errors
     DATABASE_ERROR = "database_error"
     TRANSACTION_FAILED = "transaction_failed"
+    STORAGE_ERROR = "storage_error"
 
     # Dependency errors
     DEPENDENCY_ERROR = "dependency_error"
@@ -57,6 +58,7 @@ class ErrorCode(Enum):
     # Generic errors
     UNKNOWN = "unknown"
     NOT_IMPLEMENTED = "not_implemented"
+    UNEXPECTED_ERROR = "unexpected_error"
 
     def __str__(self) -> str:
         """Return the error code value."""

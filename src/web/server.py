@@ -229,7 +229,7 @@ def create_app(worlds_dir: str = 'worlds'):
         """JSON API: Get all registered roll types."""
         try:
             engine = get_engine()
-            roll_types = engine.storage.get_roll_types()
+            roll_types = engine.get_roll_types()
             return jsonify({'roll_types': roll_types})
         except ValueError as e:
             return jsonify({'error': str(e)}), 400
@@ -239,7 +239,7 @@ def create_app(worlds_dir: str = 'worlds'):
         """JSON API: Get all module registry names."""
         try:
             engine = get_engine()
-            registry_names = engine.storage.get_registry_names()
+            registry_names = engine.get_registry_names()
             return jsonify({'registries': registry_names})
         except ValueError as e:
             return jsonify({'error': str(e)}), 400
@@ -249,7 +249,7 @@ def create_app(worlds_dir: str = 'worlds'):
         """JSON API: Get all values from a specific registry."""
         try:
             engine = get_engine()
-            values = engine.storage.get_registry_values(registry_name)
+            values = engine.get_registry_values(registry_name)
             return jsonify({
                 'registry_name': registry_name,
                 'values': values
@@ -439,9 +439,9 @@ def create_app(worlds_dir: str = 'worlds'):
         try:
             engine = get_engine()
             return jsonify({
-                'components': engine.storage.get_component_types(),
-                'relationships': engine.storage.get_relationship_types(),
-                'events': engine.storage.get_event_types()
+                'components': engine.get_component_types(),
+                'relationships': engine.get_relationship_types(),
+                'events': engine.get_event_types()
             })
         except ValueError as e:
             return jsonify({'error': str(e)}), 400

@@ -186,7 +186,7 @@ class RNGModule(Module):
             return
 
         # Validate roll_type is registered
-        registered_types = {rt['type'] for rt in self.engine.storage.get_roll_types()}
+        registered_types = {rt['type'] for rt in self.engine.get_roll_types()}
         if roll_type not in registered_types:
             logger.warning(
                 f"Invalid roll_type '{roll_type}' for entity {entity_id}. "

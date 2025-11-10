@@ -52,7 +52,7 @@ def index():
     all_entities = engine.list_entities()
     entity_count = len(all_entities)
     player_count = len(engine.query_entities(['PlayerCharacter']))
-    component_types = engine.storage.get_component_types()
+    component_types = engine.get_component_types()
     component_type_count = len(component_types)
 
     # Get recent events
@@ -113,8 +113,8 @@ def entities():
         })
 
     # Get registered types for forms
-    component_types = engine.storage.get_component_types()
-    relationship_types = engine.storage.get_relationship_types()
+    component_types = engine.get_component_types()
+    relationship_types = engine.get_relationship_types()
 
     return render_template(
         'entities.html',
@@ -161,8 +161,8 @@ def entity_detail(entity_id: str):
     events = engine.get_events(entity_id=entity_id, limit=10)
 
     # Get registered types for forms
-    component_types = engine.storage.get_component_types()
-    relationship_types = engine.storage.get_relationship_types()
+    component_types = engine.get_component_types()
+    relationship_types = engine.get_relationship_types()
     all_entities = engine.list_entities()
 
     # Create FormBuilder instance
@@ -392,7 +392,7 @@ def delete_relationship(relationship_id: str):
     engine = get_engine()
 
     # Get relationship to find source entity for redirect
-    relationship = engine.storage.get_relationship(relationship_id)
+    relationship = engine.get_relationship(relationship_id)
     if not relationship:
         flash('Relationship not found', 'error')
         return redirect(url_for('host.index'))

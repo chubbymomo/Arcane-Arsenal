@@ -32,7 +32,7 @@ The RNG module registers these core roll types:
 
 ```python
 # Get all registered roll types
-roll_types = engine.storage.get_roll_types()
+roll_types = engine.get_roll_types()
 
 # Via API (for AI agents)
 GET /api/roll_types

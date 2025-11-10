@@ -24,7 +24,7 @@ class LuckComponent(ComponentTypeDefinition):
     def validate_with_engine(self, data: Dict[str, Any], engine) -> bool:
         """Validate advantage_on/disadvantage_on arrays against registered roll types."""
         # Get registered roll types
-        valid_types = {rt['type'] for rt in engine.storage.get_roll_types()}
+        valid_types = {rt['type'] for rt in engine.get_roll_types()}
 
         # Validate advantage_on
         advantage_on = data.get('advantage_on', [])
@@ -59,7 +59,7 @@ class LuckComponent(ComponentTypeDefinition):
                 },
                 "advantage_on": {
                     "type": "array",
-                    "description": "Roll types that get advantage. Must be registered roll types (see engine.storage.get_roll_types())",
+                    "description": "Roll types that get advantage. Must be registered roll types (see engine.get_roll_types())",
                     "items": {"type": "string"},
                     "default": []
                 },
@@ -117,7 +117,7 @@ class RollModifierComponent(ComponentTypeDefinition):
             raise ValueError("modifier_type is required")
 
         # Get registered roll types
-        valid_types = {rt['type'] for rt in engine.storage.get_roll_types()}
+        valid_types = {rt['type'] for rt in engine.get_roll_types()}
 
         if modifier_type not in valid_types:
             raise ValueError(
@@ -134,7 +134,7 @@ class RollModifierComponent(ComponentTypeDefinition):
             "properties": {
                 "modifier_type": {
                     "type": "string",
-                    "description": "What this modifier affects. Must be a registered roll type (see engine.storage.get_roll_types())",
+                    "description": "What this modifier affects. Must be a registered roll type (see engine.get_roll_types())",
                     "examples": ["attack", "damage", "saving_throw", "skill_check", "initiative"]
                 },
                 "bonus": {

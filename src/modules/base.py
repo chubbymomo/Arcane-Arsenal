@@ -84,7 +84,7 @@ class ComponentTypeDefinition(ABC):
 
         Example:
             def validate_with_engine(self, data, engine):
-                valid_types = {rt['type'] for rt in engine.storage.get_roll_types()}
+                valid_types = {rt['type'] for rt in engine.get_roll_types()}
                 if data['roll_type'] not in valid_types:
                     raise ValueError(f"Invalid roll_type. Must be one of: {valid_types}")
                 return True

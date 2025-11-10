@@ -294,7 +294,7 @@ def cmd_types_components(args):
     """List registered component types."""
     try:
         engine = StateEngine(args.world_path)
-        types = engine.storage.get_component_types()
+        types = engine.get_component_types()
 
         if not types:
             print("No component types registered")
@@ -313,7 +313,7 @@ def cmd_types_relationships(args):
     """List registered relationship types."""
     try:
         engine = StateEngine(args.world_path)
-        types = engine.storage.get_relationship_types()
+        types = engine.get_relationship_types()
 
         if not types:
             print("No relationship types registered")
