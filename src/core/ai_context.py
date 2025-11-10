@@ -251,6 +251,24 @@ class AIContextBuilder:
                             if entity_info:
                                 nearby.append(entity_info)
 
+                # IMPORTANT: Also include items owned by nearby NPCs
+                # This ensures AI can see and reuse items in NPC inventories
+                nearby_npcs = [e for e in nearby if e.get('type') == 'npc']
+                for npc_info in nearby_npcs:
+                    npc_id = npc_info.get('id')
+                    if npc_id:
+                        # Find items positioned "at" this NPC
+                        for entity in entities_with_position:
+                            pos = self.engine.get_component(entity.id, 'Position')
+                            if pos and pos.data.get('region') == npc_id:
+                                # Check if this is an item
+                                if self.engine.get_component(entity.id, 'Item'):
+                                    item_info = self._build_entity_info(entity)
+                                    if item_info:
+                                        # Mark that this item is owned by the NPC
+                                        item_info['owned_by'] = npc_info['name']
+                                        nearby.append(item_info)
+
             context['nearby_entities'] = nearby[:10]  # Limit to 10 nearest
 
         return context
