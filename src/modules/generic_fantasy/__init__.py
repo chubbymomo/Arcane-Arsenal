@@ -277,6 +277,67 @@ class GenericFantasyModule(Module):
         engine.event_bus.subscribe('component.added', self.on_component_added)
         engine.event_bus.subscribe('component.updated', self.on_component_updated)
 
+        # Subscribe to character creation events from web layer
+        engine.event_bus.subscribe('character.form_submitted', self.on_character_form_submitted)
+
+    def on_character_form_submitted(self, event: Event) -> None:
+        """
+        Handle character creation form submission from web layer.
+
+        This event handler allows the module to respond to character creation
+        without the web layer having any knowledge of this module's existence.
+
+        The web layer publishes a 'character.form_submitted' event with all form
+        data, and this module checks if fantasy-specific fields are present and
+        adds appropriate components if they are.
+        """
+        if not hasattr(self, 'engine'):
+            return
+
+        entity_id = event.entity_id
+        data = event.data
+
+        # Extract fantasy fields from event data
+        race = data.get('race')
+        character_class = data.get('character_class')
+        alignment = data.get('alignment')
+        strength = data.get('strength')
+        dexterity = data.get('dexterity')
+        constitution = data.get('constitution')
+        intelligence = data.get('intelligence')
+        wisdom = data.get('wisdom')
+        charisma = data.get('charisma')
+
+        # Only proceed if fantasy fields are provided
+        has_attributes = any(attr is not None for attr in [
+            strength, dexterity, constitution, intelligence, wisdom, charisma
+        ])
+
+        if not (has_attributes or race or character_class or alignment):
+            # No fantasy fields provided, nothing for this module to do
+            return
+
+        logger.info(f"Processing character.form_submitted event for {entity_id}")
+
+        # Use the module's method to add fantasy components
+        result = self.add_fantasy_components(
+            self.engine, entity_id,
+            race=race,
+            character_class=character_class,
+            alignment=alignment,
+            strength=strength,
+            dexterity=dexterity,
+            constitution=constitution,
+            intelligence=intelligence,
+            wisdom=wisdom,
+            charisma=charisma
+        )
+
+        if result.success:
+            logger.info(f"Added fantasy components to {entity_id}: {result.data.get('components_added')}")
+        else:
+            logger.error(f"Failed to add fantasy components to {entity_id}: {result.error}")
+
     def on_component_added(self, event: Event) -> None:
         """
         Auto-add Magic and Skills components when CharacterDetails is added.

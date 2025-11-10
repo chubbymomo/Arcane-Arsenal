@@ -11,16 +11,13 @@ import json as json_module
 from functools import wraps
 
 from src.core.state_engine import StateEngine
-from src.core.module_loader import ModuleLoader
+from src.core.event_bus import Event
 from src.web.form_builder import FormBuilder
 
 logger = logging.getLogger(__name__)
 
 # Create blueprint
 client_bp = Blueprint('client', __name__, url_prefix='/client', template_folder='../templates/client')
-
-# Cache for initialized modules per world
-_world_modules_cache = {}
 
 
 def require_world(f):
@@ -45,49 +42,6 @@ def get_engine() -> StateEngine:
         raise ValueError(f'StateEngine not initialized for world: {world_name}')
 
     return engine
-
-
-def get_generic_fantasy_module():
-    """
-    Get the generic_fantasy module for the current world (if loaded).
-
-    Returns:
-        GenericFantasyModule instance or None if not loaded
-    """
-    world_name = session.get('world_name')
-    if not world_name:
-        return None
-
-    # Check if modules are already loaded for this world
-    if world_name not in _world_modules_cache:
-        # Load and initialize modules
-        world_path = session.get('world_path')
-        engine = get_engine()
-
-        logger.info(f"Loading modules for world: {world_name}")
-        loader = ModuleLoader(world_path)
-        modules = loader.load_modules(strategy='config')
-
-        # Initialize each module with the cached engine
-        for module in modules:
-            try:
-                module.initialize(engine)
-            except Exception as e:
-                logger.warning(f"Failed to initialize module {module.name}: {e}")
-
-        # Cache the loaded modules for this world
-        _world_modules_cache[world_name] = modules
-        logger.info(f"✓ Modules loaded and cached for world: {world_name}")
-
-    # Get modules from cache
-    modules = _world_modules_cache[world_name]
-
-    # Find generic_fantasy module
-    for module in modules:
-        if module.name == 'generic_fantasy':
-            return module
-
-    return None
 
 
 # ========== View Endpoints ==========
@@ -219,27 +173,24 @@ def character_builder():
 
             engine.add_component(entity_id, 'PlayerCharacter', {})
 
-            # Add fantasy-specific components via module (if module loaded and fields provided)
-            # This delegates to the module instead of directly manipulating module components
-            if has_attributes or race or char_class or alignment:
-                fantasy_module = get_generic_fantasy_module()
-                if fantasy_module:
-                    result = fantasy_module.add_fantasy_components(
-                        engine, entity_id,
-                        race=race,
-                        character_class=char_class,
-                        alignment=alignment,
-                        strength=strength,
-                        dexterity=dexterity,
-                        constitution=constitution,
-                        intelligence=intelligence,
-                        wisdom=wisdom,
-                        charisma=charisma
-                    )
-                    if not result.success:
-                        raise ValueError(result.error)
-                else:
-                    logger.warning("Fantasy fields provided but generic_fantasy module not loaded")
+            # Publish character creation event with form data
+            # Modules can subscribe to this event and add their own components
+            # (e.g., generic_fantasy module adds Attributes/CharacterDetails if it's loaded)
+            engine.event_bus.publish(Event.create(
+                event_type='character.form_submitted',
+                entity_id=entity_id,
+                data={
+                    'race': race,
+                    'character_class': char_class,
+                    'alignment': alignment,
+                    'strength': strength,
+                    'dexterity': dexterity,
+                    'constitution': constitution,
+                    'intelligence': intelligence,
+                    'wisdom': wisdom,
+                    'charisma': charisma
+                }
+            ))
 
             # Generate AI intro if requested
             # Note: AI intro generation is handled by ai_dm module
