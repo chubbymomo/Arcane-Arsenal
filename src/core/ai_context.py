@@ -198,6 +198,9 @@ class AIContextBuilder:
 
         # Get region and resolve if it's an entity ID
         region = position.data.get('region', 'Unknown')
+        region_ref = position.data.get('region')  # Keep the original reference
+        location_entity = None
+
         if region and region.startswith('entity_'):
             # Region is an entity reference - resolve to entity name
             location_entity = self.engine.get_entity(region)
@@ -214,10 +217,33 @@ class AIContextBuilder:
             }
         }
 
+        # If current location is an entity, include location graph info
+        if location_entity:
+            location_component = self.engine.get_component(location_entity.id, 'Location')
+            if location_component:
+                # Add parent location
+                parent_id = location_component.data.get('parent_location')
+                if parent_id:
+                    parent_name = self._resolve_location_name(parent_id)
+                    if parent_name:
+                        context['parent_location'] = parent_name
+                        logger.debug(f"Added parent location: {parent_name}")
+
+                # Add connected locations
+                connected_ids = location_component.data.get('connected_locations', [])
+                if connected_ids:
+                    connected_names = []
+                    for conn_id in connected_ids:
+                        conn_name = self._resolve_location_name(conn_id)
+                        if conn_name:
+                            connected_names.append(conn_name)
+                    if connected_names:
+                        context['connected_locations'] = connected_names
+                        logger.debug(f"Added {len(connected_names)} connected locations")
+
         if include_nearby:
             # Find entities in the same region (entity-based hierarchical positioning)
             nearby = []
-            region_ref = position.data.get('region')
 
             if region_ref:
                 # Query all entities with Position component
@@ -272,6 +298,24 @@ class AIContextBuilder:
             context['nearby_entities'] = nearby[:10]  # Limit to 10 nearest
 
         return context
+
+    def _resolve_location_name(self, location_id: str) -> Optional[str]:
+        """
+        Resolve a location entity ID to its name.
+
+        Args:
+            location_id: Entity ID of the location
+
+        Returns:
+            Location name, or None if not found
+        """
+        if not location_id or not location_id.startswith('entity_'):
+            return None
+
+        location_entity = self.engine.get_entity(location_id)
+        if location_entity:
+            return location_entity.name
+        return None
 
     def _build_entity_info(self, entity) -> Dict[str, Any]:
         """

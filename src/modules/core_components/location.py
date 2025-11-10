@@ -72,9 +72,17 @@ class LocationComponent(ComponentTypeDefinition):
             location_type: Type of location (tavern, dungeon, town, etc.)
             features: Notable features of the location (array of strings)
             visited: Whether the player has visited this location
+            parent_location: Entity ID of the parent location (optional)
+            connected_locations: List of entity IDs of connected/nearby locations (optional)
 
         Note: Use Position component to specify WHERE the location is.
         Position.region can be a named region string or parent location entity ID.
+
+        Location Graph:
+            parent_location: The broader area this location is within
+                Example: A tavern's parent_location could be a town entity
+            connected_locations: Places directly accessible from here
+                Example: A town square might connect to: market, temple, tavern
         """
         return {
             "type": "object",
@@ -93,6 +101,17 @@ class LocationComponent(ComponentTypeDefinition):
                     "type": "boolean",
                     "description": "Has player visited this location",
                     "default": False
+                },
+                "parent_location": {
+                    "type": "string",
+                    "description": "Entity ID of the parent/containing location (e.g., town that contains this tavern)",
+                    "default": None
+                },
+                "connected_locations": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Entity IDs of locations directly accessible from here",
+                    "default": []
                 }
             },
             "required": ["location_type"]
@@ -102,7 +121,9 @@ class LocationComponent(ComponentTypeDefinition):
         """Get default data for new Location components."""
         return {
             "features": [],
-            "visited": False
+            "visited": False,
+            "parent_location": None,
+            "connected_locations": []
         }
 
     def get_character_sheet_config(self) -> Dict[str, Any]:
