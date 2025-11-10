@@ -756,6 +756,24 @@ def _create_location(engine, player_entity_id: str, tool_input: Dict[str, Any]) 
     location_id = result.data['id']
     logger.info(f"Creating location: {name} ({location_id})")
 
+    # Validate region parameter - warn if region looks like a place but isn't an entity
+    if not parent_location_name and region:
+        # Check if region looks like it should be an entity
+        region_words = region.split()
+        looks_like_place = (
+            (region.startswith("The ") and len(region_words) > 1) or
+            (len(region_words) > 1 and all(w[0].isupper() for w in region_words if w))
+        )
+
+        if looks_like_place:
+            resolver = EntityResolver(engine)
+            region_entity = resolver.resolve(region, expected_type='location')
+            if not region_entity:
+                logger.warning(
+                    f"⚠️  Creating '{name}' with region='{region}' but '{region}' doesn't exist as a location entity. "
+                    f"Consider creating '{region}' as a location first, then using parent_location_name='{region}'."
+                )
+
     # Add Identity component
     result = engine.add_component(location_id, 'Identity', {
         'description': description
