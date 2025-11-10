@@ -132,17 +132,17 @@ characters = engine.query_entities(['Health', 'Position'])
 ## Documentation
 
 ### Implementation Guides (Start Here)
-- **[IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md)** - Backend architectural principles
-- **[FRONTEND_IMPLEMENTATION_GUIDE.md](FRONTEND_IMPLEMENTATION_GUIDE.md)** - Frontend architectural principles
-- **[MODULE_GUIDE.md](MODULE_GUIDE.md)** - How to create modules
+- **[IMPLEMENTATION_GUIDE.md](docs/IMPLEMENTATION_GUIDE.md)** - Backend architectural principles
+- **[FRONTEND_IMPLEMENTATION_GUIDE.md](docs/FRONTEND_IMPLEMENTATION_GUIDE.md)** - Frontend architectural principles
+- **[MODULE_GUIDE.md](docs/MODULE_GUIDE.md)** - How to create modules
 
 ### Technical References
-- **[PROJECT_PLAN.md](PROJECT_PLAN.md)** - Complete schemas, APIs, data models
-- **[FRONTEND_GUIDE.md](FRONTEND_GUIDE.md)** - Frontend tutorials and examples
+- **[PROJECT_PLAN.md](docs/PROJECT_PLAN.md)** - Complete schemas, APIs, data models
+- **[FRONTEND_GUIDE.md](docs/FRONTEND_GUIDE.md)** - Frontend tutorials and examples
 
 ### Practical Guides
-- **[GETTING_STARTED.md](GETTING_STARTED.md)** - Detailed setup and first steps
-- **[THEMING_GUIDE.md](THEMING_GUIDE.md)** - UI theming and color system
+- **[GETTING_STARTED.md](docs/GETTING_STARTED.md)** - Detailed setup and first steps
+- **[THEMING_GUIDE.md](docs/THEMING_GUIDE.md)** - UI theming and color system
 
 ---
 
@@ -261,7 +261,7 @@ class MyGameModule(Module):
         return [OwnsRelationship]
 ```
 
-**See [MODULE_GUIDE.md](MODULE_GUIDE.md) for details.**
+**See [MODULE_GUIDE.md](docs/MODULE_GUIDE.md) for details.**
 
 ---
 
