@@ -711,8 +711,8 @@ def send_dm_message_stream():
                         full_response += content
 
                         # Log chunk content for debugging
-                        logger.debug(f"[STREAM TURN1] Chunk: {repr(content[:100])}... (len={len(content)})")
-                        logger.debug(f"[STREAM TURN1] in_actions_block={in_actions_block}, has_open={'<actions>' in content}, has_close={'</actions>' in content}")
+                        logger.info(f"[STREAM TURN1] Chunk: {repr(content[:100])}... (len={len(content)})")
+                        logger.info(f"[STREAM TURN1] in_actions_block={in_actions_block}, has_open={'<actions>' in content}, has_close={'</actions>' in content}")
 
                         # Filter out <actions> block from streaming
                         # Handle case where entire block is in one chunk
@@ -722,7 +722,7 @@ def send_dm_message_stream():
                             before = content.split('<actions>')[0]
                             after = content.split('</actions>')[-1]
                             filtered = before + after
-                            logger.debug(f"[STREAM TURN1] Filtered content: {repr(filtered[:100])}...")
+                            logger.info(f"[STREAM TURN1] Filtered content: {repr(filtered[:100])}...")
                             if filtered.strip():
                                 yield f"data: {json.dumps({'type': 'token', 'content': filtered})}\n\n"
                         elif '<actions>' in content:
@@ -739,10 +739,10 @@ def send_dm_message_stream():
                             # Don't stream the closing tag or anything in this chunk
                         elif not in_actions_block:
                             # Normal content outside actions block
-                            logger.debug(f"[STREAM TURN1] Normal content, streaming")
+                            logger.info(f"[STREAM TURN1] Normal content, streaming")
                             yield f"data: {json.dumps({'type': 'token', 'content': content})}\n\n"
                         else:
-                            logger.debug(f"[STREAM TURN1] Inside actions block, skipping")
+                            logger.info(f"[STREAM TURN1] Inside actions block, skipping")
 
                     elif chunk['type'] == 'tool_use_start':
                         # Save previous tool if exists
@@ -848,8 +848,8 @@ def send_dm_message_stream():
                             full_response += content
 
                             # Log chunk content for debugging
-                            logger.debug(f"[STREAM TURN2] Chunk: {repr(content[:100])}... (len={len(content)})")
-                            logger.debug(f"[STREAM TURN2] in_actions_block={in_actions_block}, has_open={'<actions>' in content}, has_close={'</actions>' in content}")
+                            logger.info(f"[STREAM TURN2] Chunk: {repr(content[:100])}... (len={len(content)})")
+                            logger.info(f"[STREAM TURN2] in_actions_block={in_actions_block}, has_open={'<actions>' in content}, has_close={'</actions>' in content}")
 
                             # Filter out <actions> block from streaming
                             # Handle case where entire block is in one chunk
@@ -859,7 +859,7 @@ def send_dm_message_stream():
                                 before = content.split('<actions>')[0]
                                 after = content.split('</actions>')[-1]
                                 filtered = before + after
-                                logger.debug(f"[STREAM TURN2] Filtered content: {repr(filtered[:100])}...")
+                                logger.info(f"[STREAM TURN2] Filtered content: {repr(filtered[:100])}...")
                                 if filtered.strip():
                                     yield f"data: {json.dumps({'type': 'token', 'content': filtered})}\n\n"
                             elif '<actions>' in content:
@@ -876,10 +876,10 @@ def send_dm_message_stream():
                                 # Don't stream the closing tag or anything in this chunk
                             elif not in_actions_block:
                                 # Normal narrative
-                                logger.debug(f"[STREAM TURN2] Normal content, streaming")
+                                logger.info(f"[STREAM TURN2] Normal content, streaming")
                                 yield f"data: {json.dumps({'type': 'token', 'content': content})}\n\n"
                             else:
-                                logger.debug(f"[STREAM TURN2] Inside actions block, skipping")
+                                logger.info(f"[STREAM TURN2] Inside actions block, skipping")
 
                     logger.info(f"Second turn complete: {len(full_response)} chars narrative")
 
