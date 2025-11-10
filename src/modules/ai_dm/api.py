@@ -206,6 +206,10 @@ def generate_intro_for_character(engine, entity_id):
                 })
                 logger.info(f"  Result: {result['success']} - {result['message']}")
 
+                # Commit transaction after each tool to make entities visible to next tool
+                # Critical for SQLite transaction isolation
+                engine.commit()
+
             # Second turn: Give Claude the tool results and ask for narrative
             logger.info("=== Second turn: Asking Claude for narrative ===")
 
@@ -834,6 +838,10 @@ def send_dm_message_stream():
                                 'tool_use_id': tool_use['id'],
                                 'result': result
                             })
+
+                            # Commit transaction after each tool to make entities visible to next tool
+                            # Critical for SQLite transaction isolation
+                            engine.commit()
 
                             # Notify frontend
                             yield f"data: {json.dumps({'type': 'tool_result', 'tool_name': tool_use['name'], 'result': result})}\n\n"
