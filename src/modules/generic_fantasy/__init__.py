@@ -524,7 +524,7 @@ class GenericFantasyModule(Module):
             if has_attributes:
                 # Validate all attributes are present and in range
                 if any(attr is None or attr < 1 or attr > 20 for attr in attrs):
-                    return Result.error('All attributes must be provided and between 1 and 20')
+                    return Result.fail('All attributes must be provided and between 1 and 20')
 
                 result = engine.add_component(entity_id, 'Attributes', {
                     'strength': strength,
@@ -559,12 +559,12 @@ class GenericFantasyModule(Module):
                 # Event system will auto-add Magic and Skills components if spellcaster
 
             if not components_added:
-                return Result.error('No fantasy components specified')
+                return Result.fail('No fantasy components specified')
 
-            return Result.success(data={'components_added': components_added})
+            return Result.ok(data={'components_added': components_added})
 
         except Exception as e:
-            return Result.error(f'Failed to add fantasy components: {str(e)}')
+            return Result.fail(f'Failed to add fantasy components: {str(e)}')
 
     def register_component_types(self) -> List[ComponentTypeDefinition]:
         """Register fantasy character components."""

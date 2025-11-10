@@ -121,7 +121,7 @@ class Result:
         """
         error_code_str = code.value if isinstance(code, ErrorCode) else code
         return Result(success=False, error=error, error_code=error_code_str)
-    
+
     def __bool__(self) -> bool:
         """Allow using Result in boolean context: if result: ..."""
         return self.success
