@@ -188,7 +188,13 @@ class EntityResolver:
     def _find_all_by_exact_name(self,
                                name: str,
                                expected_type: Optional[str] = None) -> List['Entity']:
-        """Find all entities with exact name match (case-insensitive)."""
+        """
+        Find all entities with exact name match (case-insensitive).
+
+        Note: Uses query_entities() without component filter to ensure
+        newly-created entities are visible within the same execution batch.
+        Component-filtered queries may have caching issues.
+        """
         all_entities = self.engine.query_entities()
         matches = []
 
@@ -198,7 +204,7 @@ class EntityResolver:
 
             # Case-insensitive name comparison
             if entity.name.lower() == name.lower():
-                # Filter by type if specified
+                # Filter by type if specified (check component manually)
                 if expected_type and not self._has_type(entity, expected_type):
                     continue
                 matches.append(entity)
