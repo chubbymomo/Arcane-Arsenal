@@ -692,10 +692,26 @@ def send_dm_message_stream():
 
                 # Accumulate full response and tool uses (TWO-TURN PATTERN)
                 full_response = ""
+                def ends_with_partial_tag(text: str) -> int:
+                    """
+                    Check if text ends with a partial <actions> or </actions> tag.
+                    Returns the length of the partial tag if found, 0 otherwise.
+                    """
+                    tags = ['<actions>', '</actions>']
+                    max_partial_len = 0
+                    for tag in tags:
+                        # Check all prefixes of the tag (e.g., '<', '<a', '<ac', etc.)
+                        for i in range(1, len(tag)):
+                            prefix = tag[:i]
+                            if text.endswith(prefix):
+                                max_partial_len = max(max_partial_len, len(prefix))
+                    return max_partial_len
+
                 current_tool = None
                 tool_input_json = ""
                 tool_uses = []
                 in_actions_block = False  # Track if we're inside <actions> tags
+                buffer = ""  # Buffer to detect tags split across chunks
 
                 # TURN 1: Let AI use tools (accumulate, don't execute yet)
                 for chunk in llm.generate_response_stream(
@@ -710,39 +726,60 @@ def send_dm_message_stream():
                         content = chunk['content']
                         full_response += content
 
+                        # Combine buffer with new content to detect tags across boundaries
+                        combined = buffer + content
+
                         # Log chunk content for debugging
                         logger.info(f"[STREAM TURN1] Chunk: {repr(content[:100])}... (len={len(content)})")
-                        logger.info(f"[STREAM TURN1] in_actions_block={in_actions_block}, has_open={'<actions>' in content}, has_close={'</actions>' in content}")
+                        logger.info(f"[STREAM TURN1] Buffer: {repr(buffer)}, Combined: {repr(combined[:100])}...")
+                        logger.info(f"[STREAM TURN1] in_actions_block={in_actions_block}, has_open={'<actions>' in combined}, has_close={'</actions>' in combined}")
 
                         # Filter out <actions> block from streaming
-                        # Handle case where entire block is in one chunk
-                        if '<actions>' in content and '</actions>' in content:
-                            # Complete actions block in this chunk - remove it entirely
-                            logger.info(f"[STREAM TURN1] Complete <actions> block detected in chunk, filtering it out")
-                            before = content.split('<actions>')[0]
-                            after = content.split('</actions>')[-1]
+                        # Handle case where entire block is in combined content
+                        if '<actions>' in combined and '</actions>' in combined:
+                            # Complete actions block - remove it entirely
+                            logger.info(f"[STREAM TURN1] Complete <actions> block detected in combined, filtering it out")
+                            before = combined.split('<actions>')[0]
+                            after = combined.split('</actions>')[-1]
                             filtered = before + after
                             logger.info(f"[STREAM TURN1] Filtered content: {repr(filtered[:100])}...")
                             if filtered.strip():
                                 yield f"data: {json.dumps({'type': 'token', 'content': filtered})}\n\n"
-                        elif '<actions>' in content:
+                            buffer = ""
+                        elif '<actions>' in combined:
                             # Opening tag - start filtering
-                            logger.info(f"[STREAM TURN1] Opening <actions> tag detected, starting filter")
+                            logger.info(f"[STREAM TURN1] Opening <actions> tag detected in combined, starting filter")
                             in_actions_block = True
-                            before_actions = content.split('<actions>')[0]
+                            before_actions = combined.split('<actions>')[0]
                             if before_actions:
                                 yield f"data: {json.dumps({'type': 'token', 'content': before_actions})}\n\n"
-                        elif '</actions>' in content:
+                            buffer = ""
+                        elif '</actions>' in combined:
                             # Closing tag - stop filtering
-                            logger.info(f"[STREAM TURN1] Closing </actions> tag detected, stopping filter")
+                            logger.info(f"[STREAM TURN1] Closing </actions> tag detected in combined, stopping filter")
                             in_actions_block = False
-                            # Don't stream the closing tag or anything in this chunk
+                            after_actions = combined.split('</actions>')[-1]
+                            if after_actions:
+                                yield f"data: {json.dumps({'type': 'token', 'content': after_actions})}\n\n"
+                            buffer = ""
                         elif not in_actions_block:
-                            # Normal content outside actions block
-                            logger.info(f"[STREAM TURN1] Normal content, streaming")
-                            yield f"data: {json.dumps({'type': 'token', 'content': content})}\n\n"
+                            # Normal content - check if combined ends with partial tag
+                            holdback_len = ends_with_partial_tag(combined)
+                            logger.info(f"[STREAM TURN1] Normal content, holdback_len={holdback_len}")
+
+                            # Stream everything except potential partial tag
+                            if len(combined) > holdback_len:
+                                to_stream = combined[:len(combined) - holdback_len]
+                                if to_stream:
+                                    logger.info(f"[STREAM TURN1] Streaming: {repr(to_stream[:100])}...")
+                                    yield f"data: {json.dumps({'type': 'token', 'content': to_stream})}\n\n"
+
+                            # Keep potential partial tag in buffer
+                            buffer = combined[-holdback_len:] if holdback_len > 0 else ""
+                            logger.info(f"[STREAM TURN1] Updated buffer: {repr(buffer)}")
                         else:
                             logger.info(f"[STREAM TURN1] Inside actions block, skipping")
+                            buffer = ""
 
                     elif chunk['type'] == 'tool_use_start':
                         # Save previous tool if exists
@@ -769,6 +806,11 @@ def send_dm_message_stream():
                     elif chunk['type'] == 'tool_input_delta':
                         # Accumulate tool input JSON
                         tool_input_json += chunk['partial_json']
+
+                # Flush any remaining buffer content at end of Turn 1
+                if buffer and not in_actions_block:
+                    logger.info(f"[STREAM TURN1] Flushing remaining buffer: {repr(buffer)}")
+                    yield f"data: {json.dumps({'type': 'token', 'content': buffer})}\n\n"
 
                 # Save last tool
                 if current_tool and tool_input_json:
@@ -836,6 +878,7 @@ def send_dm_message_stream():
                     # Get narrative response (stream it!)
                     full_response = ""
                     in_actions_block = False  # Reset for second turn
+                    buffer = ""  # Reset buffer for second turn
                     for chunk in llm.generate_response_stream(
                         messages=llm_messages,
                         system=full_system_prompt,
@@ -847,39 +890,65 @@ def send_dm_message_stream():
                             content = chunk['content']
                             full_response += content
 
+                            # Combine buffer with new content to detect tags across boundaries
+                            combined = buffer + content
+
                             # Log chunk content for debugging
                             logger.info(f"[STREAM TURN2] Chunk: {repr(content[:100])}... (len={len(content)})")
-                            logger.info(f"[STREAM TURN2] in_actions_block={in_actions_block}, has_open={'<actions>' in content}, has_close={'</actions>' in content}")
+                            logger.info(f"[STREAM TURN2] Buffer: {repr(buffer)}, Combined: {repr(combined[:100])}...")
+                            logger.info(f"[STREAM TURN2] in_actions_block={in_actions_block}, has_open={'<actions>' in combined}, has_close={'</actions>' in combined}")
 
                             # Filter out <actions> block from streaming
-                            # Handle case where entire block is in one chunk
-                            if '<actions>' in content and '</actions>' in content:
-                                # Complete actions block in this chunk - remove it entirely
-                                logger.info(f"[STREAM TURN2] Complete <actions> block detected in chunk, filtering it out")
-                                before = content.split('<actions>')[0]
-                                after = content.split('</actions>')[-1]
+                            # Handle case where entire block is in combined content
+                            if '<actions>' in combined and '</actions>' in combined:
+                                # Complete actions block - remove it entirely
+                                logger.info(f"[STREAM TURN2] Complete <actions> block detected in combined, filtering it out")
+                                before = combined.split('<actions>')[0]
+                                after = combined.split('</actions>')[-1]
                                 filtered = before + after
                                 logger.info(f"[STREAM TURN2] Filtered content: {repr(filtered[:100])}...")
                                 if filtered.strip():
                                     yield f"data: {json.dumps({'type': 'token', 'content': filtered})}\n\n"
-                            elif '<actions>' in content:
+                                buffer = ""
+                            elif '<actions>' in combined:
                                 # Opening tag - start filtering
-                                logger.info(f"[STREAM TURN2] Opening <actions> tag detected, starting filter")
+                                logger.info(f"[STREAM TURN2] Opening <actions> tag detected in combined, starting filter")
                                 in_actions_block = True
-                                before_actions = content.split('<actions>')[0]
+                                before_actions = combined.split('<actions>')[0]
                                 if before_actions:
                                     yield f"data: {json.dumps({'type': 'token', 'content': before_actions})}\n\n"
-                            elif '</actions>' in content:
+                                buffer = ""
+                            elif '</actions>' in combined:
                                 # Closing tag - stop filtering
-                                logger.info(f"[STREAM TURN2] Closing </actions> tag detected, stopping filter")
+                                logger.info(f"[STREAM TURN2] Closing </actions> tag detected in combined, stopping filter")
                                 in_actions_block = False
-                                # Don't stream the closing tag or anything in this chunk
+                                after_actions = combined.split('</actions>')[-1]
+                                if after_actions:
+                                    yield f"data: {json.dumps({'type': 'token', 'content': after_actions})}\n\n"
+                                buffer = ""
                             elif not in_actions_block:
-                                # Normal narrative
-                                logger.info(f"[STREAM TURN2] Normal content, streaming")
-                                yield f"data: {json.dumps({'type': 'token', 'content': content})}\n\n"
+                                # Normal content - check if combined ends with partial tag
+                                holdback_len = ends_with_partial_tag(combined)
+                                logger.info(f"[STREAM TURN2] Normal content, holdback_len={holdback_len}")
+
+                                # Stream everything except potential partial tag
+                                if len(combined) > holdback_len:
+                                    to_stream = combined[:len(combined) - holdback_len]
+                                    if to_stream:
+                                        logger.info(f"[STREAM TURN2] Streaming: {repr(to_stream[:100])}...")
+                                        yield f"data: {json.dumps({'type': 'token', 'content': to_stream})}\n\n"
+
+                                # Keep potential partial tag in buffer
+                                buffer = combined[-holdback_len:] if holdback_len > 0 else ""
+                                logger.info(f"[STREAM TURN2] Updated buffer: {repr(buffer)}")
                             else:
                                 logger.info(f"[STREAM TURN2] Inside actions block, skipping")
+                                buffer = ""
+
+                    # Flush any remaining buffer content at end of Turn 2
+                    if buffer and not in_actions_block:
+                        logger.info(f"[STREAM TURN2] Flushing remaining buffer: {repr(buffer)}")
+                        yield f"data: {json.dumps({'type': 'token', 'content': buffer})}\n\n"
 
                     logger.info(f"Second turn complete: {len(full_response)} chars narrative")
 
