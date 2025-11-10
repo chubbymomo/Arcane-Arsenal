@@ -26,42 +26,6 @@ def _format_success(message: str) -> str:
     return f'<span style="color: #44ff44;">✅ {message}</span>'
 
 
-def _remove_relationship_by_entities(engine, from_entity_id: str, to_entity_id: str, relationship_type: str, actor_id: str = 'system'):
-    """
-    Helper function to remove a relationship between two entities by finding and deleting it.
-
-    Args:
-        engine: StateEngine instance
-        from_entity_id: Source entity ID
-        to_entity_id: Target entity ID
-        relationship_type: Type of relationship to remove
-        actor_id: Actor performing the action
-
-    Returns:
-        Result object indicating success or failure
-    """
-    from src.core.result import Result
-
-    # Get all relationships of this type from the from_entity
-    relationships = engine.get_relationships(from_entity_id, rel_type=relationship_type, direction='from')
-
-    # Find the specific relationship to the to_entity
-    target_relationship = None
-    for rel in relationships:
-        if rel.to_entity == to_entity_id:
-            target_relationship = rel
-            break
-
-    if not target_relationship:
-        return Result.fail(
-            f"No {relationship_type} relationship found from {from_entity_id} to {to_entity_id}",
-            "RELATIONSHIP_NOT_FOUND"
-        )
-
-    # Delete the relationship
-    return engine.delete_relationship(target_relationship.id, actor_id=actor_id)
-
-
 # Tool registry - modules can add their own tools here
 _tool_registry: Dict[str, Callable] = {}
 _tool_definitions: List[Dict[str, Any]] = []
@@ -1246,7 +1210,7 @@ def _transfer_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) ->
     if quantity >= current_quantity:
         # Transfer all items - update BOTH ownership AND position
         # First remove the old ownership relationship
-        result = _remove_relationship_by_entities(engine, from_entity.id, item.id, 'owns', actor_id='system')
+        result = engine.delete_relationship_by_entities(from_entity.id, item.id, 'owns', actor_id='system')
         if not result.success:
             return {"success": False, "message": _format_error(f"Failed to remove old ownership: {result.error}")}
 
@@ -1606,7 +1570,7 @@ def _remove_relationship(engine, player_entity_id: str, tool_input: Dict[str, An
         return {"success": False, "message": _format_error(f"Entity '{to_entity_name}' not found")}
 
     # Remove the relationship
-    result = _remove_relationship_by_entities(engine, from_entity.id, to_entity.id, relationship_type, actor_id='system')
+    result = engine.delete_relationship_by_entities(from_entity.id, to_entity.id, relationship_type, actor_id='system')
     if not result.success:
         logger.error(f"Failed to remove relationship {relationship_type} from {from_entity_name} to {to_entity_name}: {result.error}")
         return {"success": False, "message": _format_error(f"Failed to remove relationship: {result.error}")}
