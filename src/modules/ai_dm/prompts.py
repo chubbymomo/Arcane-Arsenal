@@ -169,6 +169,9 @@ def build_context_prompt(ai_context: Dict[str, Any]) -> str:
                 prompt_parts.append(f"**Nearby Items ({len(items)}):**")
                 for item in items:
                     desc = f"  • **{item['name']}**"
+                    # Show ownership if item is owned by an NPC
+                    if item.get('owned_by'):
+                        desc += f" (owned by {item['owned_by']})"
                     if item.get('description'):
                         desc += f" - {item['description']}"
                     prompt_parts.append(desc)
