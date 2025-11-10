@@ -98,36 +98,24 @@ def generate_intro_for_character(engine, entity_id):
         full_system_prompt = build_full_prompt(ai_context)
 
         intro_prompt = (
-            "This is the very beginning of the adventure. "
-            "Create an engaging, UNIQUE opening scene that introduces the character to their starting location. "
-            "Set the mood, describe the environment, and present an initial situation that draws them in. "
-            "\n\n"
-            "IMPORTANT - CREATE VARIETY:\n"
-            "- Avoid generic taverns unless the character's class/background specifically suggests it\n"
-            "- Consider diverse starting locations: festivals, caravans, wilderness camps, merchant shops, "
-            "noble courts, guild halls, temples, city gates, docks, markets, ruins, etc.\n"
-            "- Create NPCs with distinct, memorable names and personalities (avoid common fantasy names)\n"
-            "- Match the starting scenario to the character's class and background when possible\n"
-            "- Add unexpected twists or unique situations that immediately engage the player\n"
+            "Create a compelling, ORIGINAL opening scene for this character's adventure. "
+            "Be creative and unexpected - avoid clichés and make each intro memorable and distinct.\n"
             "\n"
-            "CRITICAL - ITEM OWNERSHIP:\n"
-            "- The player's inventory is EMPTY at the start (check the Inventory section)\n"
-            "- You CAN give the player starting items if appropriate for their character/backstory\n"
-            "- BUT you MUST use transfer_item to actually give them ownership first\n"
-            "- Two valid approaches:\n"
-            "  1. **Starting gear**: create_item owned by player's name → player starts with it\n"
-            "  2. **Environmental items**: create_item owned by location → mention it's there → "
-            "let player choose to interact via action buttons\n"
-            "- NEVER write narrative about player using an item without first checking/transferring ownership\n"
-            "- Example GOOD (starting gear): create_item 'Traveling Cloak' owned by 'Sam' → "
-            "'Your traveling cloak...'\n"
-            "- Example GOOD (environment): create_item 'Journal' owned by 'The Library' → "
-            "'A weathered journal lies on the table'\n"
-            "- Example BAD: create_item 'Journal' owned by location → 'You pick up and read the journal' "
-            "(FAILS - need transfer_item first!)\n"
+            "VARIETY IS ESSENTIAL:\n"
+            "- Choose starting locations that fit the character: festivals, wilderness, ships, workshops, "
+            "courts, temples, markets, ruins, or anywhere interesting\n"
+            "- Skip generic taverns unless they truly fit\n"
+            "- Give NPCs distinctive personalities and avoid overused fantasy names\n"
+            "- Create unique situations with hooks that immediately engage\n"
+            "- Match tone and setting to character class/background\n"
             "\n"
-            "Use your available tools to create NPCs, locations, and items as needed to make the world come alive. "
-            "Remember: no meta-gaming, just vivid narrative."
+            "ITEM OWNERSHIP (Important):\n"
+            "- Player starts with EMPTY inventory - you can give them starting gear if appropriate\n"
+            "- To give starting gear: create_item with player's name as owner\n"
+            "- For environment items: create_item with location as owner, describe it, let player interact\n"
+            "- Rule: Only narrate player using items they actually own (check inventory or use transfer_item)\n"
+            "\n"
+            "Use tools to create NPCs, locations, and items. Be vivid and immersive - no meta-gaming."
         )
 
         config = get_config()
@@ -156,11 +144,12 @@ def generate_intro_for_character(engine, entity_id):
         # First turn: Let Claude use tools
         llm_messages = [{'role': 'user', 'content': intro_prompt}]
 
+        # Use higher temperature (1.0) for intro generation to encourage variety
         for chunk in llm.generate_response_stream(
             messages=llm_messages,
             system=full_system_prompt,
             max_tokens=config.ai_max_tokens,
-            temperature=config.ai_temperature,
+            temperature=1.0,
             tools=anthropic_tools if anthropic_tools else None
         ):
             if chunk['type'] == 'text':
@@ -242,13 +231,13 @@ def generate_intro_for_character(engine, entity_id):
                 'content': tool_result_content
             })
 
-            # Get narrative response
+            # Get narrative response (use high temperature for variety)
             full_response = ""
             for chunk in llm.generate_response_stream(
                 messages=llm_messages,
                 system=full_system_prompt,
                 max_tokens=config.ai_max_tokens,
-                temperature=config.ai_temperature,
+                temperature=1.0,
                 tools=None  # No tools in second turn
             ):
                 if chunk['type'] == 'text':
