@@ -13,11 +13,14 @@ from typing import List, Optional, Dict, Any
 import os
 import json
 import jsonschema
+import logging
 
 from .storage import WorldStorage
 from .event_bus import EventBus
 from .models import Entity, Component, Relationship, Event, now
 from .result import Result, ErrorCode
+
+logger = logging.getLogger(__name__)
 from .module_loader import ModuleLoader
 from ..modules.core_components import CoreComponentsModule
 

@@ -103,7 +103,7 @@ class LocationComponent(ComponentTypeDefinition):
                     "default": False
                 },
                 "parent_location": {
-                    "type": "string",
+                    "type": ["string", "null"],
                     "description": "Entity ID of the parent/containing location (e.g., town that contains this tavern)",
                     "default": None
                 },
