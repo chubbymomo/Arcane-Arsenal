@@ -45,9 +45,8 @@ class WorldStorage:
         Args:
             schema_path: Path to schema.sql file (uses default location if not provided)
         """
-        # Connect to database with autocommit mode for immediate visibility
-        # isolation_level=None enables autocommit, critical for AI tool batch execution
-        self.conn = sqlite3.connect(self.db_path, isolation_level=None)
+        # Connect to database
+        self.conn = sqlite3.connect(self.db_path)
         self.conn.row_factory = sqlite3.Row  # Access columns by name
         
         # Check if tables exist
