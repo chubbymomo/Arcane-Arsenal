@@ -279,16 +279,15 @@ class AIContextBuilder:
         if identity:
             entity_info['description'] = identity.data.get('description', '')
 
-        # Get race and occupation from NPC component (for NPCs)
+        # Get race from CharacterDetails (single source of truth for all characters)
+        char_details = self.engine.get_component(entity.id, 'CharacterDetails')
+        if char_details:
+            entity_info['race'] = char_details.data.get('race', '')
+
+        # Get occupation from NPC component (NPC-specific roleplay data)
         npc = self.engine.get_component(entity.id, 'NPC')
         if npc:
-            entity_info['race'] = npc.data.get('race', '')
             entity_info['occupation'] = npc.data.get('occupation', '')
-
-        # Get race from CharacterDetails (for player characters)
-        char_details = self.engine.get_component(entity.id, 'CharacterDetails')
-        if char_details and not entity_info.get('race'):
-            entity_info['race'] = char_details.data.get('race', '')
 
         return entity_info
 

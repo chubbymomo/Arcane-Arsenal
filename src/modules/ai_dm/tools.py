@@ -202,20 +202,24 @@ _CORE_TOOL_DEFINITIONS = [
                     "type": "string",
                     "description": "Detailed description of the item"
                 },
-                "item_type": {
+                "weight": {
+                    "type": "number",
+                    "description": "Weight in pounds (e.g., 0.1 for a letter, 3.0 for a sword, 50.0 for armor). Default: 0.0"
+                },
+                "value": {
+                    "type": "number",
+                    "description": "Gold piece value of the item (e.g., 0 for worthless, 10 for common, 100 for valuable). Default: 0"
+                },
+                "rarity": {
                     "type": "string",
-                    "description": "Type of item (e.g., 'weapon', 'armor', 'consumable', 'quest_item', 'treasure')"
+                    "description": "Item rarity: 'common', 'uncommon', 'rare', 'very_rare', 'legendary', or 'artifact'. Default: 'common'"
                 },
                 "location": {
                     "type": "string",
                     "description": "Where the item currently is (location name or 'player_inventory' if given to player)"
-                },
-                "value": {
-                    "type": "integer",
-                    "description": "Gold piece value of the item"
                 }
             },
-            "required": ["name", "description", "item_type"]
+            "required": ["name", "description"]
         }
     },
     {
@@ -636,23 +640,26 @@ def _create_npc(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Di
         return {"success": False, "message": _format_error(f"Failed to add Identity component: {result.error}")}
     logger.info(f"  → Added Identity: desc={description[:50]}...")
 
-    # Add CharacterDetails if class is provided (enables mechanics like spells, skills)
+    # ALWAYS add CharacterDetails with race (single source of truth for race)
+    # Add class/level only if provided (for mechanical NPCs like wizards, fighters)
+    char_details = {'race': race}
     if npc_class:
-        char_details = {
-            'character_class': npc_class,
-            'level': level,
-            'race': race  # Also in CharacterDetails for module compatibility
-        }
-        result = engine.add_component(npc_id, 'CharacterDetails', char_details)
-        if not result.success:
-            logger.error(f"  ✗ Failed to add CharacterDetails: {result.error}")
-        else:
-            logger.info(f"  → Added CharacterDetails: class={npc_class}, level={level}")
-        # Note: This will trigger auto-add of Magic/Skills components via events if applicable
+        char_details['character_class'] = npc_class
+        char_details['level'] = level
 
-    # Add NPC component (includes race and occupation)
+    result = engine.add_component(npc_id, 'CharacterDetails', char_details)
+    if not result.success:
+        logger.error(f"  ✗ Failed to add CharacterDetails: {result.error}")
+        return {"success": False, "message": _format_error(f"Failed to add CharacterDetails: {result.error}")}
+
+    if npc_class:
+        logger.info(f"  → Added CharacterDetails: race={race}, class={npc_class}, level={level}")
+        # Note: This will trigger auto-add of Magic/Skills components via events if applicable
+    else:
+        logger.info(f"  → Added CharacterDetails: race={race} (no class)")
+
+    # Add NPC component (occupation and behavioral data only - race is in CharacterDetails)
     result = engine.add_component(npc_id, 'NPC', {
-        'race': race,
         'occupation': occupation,
         'disposition': disposition,
         'dialogue_state': 'initial',
@@ -661,7 +668,7 @@ def _create_npc(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Di
     if not result.success:
         logger.error(f"  ✗ Failed to add NPC component: {result.error}")
         return {"success": False, "message": _format_error(f"Failed to add NPC component: {result.error}")}
-    logger.info(f"  → Added NPC component: race={race}, occupation={occupation}, disposition={disposition}")
+    logger.info(f"  → Added NPC component: occupation={occupation}, disposition={disposition}")
 
     # Add Position component - entity-based hierarchical positioning
     location_name = tool_input.get("location_name")
@@ -760,9 +767,10 @@ def _create_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> D
     """Create an item entity with all proper components."""
     name = tool_input["name"]
     description = tool_input["description"]
-    item_type = tool_input["item_type"]
+    weight = tool_input.get("weight", 0.0)
+    value = tool_input.get("value", 0.0)
+    rarity = tool_input.get("rarity", "common")
     location = tool_input.get("location")
-    value = tool_input.get("value", 0)
 
     # Create entity
     result = engine.create_entity(name)
@@ -781,15 +789,17 @@ def _create_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> D
     logger.info(f"  → Added Identity: desc={description[:50]}...")
 
     # Add Item component (REQUIRED for items to be recognized)
+    # Must provide weight and value (required fields)
     result = engine.add_component(item_id, 'Item', {
-        'item_type': item_type,
+        'weight': weight,
         'value': value,
+        'rarity': rarity,
         'quantity': 1
     })
     if not result.success:
         logger.error(f"  ✗ Failed to add Item component: {result.error}")
         return {"success": False, "message": _format_error(f"Failed to add Item component: {result.error}")}
-    logger.info(f"  → Added Item component: type={item_type}, value={value}")
+    logger.info(f"  → Added Item component: weight={weight} lbs, value={value} gp, rarity={rarity}")
 
     # Add Position if location specified (use entity-based positioning)
     if location:
@@ -819,7 +829,7 @@ def _create_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> D
     logger.info(f"Created Item: {name} ({item_id})")
     return {
         "success": True,
-        "message": f"Created {item_type} '{name}'",
+        "message": f"Created {rarity} item '{name}' ({weight} lbs, {value} gp)",
         "data": {"entity_id": item_id, "name": name}
     }
 
