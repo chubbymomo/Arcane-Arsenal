@@ -160,7 +160,7 @@ _CORE_TOOL_DEFINITIONS = [
     },
     {
         "name": "create_location",
-        "description": "Create a new location in the game world. Use this when the player enters a new area that should be tracked. Supports hierarchical locations - you can specify a parent location and connected locations to build a spatial graph.",
+        "description": "Create a new location in the game world. IMPORTANT: Build location hierarchies by creating parent locations FIRST. If you specify a region that isn't a parent location, you must have created that region as a location entity earlier. Use parent_location_name for hierarchical containment (automatically creates bidirectional connections).",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -174,25 +174,25 @@ _CORE_TOOL_DEFINITIONS = [
                 },
                 "region": {
                     "type": "string",
-                    "description": "The broader region this location is in (e.g., 'The Borderlands', 'Shadowmere Valley', 'The Iron Coast'). Can be either: (1) A region name string for top-level locations, or (2) The NAME of a parent location entity if this location is inside another location. Create unique, evocative region names - do NOT use generic names like 'The Realm'."
+                    "description": "CRITICAL: The broader region this location is in. Can be: (1) The NAME of a parent location entity (if this location is inside another location - use parent_location_name instead), or (2) A simple string for abstract placement. If you use a region name that represents a place (e.g., 'The Borderlands', 'Shadowmere Valley'), you MUST have created that region as a location entity FIRST using create_location."
                 },
                 "location_type": {
                     "type": "string",
-                    "description": "Type of location (e.g., 'tavern', 'dungeon', 'shop', 'wilderness', 'building', 'region', 'district')"
+                    "description": "Type of location (e.g., 'tavern', 'dungeon', 'shop', 'wilderness', 'building', 'region', 'district', 'tunnel', 'chamber')"
                 },
                 "features": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Notable features (e.g., ['fireplace', 'bar', 'stage'])"
+                    "description": "Notable features (e.g., ['fireplace', 'bar', 'stage'], ['collapsed wall', 'iron ladder', 'flooded floor'])"
                 },
                 "parent_location_name": {
                     "type": "string",
-                    "description": "Optional: Name of the parent location entity that contains this location (e.g., 'Waterdeep' for a tavern in that city). Use query_entities first to find the parent."
+                    "description": "RECOMMENDED: Name of the parent location entity that contains this location (e.g., 'The Sunken Archives' for 'Northern Passage'). Automatically creates bidirectional connection. Use this for hierarchical locations instead of the region parameter."
                 },
                 "connected_location_names": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Optional: Names of locations directly accessible from here (e.g., ['Town Square', 'Market District']). These should already exist or be created before connecting."
+                    "description": "Optional: Names of locations directly accessible from here via exits, passages, or doors (e.g., ['Town Square', 'Market District']). These locations must already exist. Parent/child connections are handled automatically by parent_location_name."
                 }
             },
             "required": ["name", "description", "region", "location_type"]
@@ -813,6 +813,40 @@ def _create_location(engine, player_entity_id: str, tool_input: Dict[str, Any]) 
         engine.delete_entity(location_id)  # Clean up on failure
         return {"success": False, "message": _format_error(f"Failed to add Position component: {result.error}")}
     logger.info(f"  → Added Position: region={position_region}")
+
+    # Automatically create bidirectional connection with parent location
+    if parent_location_id:
+        parent_location_component = engine.get_component(parent_location_id, 'Location')
+        if parent_location_component:
+            parent_connected = parent_location_component.data.get('connected_locations', [])
+            if location_id not in parent_connected:
+                # Add child to parent's connected_locations
+                updated_connected = parent_connected + [location_id]
+                result = engine.update_component(parent_location_id, 'Location', {
+                    'connected_locations': updated_connected
+                })
+                if result.success:
+                    logger.info(f"  → Bidirectional connection: Added {name} to {parent_location_name}'s connected_locations")
+                else:
+                    logger.warning(f"  → Failed to update parent's connected_locations: {result.error}")
+
+    # Automatically create bidirectional connections with explicitly connected locations
+    for connected_id in connected_location_ids:
+        connected_component = engine.get_component(connected_id, 'Location')
+        if connected_component:
+            their_connected = connected_component.data.get('connected_locations', [])
+            if location_id not in their_connected:
+                # Add this location to their connected_locations
+                updated_connected = their_connected + [location_id]
+                result = engine.update_component(connected_id, 'Location', {
+                    'connected_locations': updated_connected
+                })
+                if result.success:
+                    connected_entity = engine.get_entity(connected_id)
+                    connected_name = connected_entity.name if connected_entity else connected_id
+                    logger.info(f"  → Bidirectional connection: Added {name} to {connected_name}'s connected_locations")
+                else:
+                    logger.warning(f"  → Failed to update connected location {connected_id}: {result.error}")
 
     logger.info(f"Created Location: {name} ({location_id}) in {region}")
     return {
