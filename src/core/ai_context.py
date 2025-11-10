@@ -267,15 +267,17 @@ class AIContextBuilder:
         """
         entity_type = 'unknown'
 
-        # Determine entity type
+        # Determine entity type (check in priority order)
         if self.engine.get_component(entity.id, 'PlayerCharacter'):
             entity_type = 'player'
         elif self.engine.get_component(entity.id, 'NPC'):
             entity_type = 'npc'
-        elif self.engine.get_component(entity.id, 'Item'):
-            entity_type = 'item'
         elif self.engine.get_component(entity.id, 'Location'):
             entity_type = 'location'
+        elif self.engine.get_component(entity.id, 'Container'):
+            entity_type = 'container'
+        elif self.engine.get_component(entity.id, 'Item'):
+            entity_type = 'item'
 
         entity_info = {
             'name': entity.name,

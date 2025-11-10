@@ -302,14 +302,24 @@ class EquipmentSystem:
             rel_type='owns'
         )
 
-        if result.success:
-            return Result.ok({
-                'from': from_id,
-                'to': to_id,
-                'item_id': item_id
-            })
-        else:
+        if not result.success:
             return result
+
+        # 5. Update Position to reflect new physical location
+        # Items have Position components that track where they physically are
+        position_result = self.engine.update_component(item_id, 'Position', {
+            'region': to_id  # Item is now physically where the new owner is
+        })
+        if not position_result.success:
+            # Log warning but don't fail - position update is not critical
+            # (Some old items might not have Position yet)
+            pass
+
+        return Result.ok({
+            'from': from_id,
+            'to': to_id,
+            'item_id': item_id
+        })
 
 
 __all__ = ['EquipmentSystem']
