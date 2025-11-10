@@ -757,67 +757,14 @@ def _create_location(engine, player_entity_id: str, tool_input: Dict[str, Any]) 
 
 
 def _create_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
-    """Create an item entity."""
+    """Create an item entity with all proper components."""
     name = tool_input["name"]
     description = tool_input["description"]
     item_type = tool_input["item_type"]
     location = tool_input.get("location")
     value = tool_input.get("value", 0)
 
-    # IMPORTANT: Check if item already exists (search by name)
-    # This prevents duplicate items when an item exists but lacks the Item component
-    all_entities = engine.get_all_entities()
-    existing_item = None
-    for entity in all_entities:
-        if entity.is_active() and entity.name.lower() == name.lower():
-            existing_item = entity
-            break
-
-    if existing_item:
-        # Item already exists! Check if it has the Item component
-        item_comp = engine.get_component(existing_item.id, 'Item')
-        if item_comp:
-            # Item exists and has proper component - return it instead of creating duplicate
-            logger.info(f"Item '{name}' already exists ({existing_item.id}), returning existing item")
-            return {
-                "success": True,
-                "message": f"Found existing {item_type} '{name}' (ID: {existing_item.id})",
-                "data": {"entity_id": existing_item.id, "name": name, "existing": True}
-            }
-        else:
-            # Item exists but missing Item component - fix it!
-            logger.warning(f"Item '{name}' exists ({existing_item.id}) but missing Item component, adding it now")
-            engine.add_component(existing_item.id, 'Item', {
-                'item_type': item_type,
-                'value': value,
-                'quantity': 1
-            })
-
-            # Update Identity if provided description is different/better
-            identity = engine.get_component(existing_item.id, 'Identity')
-            if identity and description:
-                current_desc = identity.data.get('description', '')
-                if not current_desc or len(description) > len(current_desc):
-                    engine.update_component(existing_item.id, 'Identity', {'description': description})
-                    logger.info(f"  → Updated description for existing item")
-
-            # Update Position if location specified
-            if location:
-                locations = engine.query_entities(['Location'])
-                location_entity = next((e for e in locations if e.name.lower() == location.lower()), None)
-                if location_entity:
-                    pos = engine.get_component(existing_item.id, 'Position')
-                    if not pos:
-                        engine.add_component(existing_item.id, 'Position', {'region': location_entity.id})
-                        logger.info(f"  → Added Position to existing item at location: {location}")
-
-            return {
-                "success": True,
-                "message": f"Fixed existing {item_type} '{name}' by adding missing Item component",
-                "data": {"entity_id": existing_item.id, "name": name, "fixed": True}
-            }
-
-    # Create new entity (no existing item found)
+    # Create entity
     result = engine.create_entity(name)
     if not result.success:
         return {"success": False, "message": f"Failed to create item: {result.error}"}
@@ -829,7 +776,7 @@ def _create_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> D
         'description': description
     })
 
-    # Add Item component
+    # Add Item component (REQUIRED for items to be recognized)
     engine.add_component(item_id, 'Item', {
         'item_type': item_type,
         'value': value,
