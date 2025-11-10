@@ -850,6 +850,48 @@ class StateEngine:
         except Exception as e:
             return Result.fail(str(e), ErrorCode.UNEXPECTED_ERROR)
 
+    def delete_relationship_by_entities(self, from_id: str, to_id: str, rel_type: str,
+                                       actor_id: str = 'system') -> Result:
+        """
+        Delete a relationship between two entities by finding and removing it.
+
+        This is a convenience method that mirrors create_relationship() - while
+        create_relationship takes entity IDs and type, this allows deletion
+        using the same parameters without requiring the caller to find the
+        relationship ID first.
+
+        Args:
+            from_id: Source entity ID
+            to_id: Target entity ID
+            rel_type: Type of relationship to delete
+            actor_id: Who is deleting this relationship
+
+        Returns:
+            Result indicating success or error
+        """
+        try:
+            # Get all relationships of this type from the from_entity
+            relationships = self.get_relationships(from_id, rel_type=rel_type, direction='from')
+
+            # Find the specific relationship to the to_entity
+            target_relationship = None
+            for rel in relationships:
+                if rel.to_entity == to_id:
+                    target_relationship = rel
+                    break
+
+            if not target_relationship:
+                return Result.fail(
+                    f"No {rel_type} relationship found from {from_id} to {to_id}",
+                    "RELATIONSHIP_NOT_FOUND"
+                )
+
+            # Delete the relationship using the existing method
+            return self.delete_relationship(target_relationship.id, actor_id=actor_id)
+
+        except Exception as e:
+            return Result.fail(str(e), ErrorCode.UNEXPECTED_ERROR)
+
     # ========== Query Operations ==========
 
     def query_entities(self, component_types: Optional[List[str]] = None) -> List[Entity]:

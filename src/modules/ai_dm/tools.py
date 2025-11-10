@@ -1209,7 +1209,12 @@ def _transfer_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) ->
 
     if quantity >= current_quantity:
         # Transfer all items - update BOTH ownership AND position
-        engine.remove_relationship(from_entity.id, item.id, 'owns')
+        # First remove the old ownership relationship
+        result = engine.delete_relationship_by_entities(from_entity.id, item.id, 'owns', actor_id='system')
+        if not result.success:
+            return {"success": False, "message": _format_error(f"Failed to remove old ownership: {result.error}")}
+
+        # Then create the new ownership relationship
         result = engine.create_relationship(to_entity.id, item.id, 'owns')
         if not result.success:
             return {"success": False, "message": _format_error(f"Failed to transfer item: {result.error}")}
@@ -1565,7 +1570,7 @@ def _remove_relationship(engine, player_entity_id: str, tool_input: Dict[str, An
         return {"success": False, "message": _format_error(f"Entity '{to_entity_name}' not found")}
 
     # Remove the relationship
-    result = engine.remove_relationship(from_entity.id, to_entity.id, relationship_type)
+    result = engine.delete_relationship_by_entities(from_entity.id, to_entity.id, relationship_type, actor_id='system')
     if not result.success:
         logger.error(f"Failed to remove relationship {relationship_type} from {from_entity_name} to {to_entity_name}: {result.error}")
         return {"success": False, "message": _format_error(f"Failed to remove relationship: {result.error}")}
