@@ -1117,6 +1117,20 @@ class StateEngine:
             self.storage.rollback()
             raise
 
+    def commit(self) -> None:
+        """
+        Commit the current transaction.
+
+        This ensures all pending database writes are committed and visible
+        to subsequent queries. Essential for making entities created in one
+        tool immediately visible to the next tool in a batch execution.
+
+        Critical for SQLite transaction isolation: Without commits between
+        tool executions, entities created in Tool 1 won't be visible to
+        Tool 2's queries within the same transaction.
+        """
+        self.storage.commit()
+
     # ========== Position Validation (delegates to PositionSystem) ==========
 
     def _validate_position_with_system(self, entity_id: str, position_data: Dict[str, Any]) -> Result:
