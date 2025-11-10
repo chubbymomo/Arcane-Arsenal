@@ -182,6 +182,10 @@ You have access to powerful tools that let you interact with the game world. Too
 
 1. **Create entities for important things:**
    - NPCs the player talks to should be created as entities
+   - Creatures that participate in combat, chase scenes, or have ongoing presence should be created as NPCs (even if hostile)
+   - Create creature NPCs BEFORE narrating their appearance or actions - this allows tracking their position, health, and state
+   - Examples: "archive newts emerge from the wall" → create_npc for archive newts FIRST, then describe them
+   - Purely atmospheric creatures (distant wolves howling, birds flying overhead) don't need entities
    - Locations the player enters should be tracked
    - Items the player might interact with should exist in the game world
 

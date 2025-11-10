@@ -446,7 +446,7 @@ _CORE_TOOL_DEFINITIONS = [
     },
     {
         "name": "update_component",
-        "description": "Update a component's data on any entity. Use this to modify NPC stats, location features, item properties, etc. Get entity details first to see current values.",
+        "description": "Update a component's data on any entity. Use this to modify NPC stats, location features, item properties, etc. Get entity details first to see current values. For moving entities to locations, you can use 'location_name' when updating Position components.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -456,11 +456,11 @@ _CORE_TOOL_DEFINITIONS = [
                 },
                 "component_type": {
                     "type": "string",
-                    "description": "Component to update (e.g., 'Identity', 'NPC', 'Location', 'Item', 'Health')"
+                    "description": "Component to update (e.g., 'Identity', 'NPC', 'Location', 'Item', 'Health', 'Position')"
                 },
                 "updates": {
                     "type": "object",
-                    "description": "Fields to update with new values (e.g., {'race': 'elf', 'occupation': 'mage'})"
+                    "description": "Fields to update with new values. Examples: {'race': 'elf', 'occupation': 'mage'}, {'current': 50} for Health. For Position: use {'location_name': 'Location Name'} to move an entity to a location, or {'region': 'entity_id'} for direct entity reference."
                 },
                 "reason": {
                     "type": "string",
@@ -1006,24 +1006,19 @@ def _move_player_to_location(engine, player_entity_id: str, tool_input: Dict[str
     location_name = tool_input["location_name"]
     region = tool_input.get("region")  # Legacy fallback
 
-    position = engine.get_component(player_entity_id, 'Position')
-    if not position:
-        return {"success": False, "message": _format_error("Player has no Position component")}
+    # Use centralized PositionSystem method for movement
+    from src.modules.core_components.systems import PositionSystem
+    position_system = PositionSystem(engine)
 
-    # Find location entity by name (entity-based positioning)
-    resolver = EntityResolver(engine)
-    location_entity = resolver.resolve(location_name, expected_type='location')
+    result = position_system.move_entity_to_location(player_entity_id, location_name)
 
-    if location_entity:
-        # Entity-based positioning: set region to location entity ID
-        engine.update_component(player_entity_id, 'Position', {
-            'region': location_entity.id  # Entity reference!
-        })
-        logger.info(f"Moved player to location entity: {location_name} ({location_entity.id})")
+    if result.success:
+        location_id = result.data.get('location_id')
+        logger.info(f"Moved player to location entity: {location_name} ({location_id})")
         return {
             "success": True,
             "message": f"Moved to {location_name}",
-            "data": {"location": location_name, "location_id": location_entity.id}
+            "data": {"location": location_name, "location_id": location_id}
         }
     elif region:
         # Fallback: Use region string (legacy or for abstract regions)
@@ -1037,14 +1032,7 @@ def _move_player_to_location(engine, player_entity_id: str, tool_input: Dict[str
             "data": {"region": region}
         }
     else:
-        # Location not found and no region specified
-        # Query for available locations to provide helpful error message
-        all_locations = engine.query_entities(['Location'])
-        nearby_locations = [loc.name for loc in all_locations[:5]]
-        error_msg = f"Location '{location_name}' not found"
-        if nearby_locations:
-            error_msg += f". Available locations: {', '.join(nearby_locations)}"
-        return {"success": False, "message": _format_error(error_msg)}
+        return {"success": False, "message": _format_error(result.error)}
 
 
 def _query_entities(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
@@ -1489,7 +1477,37 @@ def _update_component(engine, player_entity_id: str, tool_input: Dict[str, Any])
     if not component:
         return {"success": False, "message": _format_error(f"Entity '{entity_name}' does not have a {component_type} component")}
 
-    # Update the component
+    # Special handling for Position component updates with location_name
+    # Use centralized PositionSystem method for location-based movement
+    if component_type == 'Position' and 'location_name' in updates:
+        location_name = updates.pop('location_name')  # Remove location_name from updates
+
+        # Use centralized PositionSystem method
+        from src.modules.core_components.systems import PositionSystem
+        position_system = PositionSystem(engine)
+
+        result = position_system.move_entity_to_location(entity.id, location_name)
+        if not result.success:
+            return {"success": False, "message": _format_error(result.error)}
+
+        location_id = result.data.get('location_id')
+        logger.info(f"  → Moved {entity_name} to {location_name} ({location_id}) via PositionSystem")
+
+        # If there are other Position updates (x, y, z), apply them now
+        if updates:
+            result = engine.update_component(entity.id, component_type, updates)
+            if not result.success:
+                logger.error(f"Failed to update additional Position fields on {entity_name}: {result.error}")
+                return {"success": False, "message": _format_error(f"Failed to update component: {result.error}")}
+
+        logger.info(f"Updated Position on {entity_name} ({entity.id}): moved to {location_name} - {reason}")
+        return {
+            "success": True,
+            "message": f"Updated {entity_name}'s {component_type} component: {reason}",
+            "data": {"entity_id": entity.id, "component_type": component_type, "location": location_name}
+        }
+
+    # Update the component normally
     result = engine.update_component(entity.id, component_type, updates)
     if not result.success:
         logger.error(f"Failed to update {component_type} on {entity_name}: {result.error}")

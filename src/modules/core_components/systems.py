@@ -248,6 +248,70 @@ class PositionSystem:
         entity = self.engine.get_entity(value)
         return entity is not None and entity.is_active()
 
+    def move_entity_to_location(self, entity_id: str, location_name: str) -> Result:
+        """
+        Move an entity to a named location.
+
+        This is a high-level helper that handles location name resolution
+        and Position component updates. Use this instead of manually updating
+        Position components when moving entities to locations.
+
+        Args:
+            entity_id: Entity to move
+            location_name: Name of the location to move to
+
+        Returns:
+            Result with success/failure and location entity ID
+
+        Examples:
+            # Move player to tavern
+            result = system.move_entity_to_location(player_id, "The Rusty Tankard")
+
+            # Move NPC to new location
+            result = system.move_entity_to_location(npc_id, "Town Square")
+        """
+        # Import here to avoid circular dependency
+        from src.modules.ai_dm.entity_resolver import EntityResolver
+
+        # Check if entity has Position component
+        position = self.engine.get_component(entity_id, 'Position')
+        if not position:
+            return Result.fail(
+                f"Entity {entity_id} has no Position component",
+                "NO_POSITION_COMPONENT"
+            )
+
+        # Resolve location name to entity
+        resolver = EntityResolver(self.engine)
+        location_entity = resolver.resolve(location_name, expected_type='location')
+
+        if not location_entity:
+            # Try without type restriction (might be a region name)
+            location_entity = resolver.resolve(location_name)
+
+        if location_entity:
+            # Entity-based positioning: set region to location entity ID
+            result = self.engine.update_component(entity_id, 'Position', {
+                'region': location_entity.id
+            })
+
+            if result.success:
+                return Result.ok({
+                    'location_name': location_name,
+                    'location_id': location_entity.id
+                })
+            else:
+                return result
+        else:
+            # Location not found - return error with suggestions
+            all_locations = self.engine.query_entities(['Location'])
+            nearby_locations = [loc.name for loc in all_locations[:5]]
+            error_msg = f"Location '{location_name}' not found"
+            if nearby_locations:
+                error_msg += f". Available locations: {', '.join(nearby_locations)}"
+
+            return Result.fail(error_msg, "LOCATION_NOT_FOUND")
+
     def _creates_circular_reference(self, entity_id: str, new_region: str) -> bool:
         """
         Check if setting an entity's region would create a circular reference.
