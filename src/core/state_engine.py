@@ -17,7 +17,7 @@ import jsonschema
 from .storage import WorldStorage
 from .event_bus import EventBus
 from .models import Entity, Component, Relationship, Event, now
-from .result import Result
+from .result import Result, ErrorCode
 from .module_loader import ModuleLoader
 from ..modules.core_components import CoreComponentsModule
 
@@ -264,7 +264,7 @@ class StateEngine:
 
             # Save to storage
             if not self.storage.save_entity(entity):
-                return Result.fail("Failed to save entity", "STORAGE_ERROR")
+                return Result.fail("Failed to save entity", ErrorCode.STORAGE_ERROR)
 
             # Emit event
             event = Event.create(
@@ -278,7 +278,7 @@ class StateEngine:
             return Result.ok(entity.to_dict())
 
         except Exception as e:
-            return Result.fail(str(e), "UNEXPECTED_ERROR")
+            return Result.fail(str(e), ErrorCode.UNEXPECTED_ERROR)
 
     def get_entity(self, entity_id: str) -> Optional[Entity]:
         """
@@ -334,7 +334,7 @@ class StateEngine:
 
             # Save to storage
             if not self.storage.save_entity(entity):
-                return Result.fail("Failed to update entity", "STORAGE_ERROR")
+                return Result.fail("Failed to update entity", ErrorCode.STORAGE_ERROR)
 
             # Emit event
             event = Event.create(
@@ -348,7 +348,7 @@ class StateEngine:
             return Result.ok(entity.to_dict())
 
         except Exception as e:
-            return Result.fail(str(e), "UNEXPECTED_ERROR")
+            return Result.fail(str(e), ErrorCode.UNEXPECTED_ERROR)
 
     def delete_entity(self, entity_id: str, actor_id: str = 'system') -> Result:
         """
@@ -372,7 +372,7 @@ class StateEngine:
 
             # Delete entity
             if not self.storage.soft_delete_entity(entity_id, actor_id):
-                return Result.fail("Failed to delete entity", "STORAGE_ERROR")
+                return Result.fail("Failed to delete entity", ErrorCode.STORAGE_ERROR)
 
             # Emit event
             event = Event.create(
@@ -386,7 +386,7 @@ class StateEngine:
             return Result.ok({'entity_id': entity_id})
 
         except Exception as e:
-            return Result.fail(str(e), "UNEXPECTED_ERROR")
+            return Result.fail(str(e), ErrorCode.UNEXPECTED_ERROR)
 
     def restore_entity(self, entity_id: str, actor_id: str = 'system') -> Result:
         """
@@ -410,7 +410,7 @@ class StateEngine:
 
             # Restore entity
             if not self.storage.restore_entity(entity_id):
-                return Result.fail("Failed to restore entity", "STORAGE_ERROR")
+                return Result.fail("Failed to restore entity", ErrorCode.STORAGE_ERROR)
 
             # Emit event
             event = Event.create(
@@ -424,7 +424,7 @@ class StateEngine:
             return Result.ok({'entity_id': entity_id})
 
         except Exception as e:
-            return Result.fail(str(e), "UNEXPECTED_ERROR")
+            return Result.fail(str(e), ErrorCode.UNEXPECTED_ERROR)
 
     # ========== Component Operations ==========
 
@@ -498,7 +498,7 @@ class StateEngine:
 
             # Save to storage
             if not self.storage.save_component(component):
-                return Result.fail("Failed to save component", "STORAGE_ERROR")
+                return Result.fail("Failed to save component", ErrorCode.STORAGE_ERROR)
 
             # Emit event
             event = Event.create(
@@ -518,7 +518,7 @@ class StateEngine:
             return Result.ok(component.to_dict())
 
         except Exception as e:
-            return Result.fail(str(e), "UNEXPECTED_ERROR")
+            return Result.fail(str(e), ErrorCode.UNEXPECTED_ERROR)
 
     def get_component(self, entity_id: str, component_type: str) -> Optional[Component]:
         """
@@ -613,7 +613,7 @@ class StateEngine:
 
             # Save to storage
             if not self.storage.save_component(component):
-                return Result.fail("Failed to update component", "STORAGE_ERROR")
+                return Result.fail("Failed to update component", ErrorCode.STORAGE_ERROR)
 
             # Emit event
             event = Event.create(
@@ -634,7 +634,7 @@ class StateEngine:
             return Result.ok(component.to_dict())
 
         except Exception as e:
-            return Result.fail(str(e), "UNEXPECTED_ERROR")
+            return Result.fail(str(e), ErrorCode.UNEXPECTED_ERROR)
 
     def remove_component(self, entity_id: str, component_type: str,
                         actor_id: str = 'system') -> Result:
@@ -665,7 +665,7 @@ class StateEngine:
 
             # Delete component
             if not self.storage.delete_component(component.id):
-                return Result.fail("Failed to remove component", "STORAGE_ERROR")
+                return Result.fail("Failed to remove component", ErrorCode.STORAGE_ERROR)
 
             # Emit event
             event = Event.create(
@@ -684,7 +684,7 @@ class StateEngine:
             return Result.ok({'component_id': component.id})
 
         except Exception as e:
-            return Result.fail(str(e), "UNEXPECTED_ERROR")
+            return Result.fail(str(e), ErrorCode.UNEXPECTED_ERROR)
 
     # ========== Relationship Operations ==========
 
@@ -747,7 +747,7 @@ class StateEngine:
 
             # Save to storage
             if not self.storage.save_relationship(relationship):
-                return Result.fail("Failed to save relationship", "STORAGE_ERROR")
+                return Result.fail("Failed to save relationship", ErrorCode.STORAGE_ERROR)
 
             # Emit event
             event = Event.create(
@@ -767,7 +767,19 @@ class StateEngine:
             return Result.ok(relationship.to_dict())
 
         except Exception as e:
-            return Result.fail(str(e), "UNEXPECTED_ERROR")
+            return Result.fail(str(e), ErrorCode.UNEXPECTED_ERROR)
+
+    def get_relationship(self, relationship_id: str) -> Optional[Relationship]:
+        """
+        Get a relationship by ID.
+
+        Args:
+            relationship_id: Relationship ID
+
+        Returns:
+            Relationship if found, None otherwise
+        """
+        return self.storage.get_relationship(relationship_id)
 
     def get_relationships(self, entity_id: str, rel_type: Optional[str] = None,
                          direction: str = 'both') -> List[Relationship]:
@@ -817,7 +829,7 @@ class StateEngine:
 
             # Delete relationship
             if not self.storage.delete_relationship(relationship_id):
-                return Result.fail("Failed to delete relationship", "STORAGE_ERROR")
+                return Result.fail("Failed to delete relationship", ErrorCode.STORAGE_ERROR)
 
             # Emit event
             event = Event.create(
@@ -836,7 +848,7 @@ class StateEngine:
             return Result.ok({'relationship_id': relationship_id})
 
         except Exception as e:
-            return Result.fail(str(e), "UNEXPECTED_ERROR")
+            return Result.fail(str(e), ErrorCode.UNEXPECTED_ERROR)
 
     # ========== Query Operations ==========
 
@@ -927,6 +939,75 @@ class StateEngine:
             return Result.ok({'type': definition.type})
         except Exception as e:
             return Result.fail(str(e), "REGISTRATION_ERROR")
+
+    def get_component_types(self) -> List[Dict[str, Any]]:
+        """
+        Get all registered component types.
+
+        Returns:
+            List of component type definitions with type, description, schema_version, module
+        """
+        return self.storage.get_component_types()
+
+    def get_relationship_types(self) -> List[Dict[str, Any]]:
+        """
+        Get all registered relationship types.
+
+        Returns:
+            List of relationship type definitions with type, description, module
+        """
+        return self.storage.get_relationship_types()
+
+    def get_event_types(self) -> List[Dict[str, Any]]:
+        """
+        Get all registered event types.
+
+        Returns:
+            List of event type definitions with type, description, module
+        """
+        return self.storage.get_event_types()
+
+    def get_roll_types(self) -> List[Dict[str, Any]]:
+        """
+        Get all registered roll types.
+
+        Returns:
+            List of roll type definitions with type, description, module, category
+        """
+        return self.storage.get_roll_types()
+
+    def get_registry_names(self) -> List[str]:
+        """
+        Get all registry names that have been created.
+
+        Returns:
+            List of registry names (e.g., ['magic_schools', 'damage_types'])
+        """
+        return self.storage.get_registry_names()
+
+    def get_registry_values(self, registry_name: str) -> List[Dict[str, Any]]:
+        """
+        Get all values from a specific registry.
+
+        Args:
+            registry_name: Name of the registry to query
+
+        Returns:
+            List of dicts with keys: key, description, module, metadata
+        """
+        return self.storage.get_registry_values(registry_name)
+
+    def get_registry_owner(self, registry_name: str) -> Optional[str]:
+        """
+        Get the module that owns a registry.
+
+        Args:
+            registry_name: Name of the registry
+
+        Returns:
+            Module name that owns this registry, or None if registry doesn't exist
+        """
+        return self.storage.get_registry_owner(registry_name)
 
     def create_registry(self, registry_name: str, module_name: str) -> 'ModuleRegistry':
         """

@@ -44,12 +44,12 @@ class AIContextBuilder:
 
         try:
             # Get all registry names dynamically
-            registry_names = self.engine.storage.get_registry_names()
+            registry_names = self.engine.get_registry_names()
 
             # Include ALL registries dynamically
             for registry_name in registry_names:
                 try:
-                    values = self.engine.storage.get_registry_values(registry_name)
+                    values = self.engine.get_registry_values(registry_name)
                     # Only include key and description for cleaner AI context
                     context[registry_name] = [
                         {'key': v['key'], 'description': v['description']}

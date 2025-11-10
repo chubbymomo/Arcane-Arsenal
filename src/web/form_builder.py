@@ -305,7 +305,7 @@ class FormBuilder:
         # Get registry values
         try:
             # Query which module owns this registry
-            owner_module = self.engine.storage.get_registry_owner(registry_name)
+            owner_module = self.engine.get_registry_owner(registry_name)
             if not owner_module:
                 logger.warning(f"Registry '{registry_name}' has no owner module")
                 return f'<p class="text-danger">Error: registry "{escape(registry_name)}" not found</p>'
@@ -334,7 +334,7 @@ class FormBuilder:
 
         try:
             # Query which module owns this registry
-            owner_module = self.engine.storage.get_registry_owner(registry_name)
+            owner_module = self.engine.get_registry_owner(registry_name)
             if not owner_module:
                 logger.warning(f"Registry '{registry_name}' has no owner module")
                 return f'<p class="text-danger">Error: registry "{escape(registry_name)}" not found</p>'
