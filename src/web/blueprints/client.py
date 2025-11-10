@@ -94,17 +94,23 @@ def character_builder():
     form_builder = FormBuilder(engine)
 
     if request.method == 'POST':
-        # Get all form data
-        name = request.form.get('name')
-        description = request.form.get('description', '')
+        # Collect ALL form data generically - web layer doesn't know about module fields
+        form_data = dict(request.form)
 
-        # Handle starting scenario selection
-        scenario_type = request.form.get('scenario_type', 'default')
+        # Extract only core fields needed by the engine itself
+        name = form_data.get('name')
+        description = form_data.get('description', '')
+
+        if not name:
+            flash('Character name is required', 'error')
+            return redirect(url_for('client.character_builder'))
+
+        # Handle starting scenario selection (core concern for Position component)
+        scenario_type = form_data.get('scenario_type', 'default')
         region = 'The Realm'  # Default
 
         if scenario_type == 'join_players':
-            # Join existing players at their location
-            target_player = request.form.get('join_player_id')
+            target_player = form_data.get('join_player_id')
             if target_player:
                 target_entity = engine.get_entity(target_player)
                 if target_entity:
@@ -112,8 +118,7 @@ def character_builder():
                     if target_pos:
                         region = target_pos.data.get('region', 'The Realm')
         elif scenario_type == 'prewritten':
-            # Use pre-written starting scenario
-            scenario_key = request.form.get('prewritten_scenario', 'default')
+            scenario_key = form_data.get('prewritten_scenario', 'default')
             scenario_regions = {
                 'tavern': 'The Golden Tankard',
                 'city_gates': 'Gates of Waterdeep',
@@ -123,34 +128,6 @@ def character_builder():
                 'default': 'The Realm'
             }
             region = scenario_regions.get(scenario_key, 'The Realm')
-        elif scenario_type == 'ai_generated':
-            # AI will generate a custom starting scenario during character creation
-            region = 'The Realm'  # Placeholder - AI will describe the real location
-        # else: scenario_type == 'default', region already set to 'The Realm'
-
-        # Fantasy-specific fields (only present if generic_fantasy module loaded)
-        race = request.form.get('race')
-        char_class = request.form.get('class')
-        alignment = request.form.get('alignment')
-
-        # Attributes (only present if generic_fantasy module loaded)
-        strength = request.form.get('strength', type=int)
-        dexterity = request.form.get('dexterity', type=int)
-        constitution = request.form.get('constitution', type=int)
-        intelligence = request.form.get('intelligence', type=int)
-        wisdom = request.form.get('wisdom', type=int)
-        charisma = request.form.get('charisma', type=int)
-
-        if not name:
-            flash('Character name is required', 'error')
-            return redirect(url_for('client.character_builder'))
-
-        # Validate attributes only if they were provided (module loaded)
-        attrs = [strength, dexterity, constitution, intelligence, wisdom, charisma]
-        has_attributes = any(attr is not None for attr in attrs)
-        if has_attributes and any(attr is None or attr < 1 or attr > 20 for attr in attrs):
-            flash('All attributes must be between 1 and 20', 'error')
-            return redirect(url_for('client.character_builder'))
 
         # Create character entity
         result = engine.create_entity(name)
@@ -161,9 +138,9 @@ def character_builder():
         entity_id = result.data['id']
 
         try:
-            # Add core components (these are core_components module, always available)
+            # Add core components
             engine.add_component(entity_id, 'Identity', {
-                'description': description or f"A {race} {char_class}" if (race or char_class) else "A new character"
+                'description': description or "A new character"
             })
 
             engine.add_component(entity_id, 'Position', {
@@ -173,36 +150,14 @@ def character_builder():
 
             engine.add_component(entity_id, 'PlayerCharacter', {})
 
-            # Publish character creation event with form data
-            # Modules can subscribe to this event and add their own components
-            # (e.g., generic_fantasy module adds Attributes/CharacterDetails if it's loaded)
+            # Publish character creation event with ALL form data
+            # Modules subscribe to this event and parse what they need
+            # Web layer doesn't know what fields modules care about
             engine.event_bus.publish(Event.create(
                 event_type='character.form_submitted',
                 entity_id=entity_id,
-                data={
-                    'race': race,
-                    'character_class': char_class,
-                    'alignment': alignment,
-                    'strength': strength,
-                    'dexterity': dexterity,
-                    'constitution': constitution,
-                    'intelligence': intelligence,
-                    'wisdom': wisdom,
-                    'charisma': charisma
-                }
+                data=form_data  # Pass ALL form data to modules
             ))
-
-            # Generate AI intro if requested
-            # Note: AI intro generation is handled by ai_dm module
-            # For now, we skip auto-generation during character creation
-            # Players can trigger intro generation from the character sheet
-            # This simplifies the flow and moves AI logic to the ai_dm module
-            if scenario_type == 'ai_generated':
-                # Create empty Conversation component so AI intro can be generated later
-                engine.add_component(entity_id, 'Conversation', {
-                    'message_ids': []
-                })
-                flash('Character created! Visit your character sheet to generate an AI introduction.', 'info')
 
             flash(f'Character "{name}" created successfully!', 'success')
             return redirect(url_for('client.character_sheet', entity_id=entity_id))
