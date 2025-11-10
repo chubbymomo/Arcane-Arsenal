@@ -695,6 +695,7 @@ def send_dm_message_stream():
                 current_tool = None
                 tool_input_json = ""
                 tool_uses = []
+                in_actions_block = False  # Track if we're inside <actions> tags
 
                 # TURN 1: Let AI use tools (accumulate, don't execute yet)
                 for chunk in llm.generate_response_stream(
@@ -706,9 +707,22 @@ def send_dm_message_stream():
                 ):
                     if chunk['type'] == 'text':
                         # Accumulate text from first turn (usually empty when tools used)
-                        full_response += chunk['content']
-                        # Stream to user
-                        yield f"data: {json.dumps({'type': 'token', 'content': chunk['content']})}\n\n"
+                        content = chunk['content']
+                        full_response += content
+
+                        # Detect <actions> block and don't stream it
+                        if '<actions>' in content:
+                            in_actions_block = True
+                            # Stream only the part before <actions>
+                            before_actions = content.split('<actions>')[0]
+                            if before_actions:
+                                yield f"data: {json.dumps({'type': 'token', 'content': before_actions})}\n\n"
+                        elif '</actions>' in content:
+                            in_actions_block = False
+                            # Don't stream the closing tag or content after
+                        elif not in_actions_block:
+                            # Stream normal content
+                            yield f"data: {json.dumps({'type': 'token', 'content': content})}\n\n"
 
                     elif chunk['type'] == 'tool_use_start':
                         # Save previous tool if exists
@@ -801,6 +815,7 @@ def send_dm_message_stream():
 
                     # Get narrative response (stream it!)
                     full_response = ""
+                    in_actions_block = False  # Reset for second turn
                     for chunk in llm.generate_response_stream(
                         messages=llm_messages,
                         system=full_system_prompt,
@@ -809,9 +824,22 @@ def send_dm_message_stream():
                         tools=None  # No tools in second turn
                     ):
                         if chunk['type'] == 'text':
-                            full_response += chunk['content']
-                            # Stream narrative to user
-                            yield f"data: {json.dumps({'type': 'token', 'content': chunk['content']})}\n\n"
+                            content = chunk['content']
+                            full_response += content
+
+                            # Detect <actions> block and don't stream it
+                            if '<actions>' in content:
+                                in_actions_block = True
+                                # Stream only the part before <actions>
+                                before_actions = content.split('<actions>')[0]
+                                if before_actions:
+                                    yield f"data: {json.dumps({'type': 'token', 'content': before_actions})}\n\n"
+                            elif '</actions>' in content:
+                                in_actions_block = False
+                                # Don't stream the closing tag or content after
+                            elif not in_actions_block:
+                                # Stream normal narrative
+                                yield f"data: {json.dumps({'type': 'token', 'content': content})}\n\n"
 
                     logger.info(f"Second turn complete: {len(full_response)} chars narrative")
 
