@@ -143,6 +143,8 @@ def build_context_prompt(ai_context: Dict[str, Any]) -> str:
             npcs = [e for e in nearby if e.get('type') == 'npc']
             players = [e for e in nearby if e.get('type') == 'player']
             items = [e for e in nearby if e.get('type') == 'item']
+            containers = [e for e in nearby if e.get('type') == 'container']
+            locations = [e for e in nearby if e.get('type') == 'location']
 
             if npcs:
                 prompt_parts.append(f"**Nearby NPCs ({len(npcs)}):**")
@@ -169,6 +171,32 @@ def build_context_prompt(ai_context: Dict[str, Any]) -> str:
                     desc = f"  • **{item['name']}**"
                     if item.get('description'):
                         desc += f" - {item['description']}"
+                    prompt_parts.append(desc)
+
+            if containers:
+                prompt_parts.append(f"**Nearby Containers ({len(containers)}):**")
+                for container in containers:
+                    desc = f"  • **{container['name']}**"
+                    if container.get('description'):
+                        desc += f" - {container['description']}"
+                    prompt_parts.append(desc)
+
+            if locations:
+                prompt_parts.append(f"**Nearby Locations ({len(locations)}):**")
+                for loc in locations:
+                    desc = f"  • **{loc['name']}**"
+                    if loc.get('description'):
+                        desc += f" - {loc['description']}"
+                    prompt_parts.append(desc)
+
+            # Catch-all for any other entity types
+            other = [e for e in nearby if e.get('type') not in ['npc', 'player', 'item', 'container', 'location']]
+            if other:
+                prompt_parts.append(f"**Other Nearby Entities ({len(other)}):**")
+                for entity in other:
+                    desc = f"  • **{entity['name']}** (type: {entity.get('type', 'unknown')})"
+                    if entity.get('description'):
+                        desc += f" - {entity['description']}"
                     prompt_parts.append(desc)
 
         prompt_parts.append("")  # Blank line

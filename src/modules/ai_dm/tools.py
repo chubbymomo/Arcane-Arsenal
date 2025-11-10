@@ -818,7 +818,18 @@ def _create_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> D
         return {"success": False, "message": _format_error(f"Failed to add Item component: {result.error}")}
     logger.info(f"  → Added Item component: weight={weight} lbs, value={value} gp, rarity={rarity}")
 
-    # Establish ownership relationship
+    # Add Position component - items have physical location in world
+    # Position.region points to where the item physically is (owner's location)
+    result = engine.add_component(item_id, 'Position', {
+        'region': owner_entity.id  # Item is physically located where its owner is
+    })
+    if not result.success:
+        logger.error(f"  ✗ Failed to add Position: {result.error}")
+        engine.delete_entity(item_id)  # Clean up on failure
+        return {"success": False, "message": _format_error(f"Failed to add Position component: {result.error}")}
+    logger.info(f"  → Added Position: region={owner_entity.id} ({owned_by_entity_name})")
+
+    # Establish ownership relationship (who controls/possesses the item)
     result = engine.create_relationship(owner_entity.id, item_id, 'owns')
     if not result.success:
         logger.error(f"  ✗ Failed to create ownership: {result.error}")
@@ -1182,11 +1193,19 @@ def _transfer_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) ->
         quantity = min(quantity, current_quantity)  # Can't transfer more than we have
 
     if quantity >= current_quantity:
-        # Transfer all items
+        # Transfer all items - update BOTH ownership AND position
         engine.remove_relationship(from_entity.id, item.id, 'owns')
         result = engine.create_relationship(to_entity.id, item.id, 'owns')
         if not result.success:
             return {"success": False, "message": _format_error(f"Failed to transfer item: {result.error}")}
+
+        # Update Position to reflect new physical location
+        result = engine.update_component(item.id, 'Position', {
+            'region': to_entity.id  # Item is now physically where the new owner is
+        })
+        if not result.success:
+            logger.warning(f"Failed to update item Position during transfer: {result.error}")
+            # Don't fail the whole operation, but log it
 
         logger.info(f"Transferred all {current_quantity}x {item_name} from {from_entity_name} to {to_entity_name} ({reason})")
         return {
@@ -1221,6 +1240,11 @@ def _transfer_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) ->
             new_item_data = item_data['Item'].copy()
             new_item_data['quantity'] = quantity
             engine.add_component(new_item_id, 'Item', new_item_data)
+
+        # Add Position component to new item (physically located at new owner)
+        engine.add_component(new_item_id, 'Position', {
+            'region': to_entity.id
+        })
 
         # Transfer ownership of new item to target entity
         result = engine.create_relationship(to_entity.id, new_item_id, 'owns')
