@@ -175,7 +175,8 @@ def character_builder():
 
             # Publish character creation event with form data
             # Modules can subscribe to this event and add their own components
-            # (e.g., generic_fantasy module adds Attributes/CharacterDetails if it's loaded)
+            # (e.g., generic_fantasy module adds Attributes/CharacterDetails,
+            #  ai_dm module generates intro if scenario_type is 'ai_generated')
             engine.event_bus.publish(Event.create(
                 event_type='character.form_submitted',
                 entity_id=entity_id,
@@ -188,20 +189,13 @@ def character_builder():
                     'constitution': constitution,
                     'intelligence': intelligence,
                     'wisdom': wisdom,
-                    'charisma': charisma
+                    'charisma': charisma,
+                    'scenario_type': scenario_type  # Modules can use this for scenario-specific logic
                 }
             ))
 
-            # Generate AI intro if requested
+            # Flash message for AI-generated scenarios
             if scenario_type == 'ai_generated':
-                # Publish event to trigger AI intro generation
-                # The ai_dm module will listen for this event and generate the intro
-                from src.core.event_bus import Event
-                engine.event_bus.publish(Event(
-                    type='character.intro_requested',
-                    entity_id=entity_id,
-                    data={'scenario_type': 'ai_generated'}
-                ))
                 flash('Character created! AI is generating your introduction...', 'info')
 
             flash(f'Character "{name}" created successfully!', 'success')

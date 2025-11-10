@@ -72,8 +72,9 @@ class AIDMModule(Module):
         # Subscribe to component.added to auto-add Conversation to new PlayerCharacter entities
         engine.event_bus.subscribe('component.added', self.on_component_added)
 
-        # Subscribe to character.intro_requested to auto-generate AI intros
-        engine.event_bus.subscribe('character.intro_requested', self.on_intro_requested)
+        # Subscribe to character.form_submitted to handle scenario-specific logic
+        # (e.g., generate AI intro if scenario_type is 'ai_generated')
+        engine.event_bus.subscribe('character.form_submitted', self.on_character_form_submitted)
 
         # Auto-add Conversation component to all existing PlayerCharacter entities
         try:
@@ -111,13 +112,19 @@ class AIDMModule(Module):
                 except Exception as e:
                     logger.warning(f"Could not auto-add Conversation to {entity_id}: {e}")
 
-    def on_intro_requested(self, event: Event) -> None:
-        """Generate AI intro when requested for a new character."""
+    def on_character_form_submitted(self, event: Event) -> None:
+        """Handle character creation - generate AI intro if scenario_type is 'ai_generated'."""
         if not hasattr(self, 'engine'):
             return
 
         entity_id = event.entity_id
-        logger.info(f"Generating AI intro for character {entity_id}")
+        scenario_type = event.data.get('scenario_type')
+
+        # Only generate intro for AI-generated scenarios
+        if scenario_type != 'ai_generated':
+            return
+
+        logger.info(f"Generating AI intro for character {entity_id} (scenario_type={scenario_type})")
 
         try:
             # Import generate_intro_for_character from api module
