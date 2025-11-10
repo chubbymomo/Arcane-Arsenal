@@ -771,7 +771,15 @@ def _create_location(engine, player_entity_id: str, tool_input: Dict[str, Any]) 
             parent_location_id = parent_entity.id
             logger.info(f"  → Resolved parent location: {parent_location_name} → {parent_location_id}")
         else:
-            logger.warning(f"  → Could not resolve parent location: {parent_location_name}")
+            # Fallback: Try direct query by name (helpful for debugging)
+            all_locations = engine.query_entities(['Location'])
+            matching = [loc for loc in all_locations if loc.name.lower() == parent_location_name.lower()]
+            if matching:
+                parent_entity = matching[0]
+                parent_location_id = parent_entity.id
+                logger.info(f"  → Resolved parent location via fallback: {parent_location_name} → {parent_location_id}")
+            else:
+                logger.warning(f"  → Could not resolve parent location: {parent_location_name} (checked {len(all_locations)} locations)")
 
     # Resolve connected locations
     connected_location_ids = []
@@ -782,7 +790,15 @@ def _create_location(engine, player_entity_id: str, tool_input: Dict[str, Any]) 
             connected_location_ids.append(connected_entity.id)
             logger.info(f"  → Resolved connected location: {connected_name} → {connected_entity.id}")
         else:
-            logger.warning(f"  → Could not resolve connected location: {connected_name}")
+            # Fallback: Try direct query by name
+            all_locations = engine.query_entities(['Location'])
+            matching = [loc for loc in all_locations if loc.name.lower() == connected_name.lower()]
+            if matching:
+                connected_entity = matching[0]
+                connected_location_ids.append(connected_entity.id)
+                logger.info(f"  → Resolved connected location via fallback: {connected_name} → {connected_entity.id}")
+            else:
+                logger.warning(f"  → Could not resolve connected location: {connected_name}")
 
     # Add Location component (marker with metadata and graph connections)
     engine.add_component(location_id, 'Location', {
@@ -1026,7 +1042,9 @@ def _move_player_to_location(engine, player_entity_id: str, tool_input: Dict[str
         }
     else:
         # Location not found and no region specified
-        nearby_locations = [loc.name for loc in locations[:5]]
+        # Query for available locations to provide helpful error message
+        all_locations = engine.query_entities(['Location'])
+        nearby_locations = [loc.name for loc in all_locations[:5]]
         error_msg = f"Location '{location_name}' not found"
         if nearby_locations:
             error_msg += f". Available locations: {', '.join(nearby_locations)}"
