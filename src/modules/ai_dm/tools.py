@@ -772,16 +772,24 @@ def _create_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> D
     item_id = result.data['id']
 
     # Add Identity component
-    engine.add_component(item_id, 'Identity', {
+    result = engine.add_component(item_id, 'Identity', {
         'description': description
     })
+    if not result.success:
+        logger.error(f"  ✗ Failed to add Identity: {result.error}")
+        return {"success": False, "message": _format_error(f"Failed to add Identity component: {result.error}")}
+    logger.info(f"  → Added Identity: desc={description[:50]}...")
 
     # Add Item component (REQUIRED for items to be recognized)
-    engine.add_component(item_id, 'Item', {
+    result = engine.add_component(item_id, 'Item', {
         'item_type': item_type,
         'value': value,
         'quantity': 1
     })
+    if not result.success:
+        logger.error(f"  ✗ Failed to add Item component: {result.error}")
+        return {"success": False, "message": _format_error(f"Failed to add Item component: {result.error}")}
+    logger.info(f"  → Added Item component: type={item_type}, value={value}")
 
     # Add Position if location specified (use entity-based positioning)
     if location:
@@ -791,16 +799,22 @@ def _create_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> D
 
         if location_entity:
             # Position item AT the location (entity-based positioning)
-            engine.add_component(item_id, 'Position', {
+            result = engine.add_component(item_id, 'Position', {
                 'region': location_entity.id  # Entity ID, not string!
             })
-            logger.info(f"  → Positioned item at location: {location} ({location_entity.id})")
+            if not result.success:
+                logger.error(f"  ✗ Failed to add Position: {result.error}")
+            else:
+                logger.info(f"  → Positioned item at location: {location} ({location_entity.id})")
         else:
             # Fallback: location name as string (legacy)
-            engine.add_component(item_id, 'Position', {
+            result = engine.add_component(item_id, 'Position', {
                 'region': location
             })
-            logger.warning(f"  → Location '{location}' not found as entity, using string region")
+            if not result.success:
+                logger.error(f"  ✗ Failed to add Position: {result.error}")
+            else:
+                logger.warning(f"  → Location '{location}' not found as entity, using string region")
 
     logger.info(f"Created Item: {name} ({item_id})")
     return {
@@ -1007,36 +1021,6 @@ def _query_entities(engine, player_entity_id: str, tool_input: Dict[str, Any]) -
             "name": entity.name,
             "description": identity.data.get('description') if identity else None
         })
-
-    # FALLBACK: If searching by name pattern and no results, search ALL entities by name
-    # This helps find entities that exist but don't have the proper component (e.g., items without Item component)
-    if name_pattern and len(results) == 0:
-        logger.info(f"No {entity_type}s found with proper component, searching all entities by name pattern: '{name_pattern}'")
-        all_entities = engine.get_all_entities()
-
-        for entity in all_entities:
-            if not entity.is_active():
-                continue
-            if name_pattern not in entity.name.lower():
-                continue
-
-            # Check location filter if specified
-            if location_id:
-                pos = engine.get_component(entity.id, 'Position')
-                if not pos or pos.data.get('region') != location_id:
-                    continue
-
-            # Add to results with a warning flag
-            identity = engine.get_component(entity.id, 'Identity')
-            results.append({
-                "id": entity.id,
-                "name": entity.name,
-                "description": identity.data.get('description') if identity else None,
-                "warning": f"Entity found but missing {component_type} component"
-            })
-
-        if results:
-            logger.warning(f"Found {len(results)} entities by name without proper {component_type} component: {[r['name'] for r in results]}")
 
     return {
         "success": True,
