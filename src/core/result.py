@@ -122,33 +122,6 @@ class Result:
         error_code_str = code.value if isinstance(code, ErrorCode) else code
         return Result(success=False, error=error, error_code=error_code_str)
 
-    @staticmethod
-    def success(data: Any = None) -> 'Result':
-        """
-        Create a successful result (alias for ok()).
-
-        Args:
-            data: Optional data to return
-
-        Returns:
-            Result with success=True
-        """
-        return Result.ok(data)
-
-    @staticmethod
-    def error(error: str, code: Optional[str | ErrorCode] = None) -> 'Result':
-        """
-        Create a failed result (alias for fail()).
-
-        Args:
-            error: Human-readable error message
-            code: Machine-readable error code (ErrorCode enum or string)
-
-        Returns:
-            Result with success=False
-        """
-        return Result.fail(error, code)
-
     def __bool__(self) -> bool:
         """Allow using Result in boolean context: if result: ..."""
         return self.success
