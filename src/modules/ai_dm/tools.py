@@ -757,7 +757,7 @@ def _create_location(engine, player_entity_id: str, tool_input: Dict[str, Any]) 
 
 
 def _create_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
-    """Create an item entity."""
+    """Create an item entity with all proper components."""
     name = tool_input["name"]
     description = tool_input["description"]
     item_type = tool_input["item_type"]
@@ -772,16 +772,24 @@ def _create_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> D
     item_id = result.data['id']
 
     # Add Identity component
-    engine.add_component(item_id, 'Identity', {
+    result = engine.add_component(item_id, 'Identity', {
         'description': description
     })
+    if not result.success:
+        logger.error(f"  ✗ Failed to add Identity: {result.error}")
+        return {"success": False, "message": _format_error(f"Failed to add Identity component: {result.error}")}
+    logger.info(f"  → Added Identity: desc={description[:50]}...")
 
-    # Add Item component
-    engine.add_component(item_id, 'Item', {
+    # Add Item component (REQUIRED for items to be recognized)
+    result = engine.add_component(item_id, 'Item', {
         'item_type': item_type,
         'value': value,
         'quantity': 1
     })
+    if not result.success:
+        logger.error(f"  ✗ Failed to add Item component: {result.error}")
+        return {"success": False, "message": _format_error(f"Failed to add Item component: {result.error}")}
+    logger.info(f"  → Added Item component: type={item_type}, value={value}")
 
     # Add Position if location specified (use entity-based positioning)
     if location:
@@ -791,16 +799,22 @@ def _create_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> D
 
         if location_entity:
             # Position item AT the location (entity-based positioning)
-            engine.add_component(item_id, 'Position', {
+            result = engine.add_component(item_id, 'Position', {
                 'region': location_entity.id  # Entity ID, not string!
             })
-            logger.info(f"  → Positioned item at location: {location} ({location_entity.id})")
+            if not result.success:
+                logger.error(f"  ✗ Failed to add Position: {result.error}")
+            else:
+                logger.info(f"  → Positioned item at location: {location} ({location_entity.id})")
         else:
             # Fallback: location name as string (legacy)
-            engine.add_component(item_id, 'Position', {
+            result = engine.add_component(item_id, 'Position', {
                 'region': location
             })
-            logger.warning(f"  → Location '{location}' not found as entity, using string region")
+            if not result.success:
+                logger.error(f"  ✗ Failed to add Position: {result.error}")
+            else:
+                logger.warning(f"  → Location '{location}' not found as entity, using string region")
 
     logger.info(f"Created Item: {name} ({item_id})")
     return {
