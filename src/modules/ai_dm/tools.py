@@ -160,7 +160,7 @@ _CORE_TOOL_DEFINITIONS = [
     },
     {
         "name": "create_location",
-        "description": "Create a new location in the game world. Use this when the player enters a new area that should be tracked.",
+        "description": "Create a new location in the game world. Use this when the player enters a new area that should be tracked. Supports hierarchical locations - you can specify a parent location and connected locations to build a spatial graph.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -174,16 +174,25 @@ _CORE_TOOL_DEFINITIONS = [
                 },
                 "region": {
                     "type": "string",
-                    "description": "The broader region this location is in (e.g., 'The Borderlands', 'Shadowmere Valley', 'The Iron Coast'). Create a unique, evocative region name - do NOT use generic names like 'The Realm'."
+                    "description": "The broader region this location is in (e.g., 'The Borderlands', 'Shadowmere Valley', 'The Iron Coast'). Can be either: (1) A region name string for top-level locations, or (2) The NAME of a parent location entity if this location is inside another location. Create unique, evocative region names - do NOT use generic names like 'The Realm'."
                 },
                 "location_type": {
                     "type": "string",
-                    "description": "Type of location (e.g., 'tavern', 'dungeon', 'shop', 'wilderness', 'building')"
+                    "description": "Type of location (e.g., 'tavern', 'dungeon', 'shop', 'wilderness', 'building', 'region', 'district')"
                 },
                 "features": {
                     "type": "array",
                     "items": {"type": "string"},
                     "description": "Notable features (e.g., ['fireplace', 'bar', 'stage'])"
+                },
+                "parent_location_name": {
+                    "type": "string",
+                    "description": "Optional: Name of the parent location entity that contains this location (e.g., 'Waterdeep' for a tavern in that city). Use query_entities first to find the parent."
+                },
+                "connected_location_names": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional: Names of locations directly accessible from here (e.g., ['Town Square', 'Market District']). These should already exist or be created before connecting."
                 }
             },
             "required": ["name", "description", "region", "location_type"]
@@ -728,12 +737,16 @@ def _create_location(engine, player_entity_id: str, tool_input: Dict[str, Any]) 
 
     Locations are entities that other entities can be positioned within.
     They need both Location (marker) and Position (where they are) components.
+
+    Supports location graphs with parent locations and connected locations.
     """
     name = tool_input["name"]
     description = tool_input["description"]
     location_type = tool_input["location_type"]
-    region = tool_input["region"]  # Now required - AI must provide creative region name
+    region = tool_input["region"]  # Region name string or parent location name
     features = tool_input.get("features", [])
+    parent_location_name = tool_input.get("parent_location_name")
+    connected_location_names = tool_input.get("connected_location_names", [])
 
     # Create entity
     result = engine.create_entity(name)
@@ -749,26 +762,51 @@ def _create_location(engine, player_entity_id: str, tool_input: Dict[str, Any]) 
     })
     logger.info(f"  → Added Identity: desc={description[:50]}...")
 
-    # Add Location component (marker with metadata)
+    # Resolve parent location if specified
+    parent_location_id = None
+    if parent_location_name:
+        resolver = EntityResolver(engine)
+        parent_entity = resolver.resolve(parent_location_name, expected_type='location')
+        if parent_entity:
+            parent_location_id = parent_entity.id
+            logger.info(f"  → Resolved parent location: {parent_location_name} → {parent_location_id}")
+        else:
+            logger.warning(f"  → Could not resolve parent location: {parent_location_name}")
+
+    # Resolve connected locations
+    connected_location_ids = []
+    for connected_name in connected_location_names:
+        resolver = EntityResolver(engine)
+        connected_entity = resolver.resolve(connected_name, expected_type='location')
+        if connected_entity:
+            connected_location_ids.append(connected_entity.id)
+            logger.info(f"  → Resolved connected location: {connected_name} → {connected_entity.id}")
+        else:
+            logger.warning(f"  → Could not resolve connected location: {connected_name}")
+
+    # Add Location component (marker with metadata and graph connections)
     engine.add_component(location_id, 'Location', {
         'location_type': location_type,
         'features': features,
-        'visited': False
+        'visited': False,
+        'parent_location': parent_location_id,
+        'connected_locations': connected_location_ids
     })
-    logger.info(f"  → Added Location component: type={location_type}, features={len(features)}")
+    logger.info(f"  → Added Location component: type={location_type}, features={len(features)}, parent={parent_location_id}, connections={len(connected_location_ids)}")
 
     # Add Position component (WHERE the location is - in a broader region)
-    # This allows hierarchical positioning - locations can be in regions or in other locations
+    # If parent_location_id is specified, use it; otherwise use region string
+    position_region = parent_location_id if parent_location_id else region
     engine.add_component(location_id, 'Position', {
-        'region': region  # Named region string for top-level locations
+        'region': position_region
     })
-    logger.info(f"  → Added Position: region={region}")
+    logger.info(f"  → Added Position: region={position_region}")
 
     logger.info(f"Created Location: {name} ({location_id}) in {region}")
     return {
         "success": True,
         "message": f"Created location '{name}' in {region}",
-        "data": {"entity_id": location_id, "name": name, "region": region}
+        "data": {"entity_id": location_id, "name": name, "region": region, "parent_id": parent_location_id}
     }
 
 
