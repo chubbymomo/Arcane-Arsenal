@@ -15,7 +15,7 @@ Also provides:
 - PositionSystem: High-level API for spatial queries and validation
 """
 
-from typing import List
+from typing import List, Optional, Any
 from ..base import Module, ComponentTypeDefinition, RelationshipTypeDefinition, EventTypeDefinition
 from .identity import IdentityComponent
 from .position import PositionComponent
