@@ -56,38 +56,48 @@ def parse_dm_response(raw_response: str) -> Tuple[str, List[Dict]]:
     suggested_actions = []
     if actions_match:
         actions_json = actions_match.group(1).strip()
+        logger.debug(f"Found <actions> block, length: {len(actions_json)} chars")
 
         try:
             suggested_actions = json.loads(actions_json)
-            logger.info(f"Parsed {len(suggested_actions)} actions from response")
+            logger.info(f"✓ Parsed {len(suggested_actions)} actions from response")
 
             # Validate action format
+            original_count = len(suggested_actions)
             suggested_actions = [
                 action for action in suggested_actions
                 if validate_action(action)
             ]
 
+            if len(suggested_actions) < original_count:
+                logger.warning(f"Filtered out {original_count - len(suggested_actions)} invalid actions")
+
         except json.JSONDecodeError as e:
-            logger.warning(f"Failed to parse actions JSON: {e}")
-            logger.debug(f"Malformed JSON: {actions_json}")
+            logger.warning(f"⚠️  Failed to parse actions JSON: {e}")
+            logger.debug(f"Malformed JSON: {actions_json[:200]}...")
             suggested_actions = get_fallback_actions()
+            logger.info(f"Using {len(suggested_actions)} fallback actions")
 
         # Remove actions section from narrative
         narrative = raw_response[:actions_match.start()].strip()
+        logger.debug(f"Extracted narrative: {len(narrative)} chars")
     else:
-        logger.info("No actions section found in response, using full text as narrative")
+        logger.warning("⚠️  No <actions> section found in AI response!")
+        logger.debug(f"Response preview: {raw_response[:300]}...")
         narrative = raw_response.strip()
         suggested_actions = get_fallback_actions()
+        logger.info(f"Using {len(suggested_actions)} fallback actions")
 
     # Clean up narrative
     narrative = clean_narrative(narrative)
 
     # Ensure we always have at least some actions
     if not suggested_actions or len(suggested_actions) == 0:
-        logger.warning("No valid actions in response, using fallbacks")
+        logger.error("❌ No valid actions after parsing! This should never happen.")
         suggested_actions = get_fallback_actions()
+        logger.info(f"Emergency fallback: {len(suggested_actions)} actions")
 
-    logger.debug(f"Final parse: {len(narrative)} chars narrative, {len(suggested_actions)} actions")
+    logger.info(f"✓ Parse complete: {len(narrative)} chars narrative, {len(suggested_actions)} actions")
     return narrative, suggested_actions
 
 
