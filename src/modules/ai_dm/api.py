@@ -924,15 +924,24 @@ def send_dm_message_stream():
                     if buffer and not in_actions_block:
                         yield f"data: {json.dumps({'type': 'token', 'content': buffer})}\n\n"
 
+                logger.debug(f"Streaming complete. Full response length: {len(full_response)} chars")
+                logger.debug(f"Response preview: {full_response[:200]}...")
+
                 # Parse complete response for actions
+                logger.info("Parsing AI response for narrative and actions...")
                 narrative, suggested_actions = parse_dm_response(full_response)
+                logger.info(f"Parse complete: {len(narrative)} chars narrative, {len(suggested_actions)} actions")
 
                 # Create DM message entity
+                logger.debug("Creating DM message entity...")
                 dm_msg_result = engine.create_entity("DM response")
+                logger.debug(f"Entity creation result: success={dm_msg_result.success}")
                 if dm_msg_result.success:
                     dm_msg_id = dm_msg_result.data['id']
                     dm_timestamp = datetime.utcnow().isoformat()
+                    logger.debug(f"Created DM message entity: {dm_msg_id}")
 
+                    logger.debug("Adding ChatMessage component...")
                     engine.add_component(dm_msg_id, 'ChatMessage', {
                         'speaker': 'dm',
                         'speaker_name': 'Dungeon Master',
@@ -940,16 +949,23 @@ def send_dm_message_stream():
                         'timestamp': dm_timestamp,
                         'suggested_actions': suggested_actions
                     })
+                    logger.debug("ChatMessage component added")
 
                     # Add to conversation
+                    logger.debug(f"Updating conversation with {len(message_ids) + 1} total messages")
                     message_ids.append(dm_msg_id)
                     engine.update_component(entity_id, 'Conversation', {
                         'message_ids': message_ids
                     })
+                    logger.debug("Conversation updated")
 
                     # Send completion event with actions
+                    logger.info(f"Sending 'done' event with {len(suggested_actions)} actions")
                     yield f"data: {json.dumps({'type': 'done', 'message_id': dm_msg_id, 'suggested_actions': suggested_actions})}\n\n"
+                    logger.info("✓ AI response complete and sent to client")
                 else:
+                    logger.error("Failed to create DM message entity!")
+                    logger.error(f"Entity creation error: {dm_msg_result.error if hasattr(dm_msg_result, 'error') else 'Unknown error'}")
                     yield f"data: {json.dumps({'type': 'error', 'error': 'Failed to save DM response'})}\n\n"
 
             except LLMError as e:
@@ -959,10 +975,17 @@ def send_dm_message_stream():
 
             except Exception as e:
                 logger.error(f"Error during streaming response: {e}", exc_info=True)
+                logger.error(f"Error type: {type(e).__name__}")
+                logger.error(f"Error details: {str(e)}")
                 yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+
+        except GeneratorExit:
+            logger.warning("⚠️  Generator exit detected - client may have closed connection prematurely")
+            raise
 
         except Exception as e:
             logger.error(f"Error in stream generator: {e}", exc_info=True)
+            logger.error(f"Error type: {type(e).__name__}")
             yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
 
     return Response(stream_with_context(generate()), mimetype='text/event-stream')
