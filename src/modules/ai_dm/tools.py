@@ -330,7 +330,7 @@ _CORE_TOOL_DEFINITIONS = [
     },
     {
         "name": "remove_item",
-        "description": "Remove an item from the player's inventory. Use this when items are consumed, dropped, destroyed, or given away.",
+        "description": "Remove an item from the player's inventory. Use this when items are consumed, dropped, destroyed, or given away. Can optionally transfer the item to another entity instead of deleting it.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -345,6 +345,10 @@ _CORE_TOOL_DEFINITIONS = [
                 "reason": {
                     "type": "string",
                     "description": "Why the item was removed (e.g., 'consumed potion', 'dropped in river', 'given to guard')"
+                },
+                "transfer_to_entity_name": {
+                    "type": "string",
+                    "description": "Optional: Name of the entity (NPC, location, etc.) to transfer the item to instead of deleting it. If specified, ownership will transfer to this entity."
                 }
             },
             "required": ["item_name", "reason"]
@@ -1137,10 +1141,11 @@ def _give_item_to_player(engine, player_entity_id: str, tool_input: Dict[str, An
 
 
 def _remove_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
-    """Remove an item from the player's inventory."""
+    """Remove an item from the player's inventory, optionally transferring it to another entity."""
     item_name = tool_input["item_name"]
     quantity = tool_input.get("quantity")
     reason = tool_input["reason"]
+    transfer_to_entity_name = tool_input.get("transfer_to_entity_name")
 
     # Find the item in player's inventory
     items = engine.query_entities(['Item'])
@@ -1166,25 +1171,103 @@ def _remove_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> D
     else:
         quantity = min(quantity, current_quantity)  # Can't remove more than we have
 
+    # Find target entity if transfer is requested
+    target_entity = None
+    if transfer_to_entity_name:
+        all_entities = engine.query_entities(['NPC']) + engine.query_entities(['Location']) + \
+                       engine.query_entities(['Item']) + engine.query_entities(['PlayerCharacter'])
+        target_entity = next((e for e in all_entities if e.name.lower() == transfer_to_entity_name.lower()), None)
+
+        if not target_entity:
+            return {"success": False, "message": _format_error(f"Transfer target entity '{transfer_to_entity_name}' not found")}
+
     if quantity >= current_quantity:
-        # Remove entire item entity
-        engine.delete_entity(item.id)
-        logger.info(f"Removed all {current_quantity}x {item_name} from player ({reason})")
-        return {
-            "success": True,
-            "message": f"Removed {item_name} ({reason})",
-            "data": {"item_id": item.id, "quantity": current_quantity, "reason": reason}
-        }
+        # Remove all items from player
+        if target_entity:
+            # Transfer ownership to target entity
+            engine.remove_relationship(player_entity_id, item.id, 'owns')
+            result = engine.create_relationship(target_entity.id, item.id, 'owns')
+            if not result.success:
+                return {"success": False, "message": _format_error(f"Failed to transfer item: {result.error}")}
+
+            logger.info(f"Transferred all {current_quantity}x {item_name} from player to {transfer_to_entity_name} ({reason})")
+            return {
+                "success": True,
+                "message": f"Transferred {item_name} to {transfer_to_entity_name} ({reason})",
+                "data": {
+                    "item_id": item.id,
+                    "quantity": current_quantity,
+                    "reason": reason,
+                    "transferred_to": transfer_to_entity_name,
+                    "transferred_to_id": target_entity.id
+                }
+            }
+        else:
+            # Delete entire item entity
+            engine.delete_entity(item.id)
+            logger.info(f"Removed all {current_quantity}x {item_name} from player ({reason})")
+            return {
+                "success": True,
+                "message": f"Removed {item_name} ({reason})",
+                "data": {"item_id": item.id, "quantity": current_quantity, "reason": reason}
+            }
     else:
-        # Reduce quantity
-        new_quantity = current_quantity - quantity
-        engine.update_component(item.id, 'Item', {'quantity': new_quantity})
-        logger.info(f"Reduced {item_name} from {current_quantity} to {new_quantity} ({reason})")
-        return {
-            "success": True,
-            "message": f"Removed {quantity}x {item_name} ({reason})",
-            "data": {"item_id": item.id, "quantity": quantity, "remaining": new_quantity, "reason": reason}
-        }
+        # Partial removal - need to handle quantity
+        if target_entity:
+            # For partial transfer, we need to split the item
+            # Create a new item entity for the transferred portion
+            item_data = engine.get_entity_components(item.id)
+
+            # Create new item with transferred quantity
+            result = engine.create_entity(item.name)
+            if not result.success:
+                return {"success": False, "message": _format_error(f"Failed to create transferred item: {result.error}")}
+
+            new_item_id = result.data['id']
+
+            # Copy components to new item
+            if 'Identity' in item_data:
+                engine.add_component(new_item_id, 'Identity', item_data['Identity'])
+
+            if 'Item' in item_data:
+                new_item_data = item_data['Item'].copy()
+                new_item_data['quantity'] = quantity
+                engine.add_component(new_item_id, 'Item', new_item_data)
+
+            # Transfer ownership of new item to target entity
+            result = engine.create_relationship(target_entity.id, new_item_id, 'owns')
+            if not result.success:
+                engine.delete_entity(new_item_id)
+                return {"success": False, "message": _format_error(f"Failed to transfer item: {result.error}")}
+
+            # Reduce quantity of original item
+            new_quantity = current_quantity - quantity
+            engine.update_component(item.id, 'Item', {'quantity': new_quantity})
+
+            logger.info(f"Transferred {quantity}x {item_name} from player to {transfer_to_entity_name}, {new_quantity} remaining ({reason})")
+            return {
+                "success": True,
+                "message": f"Transferred {quantity}x {item_name} to {transfer_to_entity_name} ({reason})",
+                "data": {
+                    "original_item_id": item.id,
+                    "new_item_id": new_item_id,
+                    "quantity": quantity,
+                    "remaining": new_quantity,
+                    "reason": reason,
+                    "transferred_to": transfer_to_entity_name,
+                    "transferred_to_id": target_entity.id
+                }
+            }
+        else:
+            # Reduce quantity (no transfer)
+            new_quantity = current_quantity - quantity
+            engine.update_component(item.id, 'Item', {'quantity': new_quantity})
+            logger.info(f"Reduced {item_name} from {current_quantity} to {new_quantity} ({reason})")
+            return {
+                "success": True,
+                "message": f"Removed {quantity}x {item_name} ({reason})",
+                "data": {"item_id": item.id, "quantity": quantity, "remaining": new_quantity, "reason": reason}
+            }
 
 
 def _deal_damage(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
