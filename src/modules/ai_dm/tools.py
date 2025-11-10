@@ -764,7 +764,60 @@ def _create_item(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> D
     location = tool_input.get("location")
     value = tool_input.get("value", 0)
 
-    # Create entity
+    # IMPORTANT: Check if item already exists (search by name)
+    # This prevents duplicate items when an item exists but lacks the Item component
+    all_entities = engine.get_all_entities()
+    existing_item = None
+    for entity in all_entities:
+        if entity.is_active() and entity.name.lower() == name.lower():
+            existing_item = entity
+            break
+
+    if existing_item:
+        # Item already exists! Check if it has the Item component
+        item_comp = engine.get_component(existing_item.id, 'Item')
+        if item_comp:
+            # Item exists and has proper component - return it instead of creating duplicate
+            logger.info(f"Item '{name}' already exists ({existing_item.id}), returning existing item")
+            return {
+                "success": True,
+                "message": f"Found existing {item_type} '{name}' (ID: {existing_item.id})",
+                "data": {"entity_id": existing_item.id, "name": name, "existing": True}
+            }
+        else:
+            # Item exists but missing Item component - fix it!
+            logger.warning(f"Item '{name}' exists ({existing_item.id}) but missing Item component, adding it now")
+            engine.add_component(existing_item.id, 'Item', {
+                'item_type': item_type,
+                'value': value,
+                'quantity': 1
+            })
+
+            # Update Identity if provided description is different/better
+            identity = engine.get_component(existing_item.id, 'Identity')
+            if identity and description:
+                current_desc = identity.data.get('description', '')
+                if not current_desc or len(description) > len(current_desc):
+                    engine.update_component(existing_item.id, 'Identity', {'description': description})
+                    logger.info(f"  → Updated description for existing item")
+
+            # Update Position if location specified
+            if location:
+                locations = engine.query_entities(['Location'])
+                location_entity = next((e for e in locations if e.name.lower() == location.lower()), None)
+                if location_entity:
+                    pos = engine.get_component(existing_item.id, 'Position')
+                    if not pos:
+                        engine.add_component(existing_item.id, 'Position', {'region': location_entity.id})
+                        logger.info(f"  → Added Position to existing item at location: {location}")
+
+            return {
+                "success": True,
+                "message": f"Fixed existing {item_type} '{name}' by adding missing Item component",
+                "data": {"entity_id": existing_item.id, "name": name, "fixed": True}
+            }
+
+    # Create new entity (no existing item found)
     result = engine.create_entity(name)
     if not result.success:
         return {"success": False, "message": f"Failed to create item: {result.error}"}
@@ -1007,6 +1060,36 @@ def _query_entities(engine, player_entity_id: str, tool_input: Dict[str, Any]) -
             "name": entity.name,
             "description": identity.data.get('description') if identity else None
         })
+
+    # FALLBACK: If searching by name pattern and no results, search ALL entities by name
+    # This helps find entities that exist but don't have the proper component (e.g., items without Item component)
+    if name_pattern and len(results) == 0:
+        logger.info(f"No {entity_type}s found with proper component, searching all entities by name pattern: '{name_pattern}'")
+        all_entities = engine.get_all_entities()
+
+        for entity in all_entities:
+            if not entity.is_active():
+                continue
+            if name_pattern not in entity.name.lower():
+                continue
+
+            # Check location filter if specified
+            if location_id:
+                pos = engine.get_component(entity.id, 'Position')
+                if not pos or pos.data.get('region') != location_id:
+                    continue
+
+            # Add to results with a warning flag
+            identity = engine.get_component(entity.id, 'Identity')
+            results.append({
+                "id": entity.id,
+                "name": entity.name,
+                "description": identity.data.get('description') if identity else None,
+                "warning": f"Entity found but missing {component_type} component"
+            })
+
+        if results:
+            logger.warning(f"Found {len(results)} entities by name without proper {component_type} component: {[r['name'] for r in results]}")
 
     return {
         "success": True,
