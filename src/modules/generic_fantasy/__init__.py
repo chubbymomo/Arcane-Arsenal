@@ -273,7 +273,12 @@ class GenericFantasyModule(Module):
         from pathlib import Path
         from .spell_utils import load_spells_from_file
 
-        starter_spells_path = Path(__file__).parent.parent.parent / 'data' / 'spells' / 'starter_spells.json'
+        # Path: src/modules/generic_fantasy/__init__.py -> project root
+        # .parent (1) = src/modules/generic_fantasy
+        # .parent (2) = src/modules
+        # .parent (3) = src
+        # .parent (4) = project root
+        starter_spells_path = Path(__file__).parent.parent.parent.parent / 'data' / 'spells' / 'starter_spells.json'
         if starter_spells_path.exists():
             spell_count = load_spells_from_file(engine, str(starter_spells_path), self.name)
             logger.info(f"Loaded {spell_count} starter spells")
