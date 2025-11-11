@@ -220,44 +220,109 @@ def generate_intro_for_character(engine, entity_id):
                 })
                 logger.info(f"  Result: {result['success']} - {result['message']}")
 
-            # Second turn: Give Claude the tool results and ask for narrative
-            logger.info("=== Second turn: Asking Claude for narrative ===")
+            # Multi-turn loop: Keep executing tools until Claude returns pure narrative
+            logger.info("=== Starting multi-turn tool execution loop ===")
+            max_turns = 5  # Prevent infinite loops
+            turn_number = 2
 
-            # Build tool result content
-            tool_result_content = []
-            for tr in tool_results:
-                result_text = tr['result']['message']
-                tool_result_content.append({
-                    'type': 'tool_result',
-                    'tool_use_id': tr['tool_use_id'],
-                    'content': result_text
+            while tool_uses and turn_number <= max_turns:
+                logger.info(f"=== Turn {turn_number}: Processing {len(tool_uses)} tool results ===")
+
+                # Build tool result content
+                tool_result_content = []
+                for tr in tool_results:
+                    result_text = tr['result']['message']
+                    tool_result_content.append({
+                        'type': 'tool_result',
+                        'tool_use_id': tr['tool_use_id'],
+                        'content': result_text
+                    })
+
+                # Add assistant message with tool uses
+                llm_messages.append({
+                    'role': 'assistant',
+                    'content': [{'type': 'tool_use', 'id': tu['id'], 'name': tu['name'], 'input': tu['input']} for tu in tool_uses]
                 })
 
-            # Add assistant message with tool uses
-            llm_messages.append({
-                'role': 'assistant',
-                'content': [{'type': 'tool_use', 'id': tu['id'], 'name': tu['name'], 'input': tu['input']} for tu in tool_uses]
-            })
+                # Add user message with tool results
+                llm_messages.append({
+                    'role': 'user',
+                    'content': tool_result_content
+                })
 
-            # Add user message with tool results
-            llm_messages.append({
-                'role': 'user',
-                'content': tool_result_content
-            })
+                # Get response (may use tools again or return narrative)
+                full_response = ""
+                current_tool = None
+                tool_input_json = ""
+                tool_uses = []
 
-            # Get narrative response (use high temperature for variety)
-            full_response = ""
-            for chunk in llm.generate_response_stream(
-                messages=llm_messages,
-                system=full_system_prompt,
-                max_tokens=config.ai_max_tokens,
-                temperature=1.0,
-                tools=None  # No tools in second turn
-            ):
-                if chunk['type'] == 'text':
-                    full_response += chunk['content']
+                for chunk in llm.generate_response_stream(
+                    messages=llm_messages,
+                    system=full_system_prompt,
+                    max_tokens=config.ai_max_tokens,
+                    temperature=1.0,
+                    tools=anthropic_tools if anthropic_tools else None
+                ):
+                    if chunk['type'] == 'text':
+                        full_response += chunk['content']
+                    elif chunk['type'] == 'tool_use_start':
+                        if current_tool and tool_input_json:
+                            try:
+                                tool_uses.append({
+                                    'id': current_tool['id'],
+                                    'name': current_tool['name'],
+                                    'input': json.loads(tool_input_json)
+                                })
+                            except json.JSONDecodeError:
+                                logger.error(f"Failed to parse tool input for {current_tool['name']}")
+                        current_tool = {
+                            'id': chunk['tool_use_id'],
+                            'name': chunk['tool_name']
+                        }
+                        tool_input_json = ""
+                        logger.info(f"Turn {turn_number} - Tool use: {chunk['tool_name']}")
+                    elif chunk['type'] == 'tool_input_delta':
+                        tool_input_json += chunk['partial_json']
 
-            logger.info(f"=== Second turn complete: {len(full_response)} chars narrative ===")
+                # Save last tool
+                if current_tool and tool_input_json:
+                    try:
+                        tool_uses.append({
+                            'id': current_tool['id'],
+                            'name': current_tool['name'],
+                            'input': json.loads(tool_input_json)
+                        })
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Failed to parse final tool input: {e}")
+
+                logger.info(f"=== Turn {turn_number} complete: {len(tool_uses)} tools, {len(full_response)} chars text ===")
+
+                # If no more tools, we have the final narrative
+                if not tool_uses:
+                    break
+
+                # Execute tools for next turn
+                tool_results = []
+                for tool_use in tool_uses:
+                    logger.info(f"Executing: {tool_use['name']}")
+                    result = execute_tool(
+                        tool_use['name'],
+                        tool_use['input'],
+                        engine,
+                        entity_id
+                    )
+                    tool_results.append({
+                        'tool_use_id': tool_use['id'],
+                        'result': result
+                    })
+                    logger.info(f"  Result: {result['success']} - {result['message']}")
+
+                turn_number += 1
+
+            if turn_number > max_turns:
+                logger.warning(f"⚠️  Reached max turns ({max_turns}) - using current response")
+
+            logger.info(f"=== Tool execution complete after {turn_number - 1} turns ===")
 
         logger.info(f"=== Final response: {full_response[:300]}... ===")
 
@@ -882,6 +947,7 @@ def send_dm_message_stream():
                     })
 
                     # Get narrative response (stream it!)
+                    # Enable tools in second turn so Claude can create locations/NPCs while narrating
                     full_response = ""
                     in_actions_block = False  # Reset for second turn
                     buffer = ""  # Reset buffer for second turn
@@ -890,7 +956,7 @@ def send_dm_message_stream():
                         system=full_system_prompt,
                         max_tokens=config.ai_max_tokens,
                         temperature=config.ai_temperature,
-                        tools=None  # No tools in second turn
+                        tools=anthropic_tools if anthropic_tools else None
                     ):
                         if chunk['type'] == 'text':
                             content = chunk['content']
