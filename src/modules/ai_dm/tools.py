@@ -822,9 +822,10 @@ def _create_location(engine, player_entity_id: str, tool_input: Dict[str, Any]) 
             if location_id not in parent_connected:
                 # Add child to parent's connected_locations
                 updated_connected = parent_connected + [location_id]
-                result = engine.update_component(parent_location_id, 'Location', {
-                    'connected_locations': updated_connected
-                })
+                # Include location_type (required field) in the update
+                update_data = parent_location_component.data.copy()
+                update_data['connected_locations'] = updated_connected
+                result = engine.update_component(parent_location_id, 'Location', update_data)
                 if result.success:
                     logger.info(f"  → Bidirectional connection: Added {name} to {parent_location_name}'s connected_locations")
                 else:
@@ -838,9 +839,10 @@ def _create_location(engine, player_entity_id: str, tool_input: Dict[str, Any]) 
             if location_id not in their_connected:
                 # Add this location to their connected_locations
                 updated_connected = their_connected + [location_id]
-                result = engine.update_component(connected_id, 'Location', {
-                    'connected_locations': updated_connected
-                })
+                # Include location_type (required field) in the update
+                update_data = connected_component.data.copy()
+                update_data['connected_locations'] = updated_connected
+                result = engine.update_component(connected_id, 'Location', update_data)
                 if result.success:
                     connected_entity = engine.get_entity(connected_id)
                     connected_name = connected_entity.name if connected_entity else connected_id
