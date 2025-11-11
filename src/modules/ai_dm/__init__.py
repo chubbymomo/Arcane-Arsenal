@@ -124,14 +124,17 @@ class AIDMModule(Module):
         if scenario_type != 'ai_generated':
             return
 
-        logger.info(f"Generating AI intro for character {entity_id} (scenario_type={scenario_type})")
+        # Get scenario suggestion if provided
+        scenario_suggestion = event.data.get('scenario_suggestion', '').strip()
+
+        logger.info(f"Generating AI intro for character {entity_id} (scenario_type={scenario_type}, suggestion={'provided' if scenario_suggestion else 'none'})")
 
         try:
             # Import generate_intro_for_character from api module
             from .api import generate_intro_for_character
 
             # Generate the intro (runs synchronously)
-            result = generate_intro_for_character(self.engine, entity_id)
+            result = generate_intro_for_character(self.engine, entity_id, scenario_suggestion=scenario_suggestion)
 
             if result.get('success'):
                 logger.info(f"Successfully generated AI intro for {entity_id}")
