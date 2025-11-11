@@ -19,6 +19,11 @@ Depends on: core_components, rng
 
 from typing import List, Dict, Any
 from ..base import Module, ComponentTypeDefinition
+from .combat_system import (
+    CombatEncounterComponent,
+    InitiativeComponent,
+    CombatConditionComponent
+)
 
 
 class HealthComponent(ComponentTypeDefinition):
@@ -428,11 +433,14 @@ class GenericCombatModule(Module):
         damage_types.register('psychic', 'Psychic damage - mental energy', {'category': 'magical'})
 
     def register_component_types(self) -> List[ComponentTypeDefinition]:
-        """Register Health, Armor, and Weapon components."""
+        """Register Health, Armor, Weapon, and Combat System components."""
         return [
             HealthComponent(),
             ArmorComponent(),
-            WeaponComponent()
+            WeaponComponent(),
+            CombatEncounterComponent(),
+            InitiativeComponent(),
+            CombatConditionComponent()
         ]
 
 
@@ -441,5 +449,8 @@ __all__ = [
     'GenericCombatModule',
     'HealthComponent',
     'ArmorComponent',
-    'WeaponComponent'
+    'WeaponComponent',
+    'CombatEncounterComponent',
+    'InitiativeComponent',
+    'CombatConditionComponent'
 ]

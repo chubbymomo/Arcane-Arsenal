@@ -427,6 +427,139 @@ _CORE_TOOL_DEFINITIONS = [
         }
     },
     {
+        "name": "start_combat",
+        "description": "Initialize a combat encounter with specified participants. This sets up initiative tracking and turn order. Use when combat begins.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "participant_names": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Names of entities entering combat (e.g., ['player', 'Goblin Warrior', 'Orc Chieftain']). All participants must exist."
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Brief description of how combat starts (e.g., 'The goblins charge from the shadows!')"
+                }
+            },
+            "required": ["participant_names", "description"]
+        }
+    },
+    {
+        "name": "resolve_attack",
+        "description": "Resolve a complete attack sequence including attack roll, AC check, and damage. This is the primary combat action tool. Use when any combatant attacks another.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "attacker_name": {
+                    "type": "string",
+                    "description": "Name of the attacking entity"
+                },
+                "target_name": {
+                    "type": "string",
+                    "description": "Name of the target entity"
+                },
+                "attack_type": {
+                    "type": "string",
+                    "enum": ["melee", "ranged", "spell"],
+                    "description": "Type of attack: 'melee' (STR-based), 'ranged' (DEX-based), or 'spell' (uses spellcasting ability)"
+                },
+                "damage_dice": {
+                    "type": "string",
+                    "description": "Optional: Damage dice notation (e.g., '1d8+3', '2d6'). If not provided, uses attacker's equipped weapon damage."
+                },
+                "damage_type": {
+                    "type": "string",
+                    "description": "Type of damage: slashing, piercing, bludgeoning, fire, cold, etc. Default: bludgeoning"
+                },
+                "advantage": {
+                    "type": "boolean",
+                    "description": "Whether the attack has advantage (roll 2d20, take higher). Default: false"
+                },
+                "disadvantage": {
+                    "type": "boolean",
+                    "description": "Whether the attack has disadvantage (roll 2d20, take lower). Default: false"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Narrative description of the attack (e.g., 'swings his sword', 'fires an arrow', 'casts a spell')"
+                }
+            },
+            "required": ["attacker_name", "target_name", "attack_type"]
+        }
+    },
+    {
+        "name": "apply_condition",
+        "description": "Apply a status effect or combat condition to an entity. Use for buffs, debuffs, and status effects (e.g., poisoned, blessed, stunned, invisible).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "target_name": {
+                    "type": "string",
+                    "description": "Name of entity to apply condition to"
+                },
+                "condition_name": {
+                    "type": "string",
+                    "description": "Name of the condition (e.g., 'Poisoned', 'Blessed', 'Stunned', 'Hasted')"
+                },
+                "condition_description": {
+                    "type": "string",
+                    "description": "What the condition does (e.g., 'Has disadvantage on attack rolls and ability checks')"
+                },
+                "duration_type": {
+                    "type": "string",
+                    "enum": ["rounds", "minutes", "hours", "permanent", "until_save", "concentration"],
+                    "description": "How duration is measured"
+                },
+                "duration_remaining": {
+                    "type": "integer",
+                    "description": "How long the condition lasts (in rounds, minutes, or hours depending on duration_type)"
+                },
+                "save_dc": {
+                    "type": "integer",
+                    "description": "Optional: DC for saving throw to end the effect"
+                },
+                "save_ability": {
+                    "type": "string",
+                    "description": "Optional: Ability for save (strength, dexterity, constitution, intelligence, wisdom, charisma)"
+                },
+                "source_name": {
+                    "type": "string",
+                    "description": "Optional: Name of entity that applied this condition"
+                }
+            },
+            "required": ["target_name", "condition_name", "condition_description", "duration_type"]
+        }
+    },
+    {
+        "name": "end_turn",
+        "description": "End the current combatant's turn and advance to the next in initiative order. Updates condition durations and resets actions.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "entity_name": {
+                    "type": "string",
+                    "description": "Name of entity whose turn is ending"
+                }
+            },
+            "required": ["entity_name"]
+        }
+    },
+    {
+        "name": "end_combat",
+        "description": "End the current combat encounter and clean up combat state. Use when all enemies are defeated or combat otherwise concludes.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "outcome": {
+                    "type": "string",
+                    "description": "How combat ended (e.g., 'victory', 'enemies fled', 'negotiated peace')"
+                }
+            },
+            "required": ["outcome"]
+        }
+    },
+    {
         "name": "get_entity_details",
         "description": "Get complete details about an entity including all its components. Use this to inspect an entity's current state before modifying it.",
         "input_schema": {
@@ -1760,6 +1893,320 @@ def _query_relationships(engine, player_entity_id: str, tool_input: Dict[str, An
 
 
 # Initialize core tools on module load
+def _start_combat(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+    """Start a combat encounter."""
+    from src.modules.rng.dice_roller import DiceRoller
+    from src.modules.generic_combat.combat_system import calculate_ability_modifier
+
+    participant_names = tool_input["participant_names"]
+    description = tool_input["description"]
+
+    resolver = EntityResolver(engine)
+
+    # Resolve all participants
+    participants = []
+    for name in participant_names:
+        entity = resolver.resolve_entity(name)
+        if not entity:
+            return {"success": False, "message": f"Could not find entity: {name}"}
+        participants.append(entity)
+
+    # Roll initiative for each participant
+    roller = DiceRoller(engine)
+    initiative_results = []
+
+    for entity in participants:
+        # Get DEX modifier
+        dex_mod = 0
+        attributes = engine.get_component(entity.id, 'Attributes')
+        if attributes:
+            dex = attributes.data.get('dexterity', 10)
+            dex_mod = calculate_ability_modifier(dex)
+
+        # Roll initiative
+        init_notation = f"1d20+{dex_mod}" if dex_mod >= 0 else f"1d20{dex_mod}"
+        roll_result = roller.roll(entity.id, init_notation, roll_type='initiative')
+
+        if roll_result.success:
+            init_total = roll_result.data['total']
+        else:
+            init_total = 10 + dex_mod  # Default if roll fails
+
+        # Add Initiative component
+        engine.add_component(entity.id, 'Initiative', {
+            'initiative_roll': init_total,
+            'dexterity_modifier': dex_mod,
+            'has_acted': False,
+            'actions_remaining': 1,
+            'bonus_actions_remaining': 1,
+            'reaction_available': True
+        })
+
+        initiative_results.append({
+            'entity_id': entity.id,
+            'name': entity.name,
+            'initiative': init_total,
+            'dex_mod': dex_mod
+        })
+
+    # Sort by initiative (highest first), tiebreak by DEX
+    initiative_results.sort(key=lambda x: (-x['initiative'], -x['dex_mod']))
+    turn_order = [r['entity_id'] for r in initiative_results]
+
+    # Create combat encounter entity
+    combat_entity = engine.create_entity('Combat Encounter')
+    engine.add_component(combat_entity.id, 'CombatEncounter', {
+        'participants': [p.id for p in participants],
+        'turn_order': turn_order,
+        'current_turn_index': 0,
+        'round_number': 1,
+        'is_active': True
+    })
+
+    # Build initiative order message
+    init_order = "\n".join([
+        f"{i+1}. {r['name']} (Initiative: {r['initiative']})"
+        for i, r in enumerate(initiative_results)
+    ])
+
+    current_combatant = initiative_results[0]['name']
+
+    message = f"{description}\n\n**Initiative Order:**\n{init_order}\n\n**{current_combatant}'s turn!**"
+
+    logger.info(f"Started combat with {len(participants)} participants")
+
+    return {
+        "success": True,
+        "message": message,
+        "data": {
+            "combat_entity_id": combat_entity.id,
+            "initiative_order": initiative_results,
+            "current_turn": current_combatant
+        }
+    }
+
+
+def _resolve_attack(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+    """Resolve an attack action."""
+    from src.modules.generic_combat.combat_system import resolve_attack
+
+    attacker_name = tool_input["attacker_name"]
+    target_name = tool_input["target_name"]
+    attack_type = tool_input["attack_type"]
+    damage_dice = tool_input.get("damage_dice")
+    damage_type = tool_input.get("damage_type", "bludgeoning")
+    advantage = tool_input.get("advantage", False)
+    disadvantage = tool_input.get("disadvantage", False)
+
+    resolver = EntityResolver(engine)
+
+    # Resolve entities
+    attacker = resolver.resolve_entity(attacker_name)
+    if not attacker:
+        return {"success": False, "message": f"Could not find attacker: {attacker_name}"}
+
+    target = resolver.resolve_entity(target_name)
+    if not target:
+        return {"success": False, "message": f"Could not find target: {target_name}"}
+
+    # Resolve attack
+    result = resolve_attack(
+        engine,
+        attacker.id,
+        target.id,
+        attack_type=attack_type,
+        damage_dice=damage_dice,
+        damage_type=damage_type,
+        advantage=advantage,
+        disadvantage=disadvantage
+    )
+
+    if not result.get('success'):
+        return {"success": False, "message": result.get('message', 'Attack failed')}
+
+    # Check if target is dead
+    target_health = engine.get_component(target.id, 'Health')
+    is_dead = False
+    if target_health:
+        is_dead = target_health.data.get('current_hp', 0) <= 0
+
+    if is_dead:
+        result['message'] += f"\n\n**{target.name} has been defeated!**"
+
+    return {
+        "success": True,
+        "message": result['message'],
+        "data": result
+    }
+
+
+def _apply_condition(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+    """Apply a condition to an entity."""
+    from src.modules.generic_combat.combat_system import apply_condition
+
+    target_name = tool_input["target_name"]
+    condition_name = tool_input["condition_name"]
+    condition_description = tool_input["condition_description"]
+    duration_type = tool_input["duration_type"]
+    duration_remaining = tool_input.get("duration_remaining", 0)
+    save_dc = tool_input.get("save_dc")
+    save_ability = tool_input.get("save_ability")
+    source_name = tool_input.get("source_name")
+
+    resolver = EntityResolver(engine)
+
+    # Resolve target
+    target = resolver.resolve_entity(target_name)
+    if not target:
+        return {"success": False, "message": f"Could not find target: {target_name}"}
+
+    # Resolve source if provided
+    source_id = None
+    if source_name:
+        source = resolver.resolve_entity(source_name)
+        if source:
+            source_id = source.id
+
+    # Apply condition
+    result = apply_condition(
+        engine,
+        target.id,
+        condition_name,
+        condition_description,
+        duration_type=duration_type,
+        duration_remaining=duration_remaining,
+        save_dc=save_dc,
+        save_ability=save_ability,
+        source_entity_id=source_id
+    )
+
+    if result['success']:
+        duration_text = ""
+        if duration_type == "rounds" and duration_remaining > 0:
+            duration_text = f" for {duration_remaining} rounds"
+        elif duration_type == "concentration":
+            duration_text = " (requires concentration)"
+        elif duration_type == "permanent":
+            duration_text = " (permanent)"
+
+        message = f"**{target.name}** is now **{condition_name}**{duration_text}!\n{condition_description}"
+        return {"success": True, "message": message, "data": result}
+    else:
+        return {"success": False, "message": result.get('message', 'Failed to apply condition')}
+
+
+def _end_turn(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+    """End a combatant's turn and advance initiative."""
+    from src.modules.generic_combat.combat_system import update_condition_durations
+
+    entity_name = tool_input["entity_name"]
+
+    resolver = EntityResolver(engine)
+    entity = resolver.resolve_entity(entity_name)
+    if not entity:
+        return {"success": False, "message": f"Could not find entity: {entity_name}"}
+
+    # Update condition durations
+    expired = update_condition_durations(engine, entity.id, end_of_turn=True)
+
+    # Find active combat
+    combat_entity = None
+    for e in engine.query_entities_by_component('CombatEncounter'):
+        combat_comp = engine.get_component(e.id, 'CombatEncounter')
+        if combat_comp and combat_comp.data.get('is_active'):
+            combat_entity = e
+            break
+
+    if not combat_entity:
+        return {"success": False, "message": "No active combat found"}
+
+    combat_data = engine.get_component(combat_entity.id, 'CombatEncounter').data.copy()
+
+    # Advance turn
+    current_idx = combat_data['current_turn_index']
+    turn_order = combat_data['turn_order']
+
+    next_idx = (current_idx + 1) % len(turn_order)
+    combat_data['current_turn_index'] = next_idx
+
+    # If we wrapped around, increment round
+    if next_idx == 0:
+        combat_data['round_number'] += 1
+
+    engine.update_component(combat_entity.id, 'CombatEncounter', combat_data)
+
+    # Reset actions for next combatant
+    next_id = turn_order[next_idx]
+    init_comp = engine.get_component(next_id, 'Initiative')
+    if init_comp:
+        init_data = init_comp.data.copy()
+        init_data['actions_remaining'] = 1
+        init_data['bonus_actions_remaining'] = 1
+        init_data['reaction_available'] = True
+        init_data['has_acted'] = False
+        engine.update_component(next_id, 'Initiative', init_data)
+
+    # Get next combatant name
+    next_entity = engine.get_entity(next_id)
+    next_name = next_entity.name if next_entity else "Unknown"
+
+    message = f"**{entity.name}'s turn ends.**"
+    if expired:
+        message += f"\n\nConditions expired: {', '.join(expired)}"
+    message += f"\n\n**Round {combat_data['round_number']} - {next_name}'s turn!**"
+
+    return {
+        "success": True,
+        "message": message,
+        "data": {
+            "next_combatant": next_name,
+            "round": combat_data['round_number']
+        }
+    }
+
+
+def _end_combat(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+    """End combat and clean up combat state."""
+    outcome = tool_input["outcome"]
+
+    # Find active combat
+    combat_entity = None
+    for e in engine.query_entities_by_component('CombatEncounter'):
+        combat_comp = engine.get_component(e.id, 'CombatEncounter')
+        if combat_comp and combat_comp.data.get('is_active'):
+            combat_entity = e
+            break
+
+    if not combat_entity:
+        return {"success": False, "message": "No active combat to end"}
+
+    combat_data = engine.get_component(combat_entity.id, 'CombatEncounter').data
+
+    # Remove Initiative components from all participants
+    for participant_id in combat_data['participants']:
+        init_comp = engine.get_component(participant_id, 'Initiative')
+        if init_comp:
+            engine.remove_component(participant_id, 'Initiative')
+
+    # Mark combat as inactive
+    combat_data_updated = combat_data.copy()
+    combat_data_updated['is_active'] = False
+    engine.update_component(combat_entity.id, 'CombatEncounter', combat_data_updated)
+
+    # Could optionally delete the combat entity entirely:
+    # engine.delete_entity(combat_entity.id)
+
+    message = f"**Combat ends: {outcome}**"
+
+    logger.info(f"Combat ended: {outcome}")
+
+    return {
+        "success": True,
+        "message": message,
+        "data": {"outcome": outcome}
+    }
+
+
 def _initialize_core_tools():
     """Register all core DM tools."""
     core_handlers = {
@@ -1775,6 +2222,11 @@ def _initialize_core_tools():
         'deal_damage': _deal_damage,
         'heal_player': _heal_player,
         'long_rest': _long_rest,
+        'start_combat': _start_combat,
+        'resolve_attack': _resolve_attack,
+        'apply_condition': _apply_condition,
+        'end_turn': _end_turn,
+        'end_combat': _end_combat,
         'get_entity_details': _get_entity_details,
         'update_component': _update_component,
         'add_component': _add_component,
