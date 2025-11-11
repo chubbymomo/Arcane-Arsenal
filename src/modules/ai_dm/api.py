@@ -60,13 +60,14 @@ def ensure_modules_loaded():
         logger.info(f"✓ Modules loaded for AI DM: {world_name}")
 
 
-def generate_intro_for_character(engine, entity_id):
+def generate_intro_for_character(engine, entity_id, scenario_suggestion=None):
     """
     Generate AI intro for a character.
 
     Args:
         engine: StateEngine instance
         entity_id: ID of the character entity
+        scenario_suggestion: Optional user suggestion for the scenario
 
     Returns:
         dict with keys: success, message_id, intro_text, starting_location_id, error
@@ -97,10 +98,26 @@ def generate_intro_for_character(engine, entity_id):
         ai_context = engine.generate_ai_context(entity_id)
         full_system_prompt = build_full_prompt(ai_context)
 
+        # Build intro prompt with optional user suggestion
         intro_prompt = (
             "Create a compelling, ORIGINAL opening scene for this character's adventure. "
             "Be creative and unexpected - avoid clichés and make each intro memorable and distinct.\n"
             "\n"
+        )
+
+        # Add user suggestion if provided
+        if scenario_suggestion:
+            intro_prompt += (
+                f"USER'S SCENARIO SUGGESTION:\n"
+                f"{scenario_suggestion}\n"
+                "\n"
+                "IMPORTANT: Incorporate the user's suggestion into your opening scene. Use their ideas as "
+                "inspiration while expanding on them with your own creative details. Make sure the final "
+                "scenario aligns with what they requested while still being engaging and well-crafted.\n"
+                "\n"
+            )
+
+        intro_prompt += (
             "VARIETY IS ESSENTIAL:\n"
             "- Choose starting locations that fit the character: festivals, wilderness, ships, workshops, "
             "courts, temples, markets, ruins, or anywhere interesting\n"

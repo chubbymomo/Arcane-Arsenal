@@ -88,6 +88,13 @@
                                 <div class="scenario-desc">Let the AI create a unique opening scene for you</div>
                             </div>
                         </label>
+                        <div x-show="scenarioType === 'ai_generated'" class="scenario-details">
+                            <label for="scenario_suggestion">Scenario Suggestion (Optional)</label>
+                            <textarea id="scenario_suggestion" name="scenario_suggestion" rows="3"
+                                      placeholder="e.g., Start me in a dark forest with mysterious ruins, or I want to begin in a bustling marketplace"
+                                      class="form-control"></textarea>
+                            <small class="form-text">Provide any ideas or preferences for your starting scenario. The AI will incorporate your suggestions into the generated opening scene.</small>
+                        </div>
                     </div>
                     <small class="form-text">Choose how your adventure begins</small>
                 </div>
