@@ -982,67 +982,168 @@ def send_dm_message_stream():
                     })
 
                     # Get narrative response (stream it!)
-                    # Enable tools in second turn so Claude can create locations/NPCs while narrating
+                    # Multi-turn loop to handle tools in second turn
+                    # This allows Claude to create locations/NPCs while narrating
                     full_response = ""
-                    in_actions_block = False  # Reset for second turn
-                    buffer = ""  # Reset buffer for second turn
-                    for chunk in llm.generate_response_stream(
-                        messages=llm_messages,
-                        system=full_system_prompt,
-                        max_tokens=config.ai_max_tokens,
-                        temperature=config.ai_temperature,
-                        tools=anthropic_tools if anthropic_tools else None
-                    ):
-                        if chunk['type'] == 'text':
-                            content = chunk['content']
-                            full_response += content
+                    turn_number = 2
+                    max_additional_turns = 5
 
-                            # Combine buffer with new content to detect tags across boundaries
-                            combined = buffer + content
+                    while turn_number <= max_additional_turns:
+                        logger.info(f"=== Turn {turn_number}: Waiting for AI response ===")
 
-                            # Filter out <actions> block from streaming
-                            # Handle case where entire block is in combined content
-                            if '<actions>' in combined and '</actions>' in combined:
-                                # Complete actions block - remove it entirely
-                                before = combined.split('<actions>')[0]
-                                after = combined.split('</actions>')[-1]
-                                filtered = before + after
-                                if filtered.strip():
-                                    yield f"data: {json.dumps({'type': 'token', 'content': filtered})}\n\n"
-                                buffer = ""
-                            elif '<actions>' in combined:
-                                # Opening tag - start filtering
-                                in_actions_block = True
-                                before_actions = combined.split('<actions>')[0]
-                                if before_actions:
-                                    yield f"data: {json.dumps({'type': 'token', 'content': before_actions})}\n\n"
-                                buffer = ""
-                            elif '</actions>' in combined:
-                                # Closing tag - stop filtering
-                                in_actions_block = False
-                                after_actions = combined.split('</actions>')[-1]
-                                if after_actions:
-                                    yield f"data: {json.dumps({'type': 'token', 'content': after_actions})}\n\n"
-                                buffer = ""
-                            elif not in_actions_block:
-                                # Normal content - check if combined ends with partial tag
-                                holdback_len = ends_with_partial_tag(combined)
+                        # Reset for this turn
+                        in_actions_block = False
+                        buffer = ""
+                        current_tool = None
+                        tool_input_json = ""
+                        tool_uses = []
 
-                                # Stream everything except potential partial tag
-                                if len(combined) > holdback_len:
-                                    to_stream = combined[:len(combined) - holdback_len]
-                                    if to_stream:
-                                        yield f"data: {json.dumps({'type': 'token', 'content': to_stream})}\n\n"
+                        for chunk in llm.generate_response_stream(
+                            messages=llm_messages,
+                            system=full_system_prompt,
+                            max_tokens=config.ai_max_tokens,
+                            temperature=config.ai_temperature,
+                            tools=anthropic_tools if anthropic_tools else None
+                        ):
+                            if chunk['type'] == 'text':
+                                content = chunk['content']
+                                full_response += content
 
-                                # Keep potential partial tag in buffer
-                                buffer = combined[-holdback_len:] if holdback_len > 0 else ""
-                            else:
-                                # Inside actions block, skip streaming
-                                buffer = ""
+                                # Combine buffer with new content to detect tags across boundaries
+                                combined = buffer + content
 
-                    # Flush any remaining buffer content at end of Turn 2
-                    if buffer and not in_actions_block:
-                        yield f"data: {json.dumps({'type': 'token', 'content': buffer})}\n\n"
+                                # Filter out <actions> block from streaming
+                                # Handle case where entire block is in combined content
+                                if '<actions>' in combined and '</actions>' in combined:
+                                    # Complete actions block - remove it entirely
+                                    before = combined.split('<actions>')[0]
+                                    after = combined.split('</actions>')[-1]
+                                    filtered = before + after
+                                    if filtered.strip():
+                                        yield f"data: {json.dumps({'type': 'token', 'content': filtered})}\n\n"
+                                    buffer = ""
+                                elif '<actions>' in combined:
+                                    # Opening tag - start filtering
+                                    in_actions_block = True
+                                    before_actions = combined.split('<actions>')[0]
+                                    if before_actions:
+                                        yield f"data: {json.dumps({'type': 'token', 'content': before_actions})}\n\n"
+                                    buffer = ""
+                                elif '</actions>' in combined:
+                                    # Closing tag - stop filtering
+                                    in_actions_block = False
+                                    after_actions = combined.split('</actions>')[-1]
+                                    if after_actions:
+                                        yield f"data: {json.dumps({'type': 'token', 'content': after_actions})}\n\n"
+                                    buffer = ""
+                                elif not in_actions_block:
+                                    # Normal content - check if combined ends with partial tag
+                                    holdback_len = ends_with_partial_tag(combined)
+
+                                    # Stream everything except potential partial tag
+                                    if len(combined) > holdback_len:
+                                        to_stream = combined[:len(combined) - holdback_len]
+                                        if to_stream:
+                                            yield f"data: {json.dumps({'type': 'token', 'content': to_stream})}\n\n"
+
+                                    # Keep potential partial tag in buffer
+                                    buffer = combined[-holdback_len:] if holdback_len > 0 else ""
+                                else:
+                                    # Inside actions block, skip streaming
+                                    buffer = ""
+
+                            elif chunk['type'] == 'tool_use_start':
+                                # Save previous tool if exists
+                                if current_tool and tool_input_json:
+                                    try:
+                                        tool_uses.append({
+                                            'id': current_tool['id'],
+                                            'name': current_tool['name'],
+                                            'input': json.loads(tool_input_json)
+                                        })
+                                    except json.JSONDecodeError:
+                                        logger.error(f"Failed to parse tool input for {current_tool['name']}")
+
+                                # Start new tool
+                                current_tool = {
+                                    'id': chunk['tool_use_id'],
+                                    'name': chunk['tool_name']
+                                }
+                                tool_input_json = ""
+                                # Notify frontend
+                                yield f"data: {json.dumps({'type': 'tool_start', 'tool_name': chunk['tool_name']})}\n\n"
+                                logger.info(f"Turn {turn_number} - AI using tool: {chunk['tool_name']}")
+
+                            elif chunk['type'] == 'tool_input_delta':
+                                # Accumulate tool input JSON
+                                tool_input_json += chunk['partial_json']
+
+                        # Flush any remaining buffer content
+                        if buffer and not in_actions_block:
+                            yield f"data: {json.dumps({'type': 'token', 'content': buffer})}\n\n"
+
+                        # Save last tool
+                        if current_tool and tool_input_json:
+                            try:
+                                tool_uses.append({
+                                    'id': current_tool['id'],
+                                    'name': current_tool['name'],
+                                    'input': json.loads(tool_input_json)
+                                })
+                            except json.JSONDecodeError as e:
+                                logger.error(f"Failed to parse final tool input: {e}")
+
+                        logger.info(f"=== Turn {turn_number} complete: {len(tool_uses)} tools, {len(full_response)} chars text ===")
+
+                        # If no tools used, we have the final narrative
+                        if not tool_uses:
+                            break
+
+                        # Execute tools for next turn
+                        logger.info(f"Executing {len(tool_uses)} tools...")
+                        new_tool_results = []
+                        for tool_use in tool_uses:
+                            logger.info(f"Executing: {tool_use['name']}")
+                            try:
+                                result = execute_tool(
+                                    tool_use['name'],
+                                    tool_use['input'],
+                                    engine,
+                                    entity_id
+                                )
+                                new_tool_results.append({
+                                    'tool_use_id': tool_use['id'],
+                                    'result': result
+                                })
+                                logger.info(f"  Result: {result['success']} - {result['message']}")
+                                yield f"data: {json.dumps({'type': 'tool_result', 'tool_name': tool_use['name'], 'success': result['success']})}\n\n"
+                            except Exception as e:
+                                logger.error(f"Tool execution failed: {e}")
+                                yield f"data: {json.dumps({'type': 'error', 'error': f'Tool execution failed: {str(e)}'})}\n\n"
+
+                        # Prepare next turn with tool results
+                        tool_result_content = []
+                        for tr in new_tool_results:
+                            result_text = tr['result']['message']
+                            tool_result_content.append({
+                                'type': 'tool_result',
+                                'tool_use_id': tr['tool_use_id'],
+                                'content': result_text
+                            })
+
+                        # Add assistant message with tool uses
+                        llm_messages.append({
+                            'role': 'assistant',
+                            'content': [{'type': 'tool_use', 'id': tu['id'], 'name': tu['name'], 'input': tu['input']} for tu in tool_uses]
+                        })
+
+                        # Add user message with tool results
+                        llm_messages.append({
+                            'role': 'user',
+                            'content': tool_result_content
+                        })
+
+                        turn_number += 1
 
                 logger.debug(f"Streaming complete. Full response length: {len(full_response)} chars")
                 logger.debug(f"Response preview: {full_response[:200]}...")
