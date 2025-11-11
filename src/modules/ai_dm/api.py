@@ -373,25 +373,43 @@ def generate_intro_for_character(engine, entity_id, scenario_suggestion=None):
 
         logger.info(f"Generated AI intro for character {entity_id}")
 
-        # Entity-based positioning: Move player to created location if any
-        location_entities = engine.query_entities(['Location'])
-        starting_location_id = None
-        if location_entities:
-            # Get the first (most recent) location
-            starting_location = location_entities[0]
-            logger.info(f"Found starting location: {starting_location.name} ({starting_location.id})")
+        # Check if player was already positioned by AI during intro generation
+        # If move_player_to_location was used, respect that choice - don't override!
+        position = engine.get_component(entity_id, 'Position')
+        current_region = position.data.get('region') if position else None
 
-            # Update player's Position to be AT this location (entity-based)
-            position = engine.get_component(entity_id, 'Position')
-            if position:
-                engine.update_component(entity_id, 'Position', {
-                    **position.data,
-                    'region': starting_location.id  # Entity reference!
-                })
-                starting_location_id = starting_location.id
-                logger.info(f"  → Moved player to location entity: {starting_location.id}")
-        else:
-            logger.warning("No location entities found after AI intro - player remains in named region")
+        # Check if current position is already a valid location entity
+        starting_location_id = None
+        if current_region and current_region.startswith('entity_'):
+            # Player is already positioned at a location entity - check if it's valid
+            location_comp = engine.get_component(current_region, 'Location')
+            if location_comp:
+                # Player was already positioned correctly by AI tools
+                starting_location_id = current_region
+                logger.info(f"Player already positioned at location {current_region} by AI - keeping this position")
+            else:
+                # Position references an entity that's not a location - need to fix
+                logger.warning(f"Player position references non-location entity {current_region} - will reposition")
+                current_region = None
+
+        # Only reposition if player wasn't already positioned at a valid location
+        if not starting_location_id:
+            location_entities = engine.query_entities(['Location'])
+            if location_entities:
+                # Get the first location as fallback
+                starting_location = location_entities[0]
+                logger.info(f"Found fallback location: {starting_location.name} ({starting_location.id})")
+
+                # Update player's Position to be AT this location (entity-based)
+                if position:
+                    engine.update_component(entity_id, 'Position', {
+                        **position.data,
+                        'region': starting_location.id  # Entity reference!
+                    })
+                    starting_location_id = starting_location.id
+                    logger.info(f"  → Moved player to fallback location entity: {starting_location.id}")
+            else:
+                logger.warning("No location entities found after AI intro - player remains in named region")
 
         return {
             'success': True,
