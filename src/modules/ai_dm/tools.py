@@ -560,6 +560,109 @@ _CORE_TOOL_DEFINITIONS = [
         }
     },
     {
+        "name": "create_spell",
+        "description": "Create a new custom spell and add it to the spell registry. Use this to add unique, world-specific, or homebrewed spells during the campaign.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "spell_key": {
+                    "type": "string",
+                    "description": "Unique identifier for the spell (e.g., 'arcane_blast', 'healing_word')"
+                },
+                "spell_name": {
+                    "type": "string",
+                    "description": "Display name of the spell (e.g., 'Arcane Blast', 'Healing Word')"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "What the spell does"
+                },
+                "level": {
+                    "type": "integer",
+                    "description": "Spell level (0 for cantrips, 1-9 for leveled spells)"
+                },
+                "school": {
+                    "type": "string",
+                    "description": "School of magic: evocation, abjuration, conjuration, transmutation, enchantment, illusion, divination, necromancy"
+                },
+                "damage": {
+                    "type": "string",
+                    "description": "Optional: Damage dice if it's a damage spell (e.g., '3d8', '1d10')"
+                },
+                "damage_type": {
+                    "type": "string",
+                    "description": "Optional: Type of damage (fire, cold, lightning, force, etc.)"
+                },
+                "healing": {
+                    "type": "string",
+                    "description": "Optional: Healing dice if it's a healing spell (e.g., '2d8', '1d4')"
+                },
+                "condition": {
+                    "type": "string",
+                    "description": "Optional: Condition applied by spell (e.g., 'Frightened', 'Charmed', 'Paralyzed')"
+                },
+                "utility": {
+                    "type": "boolean",
+                    "description": "Whether this is a utility spell (no damage/healing)"
+                }
+            },
+            "required": ["spell_key", "spell_name", "description", "level", "school"]
+        }
+    },
+    {
+        "name": "cast_spell",
+        "description": "Cast a spell that has mechanical effects (damage, healing, conditions). Automatically consumes spell slot if applicable. For narrative-only spells, just narrate the effect without using this tool.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "caster_name": {
+                    "type": "string",
+                    "description": "Name of entity casting the spell"
+                },
+                "spell_key": {
+                    "type": "string",
+                    "description": "Key of spell being cast (must exist in spells registry)"
+                },
+                "target_names": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional: Names of targets (for damage/healing/condition spells)"
+                },
+                "upcast_level": {
+                    "type": "integer",
+                    "description": "Optional: Spell slot level used if upcasting (must be >= spell level)"
+                }
+            },
+            "required": ["caster_name", "spell_key"]
+        }
+    },
+    {
+        "name": "learn_spell",
+        "description": "Add a spell to a character's known spells or prepared spells. Use when they learn a new spell (level up, find scroll, quest reward, etc.).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "character_name": {
+                    "type": "string",
+                    "description": "Name of character learning the spell"
+                },
+                "spell_key": {
+                    "type": "string",
+                    "description": "Key of spell to learn (must exist in spells registry)"
+                },
+                "prepare": {
+                    "type": "boolean",
+                    "description": "Whether to also prepare the spell (add to prepared_spells). Default: false"
+                },
+                "as_cantrip": {
+                    "type": "boolean",
+                    "description": "Whether to add as a cantrip (level 0 spell). Default: false"
+                }
+            },
+            "required": ["character_name", "spell_key"]
+        }
+    },
+    {
         "name": "get_entity_details",
         "description": "Get complete details about an entity including all its components. Use this to inspect an entity's current state before modifying it.",
         "input_schema": {
@@ -2207,6 +2310,290 @@ def _end_combat(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Di
     }
 
 
+def _create_spell(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+    """Create a new spell and add it to the registry."""
+    from src.modules.generic_fantasy.spell_utils import add_spell
+
+    spell_key = tool_input["spell_key"]
+    spell_name = tool_input["spell_name"]
+    description = tool_input["description"]
+    level = tool_input["level"]
+    school = tool_input["school"]
+
+    # Build metadata
+    metadata = {
+        "level": level,
+        "school": school
+    }
+
+    # Add optional fields
+    if "damage" in tool_input:
+        metadata["damage"] = tool_input["damage"]
+    if "damage_type" in tool_input:
+        metadata["damage_type"] = tool_input["damage_type"]
+    if "healing" in tool_input:
+        metadata["healing"] = tool_input["healing"]
+    if "condition" in tool_input:
+        metadata["condition"] = tool_input["condition"]
+    if "utility" in tool_input:
+        metadata["utility"] = tool_input["utility"]
+
+    # Add spell to registry
+    success = add_spell(engine, spell_key, f"{spell_name} - {description}", metadata)
+
+    if success:
+        message = f"Created new spell: **{spell_name}** (Level {level} {school.capitalize()})"
+        if "damage" in metadata:
+            message += f"\nDamage: {metadata['damage']} {metadata.get('damage_type', 'untyped')}"
+        if "healing" in metadata:
+            message += f"\nHealing: {metadata['healing']}"
+
+        logger.info(f"AI created spell: {spell_key}")
+
+        return {
+            "success": True,
+            "message": message,
+            "data": {"spell_key": spell_key, "metadata": metadata}
+        }
+    else:
+        return {"success": False, "message": f"Failed to create spell: {spell_key}"}
+
+
+def _cast_spell(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+    """Cast a spell with mechanical effects."""
+    from src.modules.rng.dice_roller import DiceRoller
+    from src.modules.generic_combat.combat_system import apply_condition
+
+    caster_name = tool_input["caster_name"]
+    spell_key = tool_input["spell_key"]
+    target_names = tool_input.get("target_names", [])
+    upcast_level = tool_input.get("upcast_level")
+
+    resolver = EntityResolver(engine)
+
+    # Resolve caster
+    caster = resolver.resolve_entity(caster_name)
+    if not caster:
+        return {"success": False, "message": f"Could not find caster: {caster_name}"}
+
+    # Get spell from registry
+    spells_registry = engine.create_registry('spells', 'generic_fantasy')
+    spell_data = spells_registry.get(spell_key)
+
+    if not spell_data:
+        return {"success": False, "message": f"Spell '{spell_key}' not found in registry"}
+
+    spell_meta = spell_data.get('metadata', {})
+    spell_level = spell_meta.get('level', 0)
+    spell_name = spell_data.get('description', spell_key).split(' - ')[0]
+
+    # Check if caster has Magic component
+    magic = engine.get_component(caster.id, 'Magic')
+
+    # Consume spell slot if not a cantrip
+    if spell_level > 0 and magic:
+        slot_level = upcast_level if upcast_level and upcast_level >= spell_level else spell_level
+        slot_key = str(slot_level)
+        spell_slots = magic.data.get('spell_slots', {})
+
+        if slot_key in spell_slots:
+            slot_data = spell_slots[slot_key]
+            current = slot_data.get('current', 0)
+
+            if current <= 0:
+                return {
+                    "success": False,
+                    "message": f"{caster.name} has no level {slot_level} spell slots remaining"
+                }
+
+            # Consume slot
+            spell_slots[slot_key]['current'] = current - 1
+            engine.update_component(caster.id, 'Magic', {'spell_slots': spell_slots})
+        else:
+            return {
+                "success": False,
+                "message": f"{caster.name} doesn't have level {slot_level} spell slots"
+            }
+
+    # Apply spell effects
+    results = []
+    roller = DiceRoller(engine)
+
+    # Damage spell
+    if 'damage' in spell_meta:
+        damage_dice = spell_meta['damage']
+        damage_type = spell_meta.get('damage_type', 'force')
+
+        for target_name in target_names:
+            target = resolver.resolve_entity(target_name)
+            if not target:
+                results.append(f"⚠ Could not find target: {target_name}")
+                continue
+
+            # Roll damage
+            roll_result = roller.roll(caster.id, damage_dice, roll_type='damage')
+            if roll_result.success:
+                damage = roll_result.data['total']
+
+                # Apply damage
+                target_health = engine.get_component(target.id, 'Health')
+                if target_health:
+                    health_data = target_health.data.copy()
+                    health_data['current_hp'] = max(0, health_data.get('current_hp', 0) - damage)
+                    engine.update_component(target.id, 'Health', health_data)
+
+                    results.append(f"**{target.name}** takes {damage} {damage_type} damage")
+                else:
+                    results.append(f"⚠ {target.name} has no Health component")
+
+    # Healing spell
+    elif 'healing' in spell_meta:
+        healing_dice = spell_meta['healing']
+
+        for target_name in target_names:
+            target = resolver.resolve_entity(target_name)
+            if not target:
+                results.append(f"⚠ Could not find target: {target_name}")
+                continue
+
+            # Roll healing
+            roll_result = roller.roll(caster.id, healing_dice, roll_type='healing')
+            if roll_result.success:
+                healing = roll_result.data['total']
+
+                # Apply healing
+                target_health = engine.get_component(target.id, 'Health')
+                if target_health:
+                    health_data = target_health.data.copy()
+                    current_hp = health_data.get('current_hp', 0)
+                    max_hp = health_data.get('max_hp', 1)
+                    health_data['current_hp'] = min(max_hp, current_hp + healing)
+                    engine.update_component(target.id, 'Health', health_data)
+
+                    results.append(f"**{target.name}** heals {healing} HP")
+                else:
+                    results.append(f"⚠ {target.name} has no Health component")
+
+    # Condition spell
+    elif 'condition' in spell_meta:
+        condition_name = spell_meta['condition']
+
+        for target_name in target_names:
+            target = resolver.resolve_entity(target_name)
+            if not target:
+                results.append(f"⚠ Could not find target: {target_name}")
+                continue
+
+            # Apply condition
+            apply_condition(
+                engine,
+                target.id,
+                condition_name,
+                f"Affected by {spell_name}",
+                duration_type="rounds",
+                duration_remaining=1,
+                source_entity_id=caster.id
+            )
+
+            results.append(f"**{target.name}** is now {condition_name}")
+
+    # Utility spell
+    else:
+        results.append(f"{spell_name} cast successfully (utility spell - narrate effects)")
+
+    message = f"**{caster.name}** casts **{spell_name}**!\n" + "\n".join(results)
+
+    logger.info(f"Spell cast: {spell_key} by {caster.name}")
+
+    return {
+        "success": True,
+        "message": message,
+        "data": {
+            "spell_key": spell_key,
+            "spell_level": spell_level,
+            "results": results
+        }
+    }
+
+
+def _learn_spell(engine, player_entity_id: str, tool_input: Dict[str, Any]) -> Dict[str, Any]:
+    """Add a spell to a character's known spells."""
+    character_name = tool_input["character_name"]
+    spell_key = tool_input["spell_key"]
+    prepare = tool_input.get("prepare", False)
+    as_cantrip = tool_input.get("as_cantrip", False)
+
+    resolver = EntityResolver(engine)
+
+    # Resolve character
+    character = resolver.resolve_entity(character_name)
+    if not character:
+        return {"success": False, "message": f"Could not find character: {character_name}"}
+
+    # Check spell exists
+    spells_registry = engine.create_registry('spells', 'generic_fantasy')
+    spell_data = spells_registry.get(spell_key)
+
+    if not spell_data:
+        return {"success": False, "message": f"Spell '{spell_key}' not found in registry"}
+
+    spell_name = spell_data.get('description', spell_key).split(' - ')[0]
+
+    # Get or create Magic component
+    magic = engine.get_component(character.id, 'Magic')
+    if not magic:
+        # Add Magic component if missing
+        char_details = engine.get_component(character.id, 'CharacterDetails')
+        spell_ability = 'intelligence'  # default
+
+        if char_details:
+            char_class = char_details.data.get('character_class', 'wizard')
+            classes_registry = engine.create_registry('classes', 'generic_fantasy')
+            class_data = classes_registry.get(char_class)
+            if class_data:
+                spell_ability = class_data.get('metadata', {}).get('spellcasting_ability', 'intelligence')
+
+        engine.add_component(character.id, 'Magic', {
+            'spellcasting_ability': spell_ability,
+            'spell_slots': {},
+            'known_spells': [],
+            'prepared_spells': [],
+            'cantrips': []
+        })
+        magic = engine.get_component(character.id, 'Magic')
+
+    magic_data = magic.data.copy()
+
+    # Add spell
+    if as_cantrip:
+        if spell_name not in magic_data.get('cantrips', []):
+            magic_data.setdefault('cantrips', []).append(spell_name)
+            message = f"**{character.name}** learns cantrip: **{spell_name}**"
+        else:
+            return {"success": False, "message": f"{character.name} already knows {spell_name}"}
+    else:
+        if spell_name not in magic_data.get('known_spells', []):
+            magic_data.setdefault('known_spells', []).append(spell_name)
+            message = f"**{character.name}** learns spell: **{spell_name}**"
+
+            if prepare:
+                magic_data.setdefault('prepared_spells', []).append(spell_name)
+                message += " (and prepares it)"
+        else:
+            return {"success": False, "message": f"{character.name} already knows {spell_name}"}
+
+    # Update component
+    engine.update_component(character.id, 'Magic', magic_data)
+
+    logger.info(f"{character.name} learned spell: {spell_key}")
+
+    return {
+        "success": True,
+        "message": message,
+        "data": {"spell_key": spell_key, "spell_name": spell_name}
+    }
+
+
 def _initialize_core_tools():
     """Register all core DM tools."""
     core_handlers = {
@@ -2227,6 +2614,9 @@ def _initialize_core_tools():
         'apply_condition': _apply_condition,
         'end_turn': _end_turn,
         'end_combat': _end_combat,
+        'create_spell': _create_spell,
+        'cast_spell': _cast_spell,
+        'learn_spell': _learn_spell,
         'get_entity_details': _get_entity_details,
         'update_component': _update_component,
         'add_component': _add_component,

@@ -267,8 +267,18 @@ class GenericFantasyModule(Module):
         # === Spells Registry ===
         # Create empty spell registry - spells are loaded from data files or added by DMs
         # See: data/spells/starter_spells.json for example spell data
-        # Use spell_utils.load_spells_from_file() to load spells into the registry
         engine.create_registry('spells', self.name)
+
+        # Load starter spells if available
+        from pathlib import Path
+        from .spell_utils import load_spells_from_file
+
+        starter_spells_path = Path(__file__).parent.parent.parent / 'data' / 'spells' / 'starter_spells.json'
+        if starter_spells_path.exists():
+            spell_count = load_spells_from_file(engine, str(starter_spells_path), self.name)
+            logger.info(f"Loaded {spell_count} starter spells")
+        else:
+            logger.warning(f"Starter spells file not found at: {starter_spells_path}")
 
         # Store engine reference for event handlers
         self.engine = engine
