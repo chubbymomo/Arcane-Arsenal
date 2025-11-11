@@ -435,14 +435,14 @@ class AIContextBuilder:
     def build_conversation_history(
         self,
         entity_id: str,
-        limit: int = 10
+        limit: int = 5
     ) -> List[Dict[str, Any]]:
         """
         Build recent conversation history.
 
         Args:
             entity_id: ID of the character entity
-            limit: Maximum number of messages to include
+            limit: Maximum number of messages to include (default: 5, reduced for token efficiency)
 
         Returns:
             List of message dicts in chronological order
@@ -487,10 +487,10 @@ class AIContextBuilder:
     def build_recent_events(
         self,
         entity_id: str,
-        limit: int = 5
+        limit: int = 3
     ) -> List[Dict[str, Any]]:
         """
-        Build recent game events for context.
+        Build recent game events for context (default: 3, reduced for token efficiency).
 
         Args:
             entity_id: ID of the character entity

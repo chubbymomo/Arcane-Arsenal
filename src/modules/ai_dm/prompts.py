@@ -14,13 +14,20 @@ logger = logging.getLogger(__name__)
 # Default system prompt path
 DEFAULT_SYSTEM_PROMPT_PATH = Path(__file__).parent / 'prompts' / 'dm_system.txt'
 
+# In-memory cache for static prompt components
+_PROMPT_CACHE = {
+    'system_prompt': None,
+    'tool_documentation': None
+}
 
-def load_system_prompt(prompt_path: str = None) -> str:
+
+def load_system_prompt(prompt_path: str = None, use_cache: bool = True) -> str:
     """
-    Load system prompt from file.
+    Load system prompt from file with optional caching.
 
     Args:
         prompt_path: Path to prompt file (uses default if not provided)
+        use_cache: Whether to use in-memory cache (default: True)
 
     Returns:
         System prompt text
@@ -28,6 +35,11 @@ def load_system_prompt(prompt_path: str = None) -> str:
     Raises:
         FileNotFoundError: If prompt file doesn't exist
     """
+    # Return cached version if available and caching is enabled
+    if use_cache and prompt_path is None and _PROMPT_CACHE['system_prompt']:
+        logger.debug("Using cached system prompt")
+        return _PROMPT_CACHE['system_prompt']
+
     if prompt_path is None:
         prompt_path = DEFAULT_SYSTEM_PROMPT_PATH
     else:
@@ -41,6 +53,12 @@ def load_system_prompt(prompt_path: str = None) -> str:
         prompt = f.read()
 
     logger.info(f"Loaded system prompt from {prompt_path} ({len(prompt)} characters)")
+
+    # Cache if using default path
+    if use_cache and prompt_path == DEFAULT_SYSTEM_PROMPT_PATH:
+        _PROMPT_CACHE['system_prompt'] = prompt
+        logger.debug("Cached system prompt for future use")
+
     return prompt
 
 
@@ -317,8 +335,9 @@ def build_message_history(messages: List[Dict], limit: int = 10, player_message:
 def build_full_prompt(
     ai_context: Dict[str, Any],
     system_prompt: str = None,
-    include_tool_docs: bool = True
-) -> str:
+    include_tool_docs: bool = True,
+    use_caching: bool = True
+):
     """
     Build complete system prompt with context.
 
@@ -329,17 +348,20 @@ def build_full_prompt(
         ai_context: Context from engine.generate_ai_context()
         system_prompt: System prompt text (loads from file if not provided)
         include_tool_docs: Whether to include dynamic tool documentation (default: True)
+        use_caching: Whether to use Anthropic prompt caching (default: True)
+                    Returns list format with cache_control when True,
+                    string format when False
 
     Returns:
-        Complete system prompt with context
+        Complete system prompt - either as structured list (with caching) or string
 
     Example:
         >>> context = engine.generate_ai_context(entity_id)
-        >>> full_prompt = build_full_prompt(context)
-        >>> # Use with LLM
+        >>> full_prompt = build_full_prompt(context, use_caching=True)
+        >>> # Use with LLM - caching enabled
         >>> response = llm.generate_response(
         ...     messages=conversation,
-        ...     system=full_prompt
+        ...     system=full_prompt  # List with cache_control blocks
         ... )
     """
     if system_prompt is None:
@@ -347,25 +369,64 @@ def build_full_prompt(
 
     context_prompt = build_context_prompt(ai_context)
 
-    # Build prompt sections
-    prompt_sections = [system_prompt]
-
-    # Add dynamic tool documentation if requested
+    # Get tool documentation if requested (with caching)
+    tool_docs = None
     if include_tool_docs:
-        try:
-            from .tools import generate_tool_documentation
-            tool_docs = generate_tool_documentation()
+        # Check cache first
+        if _PROMPT_CACHE['tool_documentation']:
+            logger.debug("Using cached tool documentation")
+            tool_docs = _PROMPT_CACHE['tool_documentation']
+        else:
+            try:
+                from .tools import generate_tool_documentation
+                tool_docs = generate_tool_documentation()
+                # Cache for future use
+                _PROMPT_CACHE['tool_documentation'] = tool_docs
+                logger.debug("Cached tool documentation for future use")
+            except ImportError:
+                logger.warning("Could not import tool documentation generator")
+
+    # Use Anthropic prompt caching format (list of content blocks)
+    if use_caching:
+        system_blocks = []
+
+        # Block 1: Core system prompt (CACHED - rarely changes)
+        system_blocks.append({
+            "type": "text",
+            "text": system_prompt,
+            "cache_control": {"type": "ephemeral"}
+        })
+
+        # Block 2: Tool documentation (CACHED - static per session)
+        if tool_docs:
+            system_blocks.append({
+                "type": "text",
+                "text": f"---\n\n{tool_docs}",
+                "cache_control": {"type": "ephemeral"}
+            })
+
+        # Block 3: Current game state (NOT CACHED - changes every turn)
+        system_blocks.append({
+            "type": "text",
+            "text": f"---\n\n# Current Game State\n\n{context_prompt}"
+        })
+
+        total_chars = sum(len(block["text"]) for block in system_blocks)
+        logger.debug(f"Built prompt with caching: {total_chars} characters across {len(system_blocks)} blocks")
+        return system_blocks
+
+    # Legacy string format (backwards compatibility)
+    else:
+        prompt_sections = [system_prompt]
+
+        if tool_docs:
             prompt_sections.append(f"---\n\n{tool_docs}")
-        except ImportError:
-            logger.warning("Could not import tool documentation generator")
 
-    # Add current game state
-    prompt_sections.append(f"---\n\n# Current Game State\n\n{context_prompt}")
+        prompt_sections.append(f"---\n\n# Current Game State\n\n{context_prompt}")
 
-    full_prompt = "\n\n".join(prompt_sections)
-
-    logger.debug(f"Built full prompt: {len(full_prompt)} characters")
-    return full_prompt
+        full_prompt = "\n\n".join(prompt_sections)
+        logger.debug(f"Built full prompt (string): {len(full_prompt)} characters")
+        return full_prompt
 
 
 __all__ = [

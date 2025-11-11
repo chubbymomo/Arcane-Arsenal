@@ -143,7 +143,7 @@ class AnthropicProvider(LLMProvider):
 
         Args:
             messages: Conversation history
-            system: System prompt
+            system: System prompt (string or list of content blocks with cache_control)
             max_tokens: Maximum response length
             temperature: Sampling temperature
             **kwargs: Additional Anthropic-specific parameters
@@ -157,13 +157,18 @@ class AnthropicProvider(LLMProvider):
         try:
             logger.debug(f"Calling Anthropic API with {len(messages)} messages")
 
-            response = self.client.messages.create(
-                model=kwargs.get('model', self.model),
-                max_tokens=max_tokens,
-                temperature=temperature,
-                system=system if system else None,
-                messages=messages
-            )
+            api_kwargs = {
+                'model': kwargs.get('model', self.model),
+                'max_tokens': max_tokens,
+                'temperature': temperature,
+                'messages': messages
+            }
+
+            # Support both string and list format for system (list enables caching)
+            if system:
+                api_kwargs['system'] = system
+
+            response = self.client.messages.create(**api_kwargs)
 
             # Extract text from response
             text = response.content[0].text
@@ -188,7 +193,7 @@ class AnthropicProvider(LLMProvider):
 
         Args:
             messages: Conversation history
-            system: System prompt
+            system: System prompt (string or list of content blocks with cache_control)
             max_tokens: Maximum response length
             temperature: Sampling temperature
             **kwargs: Additional Anthropic-specific parameters (including 'tools')
@@ -210,6 +215,7 @@ class AnthropicProvider(LLMProvider):
                 'messages': messages
             }
 
+            # Support both string and list format for system (list enables caching)
             if system:
                 stream_kwargs['system'] = system
 
